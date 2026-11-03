@@ -1,0 +1,54 @@
+// Root build for the Ping IDM Scripted REST connector for the Graph Entity Service.
+// See docs/delivery-plan.md for the delivery plan and README.md for how to run the suite.
+
+subprojects {
+    apply plugin: 'groovy'
+
+    group = 'au.com.azwork.idm'
+    version = '0.1.0-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+        if (rootProject.findProperty('icfFlavour') == 'forgerock') {
+            maven { url = uri('https://maven.forgerock.org/repo/releases') }
+        }
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    dependencies {
+        implementation "org.codehaus.groovy:groovy:${groovyVersion}"
+        implementation "org.codehaus.groovy:groovy-json:${groovyVersion}"
+
+        // ICF framework: the API the connector scripts are written against.
+        if (rootProject.findProperty('icfFlavour') == 'forgerock') {
+            implementation "org.forgerock.openicf.framework:connector-framework:${forgerockIcfVersion}"
+            testImplementation "org.forgerock.openicf.framework:connector-framework-internal:${forgerockIcfVersion}"
+        } else {
+            implementation "net.tirasa.connid:connector-framework:${connidIcfVersion}"
+            testImplementation "net.tirasa.connid:connector-framework-internal:${connidIcfVersion}"
+        }
+
+        testImplementation platform("org.spockframework:spock-bom:${spockVersion}")
+        testImplementation 'org.spockframework:spock-core'
+        testImplementation "org.wiremock:wiremock-standalone:${wiremockVersion}"
+        testRuntimeOnly 'net.bytebuddy:byte-buddy:1.14.18'
+        testRuntimeOnly 'org.objenesis:objenesis:3.3'
+    }
+
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events 'failed', 'skipped'
+            exceptionFormat 'short'
+            showStandardStreams = false
+        }
+        // Keep running every spec even when stubs make most of them fail.
+        ignoreFailures = false
+        reports.html.required = true
+        reports.junitXml.required = true
+    }
+}

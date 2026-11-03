@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  groovy:
+    name: Connector and discovery (Spock, ConnId ICF flavour)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test
+        run: ./gradlew --no-daemon --continue test
+      - name: Publish test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-reports
+          path: |
+            connector/build/reports/tests/test
+            discovery/build/reports/tests/test
+            connector/build/test-results/test
+            discovery/build/test-results/test
+
+  mapping-lib:
+    name: Mapping library (Node test runner)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm test
+        working-directory: mapping-lib

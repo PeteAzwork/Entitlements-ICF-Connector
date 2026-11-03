@@ -1,0 +1,2 @@
+rootProject.name = 'entitlements-icf-connector'
+include 'connector', 'discovery'

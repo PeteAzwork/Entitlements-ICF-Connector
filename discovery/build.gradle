@@ -1,0 +1,5 @@
+description = 'Discovery tool: generates connector objectTypes configuration and mapping skeletons from managed.json'
+
+dependencies {
+    implementation project(':connector')
+}
