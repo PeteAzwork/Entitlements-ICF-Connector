@@ -1,0 +1,46 @@
+{
+  "_comment": "Mapping skeleton as the discovery tool (design §12) will generate it for managed/user. Target-phase TARGET-only situations REPORT until correlation confidence is earned (§11). entityRelationships and directArchetypes are recomputed on EVERY update (§8.4) - never add a condition to those two property mappings.",
+  "name": "managedUser_systemGraphentityUser",
+  "source": "managed/user",
+  "target": "system/graphentity/user",
+  "enableSync": true,
+  "correlationQuery": {
+    "type": "text/javascript",
+    "source": "var qry = { '_queryFilter': '__NAME__ eq \"' + source.userName + '\"' }; qry;"
+  },
+  "properties": [
+    { "source": "userName", "target": "__NAME__" },
+    { "source": "name", "target": "name" },
+    { "source": "mail", "target": "mail" },
+    { "source": "telephoneNumber", "target": "telephoneNumber" },
+    {
+      "target": "directArchetypes",
+      "transform": {
+        "type": "text/javascript",
+        "source": "var lib = require('lib/graphEntityPayload'); lib.buildArchetypes(source, lib.loadTypeConfig('user'));"
+      }
+    },
+    {
+      "target": "entityRelationships",
+      "transform": {
+        "type": "text/javascript",
+        "source": "var lib = require('lib/graphEntityPayload'); lib.buildRelationships(source._id, lib.loadTypeConfig('user'));"
+      }
+    }
+  ],
+  "policies": [
+    { "situation": "CONFIRMED", "action": "UPDATE" },
+    { "situation": "FOUND", "action": "UPDATE" },
+    { "situation": "ABSENT", "action": "CREATE" },
+    { "situation": "AMBIGUOUS", "action": "EXCEPTION" },
+    { "situation": "MISSING", "action": "DELETE" },
+    { "situation": "UNQUALIFIED", "action": "REPORT" },
+    { "situation": "UNASSIGNED", "action": "REPORT" },
+    { "situation": "TARGET_IGNORED", "action": "REPORT" },
+    { "situation": "SOURCE_IGNORED", "action": "REPORT" },
+    { "situation": "SOURCE_MISSING", "action": "REPORT" },
+    { "situation": "FOUND_ALREADY_LINKED", "action": "EXCEPTION" },
+    { "situation": "LINK_ONLY", "action": "EXCEPTION" },
+    { "situation": "ALL_GONE", "action": "IGNORE" }
+  ]
+}

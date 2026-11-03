@@ -1,0 +1,38 @@
+{
+  "_comment": "Sample Scripted REST provisioner for the Graph Entity Service connector (design §6). The connector-specific settings (objectTypes, timestampSearchParam, pageSizeDefault, deleteMissingTolerated) travel in customConfiguration as a Groovy ConfigSlurper script and surface to the scripts via configuration.propertyBag. objectTypes is a JSON string. Encrypt the password with IDM's crypto service before deploying.",
+  "name": "graphentity",
+  "connectorRef": {
+    "bundleName": "org.forgerock.openicf.connectors.scriptedrest-connector",
+    "bundleVersion": "[1.5.20.0,1.6.0.0)",
+    "connectorName": "org.forgerock.openicf.connectors.scriptedrest.ScriptedRESTConnector"
+  },
+  "configurationProperties": {
+    "serviceAddress": "http://localhost:5276",
+    "username": "svc-idm-sync",
+    "password": "CHANGE-ME-AND-ENCRYPT",
+    "defaultAuthMethod": "BASIC_PREEMPTIVE",
+    "defaultContentType": "application/json",
+    "defaultRequestHeaders": [ "Accept: application/json" ],
+    "scriptExtensions": [ "groovy" ],
+    "sourceEncoding": "UTF-8",
+    "scriptRoots": [ "&{idm.instance.dir}/connectors/graphentity/scripts" ],
+    "classpath": [ "&{idm.instance.dir}/connectors/graphentity/lib" ],
+    "customizerScriptFileName": "CustomizerScript.groovy",
+    "testScriptFileName": "TestScript.groovy",
+    "schemaScriptFileName": "SchemaScript.groovy",
+    "searchScriptFileName": "SearchScript.groovy",
+    "createScriptFileName": "CreateScript.groovy",
+    "updateScriptFileName": "UpdateScript.groovy",
+    "deleteScriptFileName": "DeleteScript.groovy",
+    "customConfiguration": "timestampSearchParam='updatedAfter'; pageSizeDefault=200; deleteMissingTolerated=true; rePutOnDroppedEdges=false; objectTypes='{\"user\":{\"idmResource\":\"managed/user\",\"entityKind\":\"subject\",\"idProperty\":\"userName\",\"attributes\":[\"name\",\"mail\",\"telephoneNumber\"],\"archetypes\":[\"Customer\"],\"archetypeProperty\":null,\"relationships\":{\"owns\":{\"remoteType\":\"Owns\",\"direction\":\"outbound\",\"relatedType\":\"account\",\"reverseProperty\":\"ownedBy\"}}},\"account\":{\"idmResource\":\"managed/account\",\"entityKind\":\"resource\",\"idProperty\":\"accountId\",\"attributes\":[\"name\",\"productCode\"],\"archetypes\":[\"Account\"],\"relationships\":{\"ownedBy\":{\"remoteType\":\"Owns\",\"direction\":\"inbound\",\"relatedType\":\"user\",\"reverseProperty\":\"owns\"}}}}'",
+    "customSensitiveConfiguration": null
+  },
+  "systemActions": [],
+  "objectTypes": {
+    "_comment": "Populated by the Schema operation on first load (IDM refreshes it when the connector configuration is updated). Leave empty in source control."
+  },
+  "operationTimeout": {
+    "CREATE": -1, "UPDATE": -1, "DELETE": -1, "TEST": -1, "SCRIPT_ON_CONNECTOR": -1, "SCRIPT_ON_RESOURCE": -1,
+    "GET": -1, "RESOLVEUSERNAME": -1, "AUTHENTICATE": -1, "SEARCH": -1, "VALIDATE": -1, "SYNC": -1, "SCHEMA": -1
+  }
+}

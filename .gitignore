@@ -1,0 +1,16 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+# Node
+node_modules/
+# OS
+.DS_Store

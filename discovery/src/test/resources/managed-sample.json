@@ -1,0 +1,66 @@
+{
+  "objects": [
+    {
+      "name": "user",
+      "schema": {
+        "properties": {
+          "_id": { "type": "string" },
+          "userName": { "type": "string" },
+          "givenName": { "type": "string" },
+          "sn": { "type": "string" },
+          "mail": { "type": "string" },
+          "telephoneNumber": { "type": "string" },
+          "password": { "type": "string", "isProtected": true },
+          "effectiveRoles": { "type": "array", "isVirtual": true, "items": { "type": "object" } },
+          "owns": {
+            "type": "array",
+            "items": {
+              "type": "relationship",
+              "reversePropertyName": "ownedBy",
+              "resourceCollection": [ { "path": "managed/account" } ]
+            }
+          },
+          "manager": {
+            "type": "relationship",
+            "reversePropertyName": "reports",
+            "resourceCollection": [ { "path": "managed/user" } ]
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "type": "relationship",
+              "reversePropertyName": "manager",
+              "resourceCollection": [ { "path": "managed/user" } ]
+            }
+          },
+          "orphanLink": {
+            "type": "relationship",
+            "resourceCollection": [ { "path": "managed/account" } ]
+          }
+        },
+        "indices": ["userName"]
+      }
+    },
+    {
+      "name": "account",
+      "schema": {
+        "properties": {
+          "_id": { "type": "string" },
+          "accountId": { "type": "string" },
+          "name": { "type": "string" },
+          "productCode": { "type": "string" },
+          "ownedBy": {
+            "type": "relationship",
+            "reversePropertyName": "owns",
+            "resourceCollection": [ { "path": "managed/user" } ]
+          }
+        },
+        "indices": ["accountId"]
+      }
+    },
+    {
+      "name": "role",
+      "schema": { "properties": { "_id": { "type": "string" }, "name": { "type": "string" } } }
+    }
+  ]
+}
