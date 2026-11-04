@@ -12,7 +12,9 @@ describe('library shape (§8.2)', () => {
     });
 
     test('is ES5: no let/const/arrow/template literal/class syntax (runs under Rhino)', () => {
-        const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'lib', 'graphEntityPayload.js'), 'utf8');
+        const raw = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'lib', 'graphEntityPayload.js'), 'utf8');
+        // Only code is checked: comments may legitimately quote identifiers in backticks.
+        const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
         assert.doesNotMatch(src, /^\s*(let|const)\s/m);
         assert.doesNotMatch(src, /=>/);
         assert.doesNotMatch(src, /`/);
@@ -34,7 +36,8 @@ describe('normalisePropertyName / isPassive (§7)', () => {
     }
     for (const bad of [null, undefined, '', '  ']) {
         test(`normalisePropertyName rejects ${JSON.stringify(bad)}`, () => {
-            assert.throws(() => load(fakeOpenidm({})).lib.normalisePropertyName(bad), /property/i);
+            // Message must describe the bad input (a stub's "not implemented" error must not satisfy this).
+            assert.throws(() => load(fakeOpenidm({})).lib.normalisePropertyName(bad), /blank|empty|required/i);
         });
     }
     const passive = [['ownedBy', true], ['managedBy', true], ['ownedBySet', true], ['owns', false], ['manager', false], ['reports', false], ['by', false], ['standby', false]];
@@ -276,6 +279,6 @@ describe('buildArchetypes (§6, §8.2)', () => {
         assert.deepEqual(tc.archetypes, ['Customer']);
     });
     test('a null source object throws', () => {
-        assert.throws(() => lib.buildArchetypes(null, objectTypes().user));
+        assert.throws(() => lib.buildArchetypes(null, objectTypes().user), /source/i);
     });
 });

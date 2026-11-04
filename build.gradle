@@ -22,6 +22,8 @@ subprojects {
     dependencies {
         implementation "org.codehaus.groovy:groovy:${groovyVersion}"
         implementation "org.codehaus.groovy:groovy-json:${groovyVersion}"
+        // HTTP Builder's ParserRegistry loads XmlSlurper types; IDM ships the full Groovy runtime, so this matches production.
+        implementation "org.codehaus.groovy:groovy-xml:${groovyVersion}"
 
         // ICF framework: the API the connector scripts are written against.
         if (rootProject.findProperty('icfFlavour') == 'forgerock') {

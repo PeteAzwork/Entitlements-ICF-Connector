@@ -53,10 +53,21 @@ class MappingSkeletonGeneratorSpec extends Specification {
         !props.find { it.target == 'directArchetypes' }.containsKey('condition')
     }
 
-    def "correlation is on the idProperty"() {
+    def "correlation is a script query matching __NAME__ against the idProperty (as in config/sync-mapping-user.sample.json)"() {
+        when:
+        def q = MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).correlationQuery
+
+        then:
+        q.type == 'text/javascript'
+        q.source.contains('__NAME__')
+        q.source.contains('source.userName')
+    }
+
+    def "every situation IDM can raise has an explicit policy (no reliance on defaults)"() {
         expect:
-        MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).correlationQuery.source.contains('userName') ||
-            MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).correlationQuery.expressionTree
+        MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).policies*.situation as Set ==
+            ['CONFIRMED', 'FOUND', 'ABSENT', 'AMBIGUOUS', 'MISSING', 'UNQUALIFIED', 'UNASSIGNED', 'TARGET_IGNORED',
+             'SOURCE_IGNORED', 'SOURCE_MISSING', 'FOUND_ALREADY_LINKED', 'LINK_ONLY', 'ALL_GONE'] as Set
     }
 
     def "policies are conservative: TARGET-only reports rather than deletes"() {
@@ -64,7 +75,7 @@ class MappingSkeletonGeneratorSpec extends Specification {
         def policies = MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).policies
 
         then:
-        policies.find { it.situation == 'UNQUALIFIED' }?.action == 'REPORT' || true
+        policies.find { it.situation == 'UNQUALIFIED' }.action == 'REPORT'
         policies.find { it.situation == 'TARGET_IGNORED' }.action == 'REPORT'
         policies.find { it.situation == 'ABSENT' }.action == 'CREATE'
         policies.find { it.situation == 'CONFIRMED' }.action == 'UPDATE'

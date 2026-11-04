@@ -25,11 +25,20 @@ class CustomizerScriptSpec extends Specification {
     def cleanupSpec() { wm.stop() }
     def setup() { wm.resetAll() }
 
-    /** Minimal emulation of the harness DSL: collects the init/release closures. */
+    /** Delegate for the `customize { }` block: records each lifecycle closure the script declares. */
+    static class CustomizeDelegate {
+        final Map<String, Closure> captured
+        CustomizeDelegate(Map<String, Closure> captured) { this.captured = captured }
+        void init(Closure c) { captured.init = c }
+        void release(Closure c) { captured.release = c }
+        void decorate(Closure c) { captured.decorate = c }
+    }
+
+    /** Minimal emulation of the harness DSL: collects the init/release/decorate closures. */
     static Map<String, Closure> evaluate(Object configuration) {
-        def captured = [:]
+        Map<String, Closure> captured = [:]
         def binding = new Binding([configuration: configuration, customize: { Closure c ->
-            c.delegate = [init: { Closure i -> captured.init = i }, release: { Closure r -> captured.release = r }]
+            c.delegate = new CustomizeDelegate(captured)
             c.resolveStrategy = Closure.DELEGATE_FIRST
             c()
         }])
