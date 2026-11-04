@@ -1,0 +1,17 @@
+description = 'WS0 contract probe: observes the graph entity service API and records the evidence for docs/service-contract.md'
+
+apply plugin: 'application'
+
+application {
+    mainClass = 'au.com.azwork.idm.graphentity.probe.ProbeMain'
+}
+
+dependencies {
+    testImplementation testFixtures(project(':connector'))
+}
+
+// The probe is run by people against a test instance, never by CI against anything real.
+// Example: ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe"
+tasks.named('run') {
+    workingDir = rootProject.projectDir
+}

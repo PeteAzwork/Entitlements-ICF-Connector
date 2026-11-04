@@ -1,7 +1,7 @@
 # Delivery Plan — Ping IDM Scripted REST Connector for the Graph Entity Service
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06)
-**Plan status:** Proposed, v1.1 — 2026-11-04 (adds §12 task lists)
+**Plan status:** Proposed, v1.2 — 2026-11-04 (WS0 started: question register and contract probe)
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. This repository already contains the complete unit test suite and thin stubs; implementation work turns specs green workstream by workstream.
 
@@ -42,7 +42,8 @@ Every test name in the suite cites the design section it proves (for example `§
 | D9 | Build, CI, packaging task (`connectorScripts`) | — | `build.gradle`, `.github/workflows/ci.yml` | Written |
 | D10 | Integration test harness against IDM 7.5 in Docker | this plan §6.4 | `integration/` (to be created) | Not started |
 | D11 | Operator runbook (deployment, recon cadence, REPORT→DELETE promotion, log interpretation) | §9–§11, §14 | `docs/runbook.md` (to be created) | Not started |
-| D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` (to be created) | Not started |
+| D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` | Question register written; no answers confirmed yet |
+| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (47 tests); not yet run against the real service** |
 
 ### 2.2 Out of scope (unchanged from the design)
 
@@ -202,6 +203,7 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | L5 Scenario | Appendix A end to end, ordered | `@Stepwise` + `FakeGraphService` | `WorkedExampleSpec` |
 | L6 Mapping library | JS library under Rhino-like isolation (`vm` context, `openidm`/`logger` globals, ES5 lint) with an in-memory IDM | Node 20+ built-in test runner, no dependencies | `mapping-lib/test` |
 | L7 Discovery | Generator correctness and agreement with the connector's own validation | Spock | `discovery/src/test` |
+| L7b Contract probe | The probe reports exactly the documented semantics when run against them, makes no writes in read-only mode, cleans up, and never persists credentials or foreign data | Spock + `FakeGraphHttpServer` + WireMock replay | `contract-probe/src/test` |
 | L8 Integration (WS8) | Real IDM 7.5 harness, real Rhino, real recon engine | Docker, WireMock recordings or test tenant | `integration/` (to build) |
 | L9 Operational dry run (WS9) | Real service, `REPORT`-only recon | IDM non-prod | runbook |
 
@@ -253,9 +255,14 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **41** | **41** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **67** |
-| **Grand total** | | | **625** |
+| `contract-probe/ContractProbeSpec` | WS0, §2 | 18 | 18 |
+| `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 9 | 9 |
+| `contract-probe/ScrubberSpec` | §13 | 6 | 6 |
+| `contract-probe/ProbeMainSpec` | WS0 | 7 | 14 |
+| **Contract probe total** | | **40** | **47** |
+| **Grand total** | | | **672** |
 
-Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass / 503 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The passing tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers, edge equality, the library's exports and ES5 syntax.
+Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass / 503 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 47 tests all pass, because the probe is finished code rather than a stub. The passing tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers, edge equality, the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write (WS8/WS9)
 
@@ -270,6 +277,8 @@ Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass
 - **Build:** Gradle 8.14 wrapper, Groovy 3.0.21 (IDM 7.5's Groovy line), Spock 2.3, WireMock 3.9 (standalone, shaded), HTTP Builder 0.7.1 (the `RESTClient` the harness binds). JDK 17+ (tests were run on 21).
 - **ICF flavour:** `./gradlew test` uses ConnId from Maven Central; `./gradlew test -PicfFlavour=forgerock` uses `org.forgerock.openicf.framework:connector-framework:1.5.20.21` from `maven.forgerock.org`. The release artefact is built with the ForgeRock flavour.
 - **Mapping library:** `cd mapping-lib && npm test` (Node 20+, no dependencies).
+- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL --username USER"`, with the password in `GRAPH_PROBE_PASSWORD`. Add `--allow-writes` only against a test instance. Usage is in `docs/service-contract.md` §1. Its tests run in CI with the rest of the Gradle suite, entirely on loopback.
+- **Shared test fixtures:** `FakeGraphService` and its HTTP front-end `FakeGraphHttpServer` live in `connector/src/testFixtures`, so any subproject can test against the documented semantics.
 - **CI:** `.github/workflows/ci.yml` runs both Gradle subprojects (ConnId flavour) and the Node suite on every push and pull request, publishing JUnit reports. Add a second job with the ForgeRock flavour once the runner has repository access (credentials via secrets, never in `gradle.properties`).
 - **Packaging:** `./gradlew :connector:connectorScripts` → `connector/build/connector-scripts/{scripts,lib,provisioner…json}`.
 
@@ -318,7 +327,7 @@ Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass
 
 A workstream is done when its named specs are green with no test modified except to reflect a WS0-confirmed contract change or an accepted plan decision, code review has checked the §8.4 invariant (every update payload carries the full edge set), and the design → code map in §2.3 is still accurate.
 
-The project is done when M5 is reached: all 625 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
+The project is done when M5 is reached: all 672 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
 
 ---
 
@@ -339,7 +348,7 @@ This section breaks every workstream in §4 into tasks small enough to pick up, 
 
 | Workstream | Tasks | Revised estimate (days) | Change from §4 |
 |---|---|---|---|
-| WS0 Service contract spike | 12 | 2 + elapsed | none |
+| WS0 Service contract spike | 13 | 2 + elapsed | +1 task (probe, done) |
 | WS1 Configuration, convention, schema | 17 | 3.5 | +0.5, schema operation-set gotcha |
 | WS2 Model, codec, payload | 9 | 2 | none |
 | WS3 Transport, errors, write operations | 15 | 5 | +1, harness binding verification and partial-update guard |
@@ -370,7 +379,16 @@ These were found and fixed while preparing this section. They are recorded so no
 
 Owner: connector lead with the service team. Output: `docs/service-contract.md`. Every answer is recorded as *confirmed* (with evidence) or *agreed assumption* (with who agreed).
 
+**Progress, 2026-11-04.** The question register is written and the contract probe (WS0.13) is built and tested. No question is answered yet: no instance of the service was reachable from the environment that did this work. The next step is a person running the probe:
+
+1. Run it read-only against any instance.
+2. Run it with `--allow-writes` against a test instance.
+3. Bring `report.md` and section 3 of the register to the WS0.01 session.
+
+The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding keys are listed against each question in the register.
+
 - [ ] **WS0.01 Book the session and name the service-side contact (S).** Send the question list below in advance so answers can be checked against a running instance, not memory.
+  *Progress:* the question pack is ready. It is `docs/service-contract.md`, sections 2 and 3, with the service-team-only questions in section 3, led by T1, design invariant A1. Booking the session and naming a contact need a person.
 - [ ] **WS0.02 Search endpoint (S).** Confirm the exact path, with or without a trailing slash. Confirm the timestamp parameter name and datetime format: ISO-8601 with `Z`, an offset, or milliseconds, and the precision. Confirm whether the filter is strictly after or inclusive.
   *Impacts:* `ConnectorConfig.DEFAULT_TIMESTAMP_PARAM`, and whether `SearchPlanner` maps `GreaterThanOrEqual` differently from `GreaterThan` (WS4.04).
 - [ ] **WS0.03 Paging protocol (M).** Confirm offset or cursor, the parameter names, and the response envelope: a top-level array or `items`, with or without `totalCount` or `nextCursor`. Confirm the maximum page size and whether ordering is stable across pages.
@@ -390,9 +408,15 @@ Owner: connector lead with the service team. Output: `docs/service-contract.md`.
 - [ ] **WS0.09 ID constraints (S).** Confirm allowed characters, maximum length, case sensitivity, and how an ID containing `/`, `?`, `#` or a space must be encoded in the path.
   *Impacts:* `RestClientEntityApi.encodeSegment` and `RestClientEntityApiSpec`'s encoding table.
 - [ ] **WS0.10 Auth and limits (S).** Confirm whether Basic auth is preemptive and the semantics of 401 versus 403. Confirm rate limits, and whether 429 carries `Retry-After` as seconds or as an HTTP-date. Confirm the service account's scoping options (§14).
-- [ ] **WS0.11 Record real traffic (M).** Capture one real document of each type plus a search page as WireMock JSON under `connector/src/test/resources/wiremock/`. Scrub PII and replace names with Appendix A values. These recordings feed WS8 and a contract spec in WS4.09.
+- [ ] **WS0.11 Record real traffic (M).** *Progress:* the probe writes every exchange as a scrubbed WireMock stub. What remains is a run against the real service, then choosing which stubs to keep. Capture one real document of each type plus a search page as WireMock JSON under `connector/src/test/resources/wiremock/`. Scrub PII and replace names with Appendix A values. These recordings feed WS8 and a contract spec in WS4.09.
 - [ ] **WS0.12 Fold the answers into the code and plan (M).** Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
   *Green:* all suites still compile, and changed specs fail only on stubs.
+- [x] **WS0.13 Contract probe (L). Done 2026-11-04.**
+  - Built `contract-probe/`, a command-line tool that observes the service and answers the observable WS0 questions, citing numbered exchanges as evidence.
+  - It is read-only by default. `--allow-writes` limits writes to `ws0-probe-<run>-` IDs and always cleans up.
+  - Outputs never contain credentials or data from entities it did not create.
+  - It was tested against `FakeGraphHttpServer`, an HTTP front-end over the in-memory model of design §2, so a difference in a real run's report is a real difference in the service.
+  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (47 tests).
 
 ### WS1 — Configuration, convention and schema
 
