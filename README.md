@@ -12,7 +12,7 @@ The build is test-first. The complete unit test suite is in place and the produc
 | Area | Code | Tests | Run |
 |---|---|---|---|
 | Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 29 Spock specs, 517 executions | `./gradlew :connector:test` |
-| Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 4 specs, 40 executions | `./gradlew :discovery:test` |
+| Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 4 specs, 41 executions | `./gradlew :discovery:test` |
 | Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 67 tests | `cd mapping-lib && npm test` |
 | Configuration samples | `config/` | — | — |
 

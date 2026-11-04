@@ -141,7 +141,9 @@ class SearchOperationSpec extends OperationSpecBase {
         when:
         while (true) {
             def page = []
-            def r = op.execute(Fixtures.USER, null, { page << it; true }, new OperationOptionsBuilder().setPageSize(2).setPagedResultsCookie(cookie).build())
+            def ob = new OperationOptionsBuilder().setPageSize(2)
+            if (cookie) ob.setPagedResultsCookie(cookie)   // ICF rejects a null cookie
+            def r = op.execute(Fixtures.USER, null, { page << it; true }, ob.build())
             seen.addAll(page*.uid*.uidValue)
             cookie = r.pagedResultsCookie
             if (!cookie) break
