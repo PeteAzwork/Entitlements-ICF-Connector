@@ -5,6 +5,7 @@ Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one 
 - **Design:** [`idm-graph-entity-connector-design.md`](idm-graph-entity-connector-design.md)
 - **Delivery plan and test strategy:** [`docs/delivery-plan.md`](docs/delivery-plan.md)
 - **Service contract (WS0 questions, answers, the real API's shape and how to run the probe):** [`docs/service-contract.md`](docs/service-contract.md)
+- **Design decisions for the real API (P17–P22):** [`docs/design-decisions-2026-11-21.md`](docs/design-decisions-2026-11-21.md)
 
 ## State of this repository
 

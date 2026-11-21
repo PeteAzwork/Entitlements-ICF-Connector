@@ -1,7 +1,7 @@
 # Service Contract — Graph Entity Service Admin API
 
 **Workstream:** WS0 (delivery plan §4 and §12)
-**Status:** Open. The service's OpenAPI definition arrived on 2026-11-21 and answers much of the register (section 5). It also shows that the design's model of the API is wrong in several places, so the design needs revising (plan WS0.14, section 6). Relationship writes are confirmed as full-state (P15). Drift detection is deferred to the plan's final workstream (P16).
+**Status:** Open. The service's OpenAPI definition arrived on 2026-11-21 and answers much of the register (section 5). It also shows that the design's model of the API is wrong in several places, so the design needs revising (plan WS0.14, section 6). Relationship writes are confirmed as full-state (P15). Drift detection is deferred to the plan's final workstream (P16). Design questions D2 and D5–D9 are decided (P17–P22, `docs/design-decisions-2026-11-21.md`).
 **Last updated:** 2026-11-21
 
 This is the record of what the connector may rely on about the remote service. Each question has one of three states:
@@ -253,14 +253,14 @@ These need a decision before WS1 starts, because the configuration model, payloa
 | ID | Design assumption | Real API | Decision needed |
 |---|---|---|---|
 | D1 | Relationships are written in a full-state PUT, which deletes omitted edges (§2.2, §8) | Relationships carry both ends. They can be written in the entity's `relationships` collection or through the single-relationship endpoint, and the collection is full-state | **Decided 2026-11-21 (P15):** write the full set in the entity's `relationships` collection on every create and update. Q07.8 still decides whether inbound relationships must be listed |
-| D2 | Each edge is expressed from one entity's perspective, as `TargetID` or `SourceID` (§2.2, §7) | Every edge names its source and target explicitly | The §7 convention still decides which IDM side is the source, but `entityRelationships` values change shape |
+| D2 | Each edge is expressed from one entity's perspective, as `TargetID` or `SourceID` (§2.2, §7) | Every edge names its source and target explicitly | **Decided 2026-11-21 (P17):** `{sourceID, targetID, type}`, the service's write shape |
 | D3 | Incremental drift check by "updated since" search (§11) | No such search | **Deferred 2026-11-21 (P16)** to the final workstream, WS10, which starts by asking the service for a last-modified signal |
 | D4 | Recon compares edges from search results (§9.4, §11) | Search results carry no relationships | **Deferred 2026-11-21 (P16)** to WS10. Until then, reconciliation re-sends relationships it cannot compare (plan WS4.08) |
-| D5 | Numeric `BaseType`, 4 = Subject (§2.1, A4) | Enum 0–4. Samples give 2 = Subject, 4 = Resource. Search returns names | Confirm the numbering (C6) and the three remaining enum values |
-| D6 | Type scoping by archetypes plus BaseType (§9.4, P5) | Search can scope by `objectClass` and filter on attributes | Use `objectClass`, and confirm whether a filter can match `directArchetypes` |
-| D7 | Attributes may be multi-valued (§6) | Write model attributes are string to string | Restrict schema attributes to single values, or encode lists |
-| D8 | Only Equals on `__UID__`/`__NAME__` and "updated since" are searchable (§9.4, P7) | Filter trees with EQUALS, CONTAINS, STARTSWITH, AND, OR and NOT | Support more ICF filters natively, once the operation enum is named |
-| D9 | Archetypes are stamped in the entity document | `directArchetypes` in the DTO, plus a separate assign endpoint. Archetypes are defined in manifests | Confirm that stamping via the DTO works, and that the archetypes must already exist in a manifest |
+| D5 | Numeric `BaseType`, 4 = Subject (§2.1, A4) | Enum 0–4. Samples give 2 = Subject, 4 = Resource. Search returns names | **Decided 2026-11-21 (P18):** numbers, with the design's numbering, 4 = Subject and 2 = Resource. Reads accept names. Contradicts the API's create samples, so WS0.15 must confirm it first |
+| D6 | Type scoping by archetypes plus BaseType (§9.4, P5) | Search can scope by `objectClass` and filter on attributes | **Decided 2026-11-21 (P19):** a scope archetype per type, stamped as a direct archetype; enumerate by `objectClass` plus the scope archetype; reads by ID check only the base type |
+| D7 | Attributes may be multi-valued (§6) | Write model attributes are string to string | **Decided 2026-11-21 (P20):** single-valued string attributes; multi-valued IDM properties excluded; empty values omitted |
+| D8 | Only Equals on `__UID__`/`__NAME__` and "updated since" are searchable (§9.4, P7) | Filter trees with EQUALS, CONTAINS, STARTSWITH, AND, OR and NOT | **Decided 2026-11-21 (P21):** by ID, plus equals, contains and starts-with combined with and, or and not, sent by operation name. Search-on-ID fallback while C1 persists |
+| D9 | Archetypes are stamped in the entity document | `directArchetypes` in the DTO, plus a separate assign endpoint. Archetypes are defined in manifests | **Decided 2026-11-21 (P22):** `directArchetypes` in the entity body; the Test operation checks the manifests define every configured archetype |
 
 ## 7. Status of the contract probe against this API
 
@@ -275,6 +275,7 @@ Its **write checks still send the design's document shape** (`ID`, numeric `Base
 | Date | Change |
 |---|---|
 | 2026-11-04 | Register created. Contract probe added. No answers confirmed yet: no instance of the service was reachable from the environment that wrote this. |
+| 2026-11-21 | The project owner decided D2 and D5–D9 (plan P17–P22), recorded in `docs/design-decisions-2026-11-21.md`. D5 keeps the design's numbering (4 = Subject), against the API's create samples; WS0.15 confirms it before any create. |
 | 2026-11-21 | The project owner confirmed relationship writes: through the entity's `relationships` collection or the single-relationship endpoint, and any relationship missing from the collection is removed (Q07.4, D1 → P15). Q07.8 added. Drift detection deferred to the plan's final workstream (D3, D4 → P16). |
 | 2026-11-21 | OpenAPI definition received. Sections 5 to 7 added. It answers the paging, error-format and timestamp questions, contradicts the design's base-type numbering and relationship model, and exposes seven contradictions with observed behaviour (C1–C7) and nine design decisions (D1–D9). The first full probe run (`20261121-155100`) leaked unscrubbed entity data into the `probe-results` branch; the scrubber is fixed. |
 | 2026-11-21 | Q02.1 answered by the project owner, after the first probe run against the real service got 405 for `GET /admin/entities`: search is `POST /admin/entities/search` with a JSON body, and `{}` returns everything. Folded in as decision P14. The probe now searches that way and accepts `--timestamp-field`. |
