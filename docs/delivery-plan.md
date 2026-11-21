@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.14 — 2026-11-21** (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.15 — 2026-11-21** (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -61,21 +61,21 @@ The design document says *what* the connector is. This plan says *in what order*
 
 ### 2.3 Design → code map
 
-The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes and are still stubs. WS1's classes (configuration, convention, schema, `ObjectClassResolver`) are implemented.
+The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes and are still stubs. WS1's classes (configuration, convention, schema, `ObjectClassResolver`) and WS2's (`Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`) are implemented.
 
 | Design section | Library class(es) | Spec(s) |
 |---|---|---|
-| §2.1 document shape | `model.EntityDocument` † | `EntityDocumentSpec` |
-| §2.2 edge rules | `model.Edge` † | `EdgeSpec` |
-| §3 A3/A4 identity and kind | `config.EntityKind`, `payload.EntityPayloadBuilder` † | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
+| §2.1 document shape | `model.EntityDocument` | `EntityDocumentSpec` |
+| §2.2 edge rules | `model.Edge` | `EdgeSpec` |
+| §3 A3/A4 identity and kind | `config.EntityKind`, `payload.EntityPayloadBuilder` | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
 | §5.2/§6 per-type dynamic schema | `config.ObjectTypesParser`, `config.ObjectTypeConfig`, `config.ConnectorConfig`, `schema.SchemaFactory`, `ops.ObjectClassResolver` | `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `SchemaFactorySpec`, `ObjectClassResolverSpec` |
 | §7 convention (normative) | `convention.RelationshipConvention`, `config.Direction` | `RelationshipConventionSpec`, `DirectionSpec`, and the JavaScript `resolvePair`/`resolveRelationship` tests |
 | §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js` |
-| §8.3 ICF encoding | `codec.EdgeCodec` † | `EdgeCodecSpec` |
+| §8.3 ICF encoding | `codec.EdgeCodec` | `EdgeCodecSpec` |
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
 | §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` † | `CreateOperationSpec`, `EdgeVerifierSpec` |
 | §9.3 delete | `ops.DeleteOperation` | `DeleteOperationSpec` |
-| §9.4 search, get, scoping, paging | `search.SearchPlanner` †, `search.TypeScoper` †, `search.PageCursor` †, `ops.SearchOperation`, `payload.EntityDecoder` † | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
+| §9.4 search, get, scoping, paging | `search.SearchPlanner` †, `search.TypeScoper` †, `search.PageCursor` †, `ops.SearchOperation`, `payload.EntityDecoder` | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
 | §9.5 test and schema | `ops.TestOperation`, `ops.SchemaOperation` | `TestAndSchemaOperationSpec` |
 | §13 exception mapping | `http.HttpErrorMapper` | `HttpErrorMapperSpec` |
 | §2/§14 transport and auth | `http.RestClientEntityApi`, `CustomizerScript` | `RestClientEntityApiSpec`, `CustomizerScriptSpec` |
@@ -159,6 +159,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Implement:** `Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`, as revised by WS0.14.
 **Acceptance:** `EdgeSpec`, `EntityDocumentSpec`, `EdgeCodecSpec`, `EntityPayloadBuilderSpec`, `EntityDecoderSpec`.
 **Estimate:** 3 days (up from 2: three document models instead of one).
+**Status:** Done 2026-11-21. All acceptance specs green.
 
 ### WS3 — Transport, error mapping and write operations
 
@@ -308,9 +309,9 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | **Contract probe total** | | **106** | **126** |
 | **Grand total** | | | **870** |
 
-Current result (2026-11-21, after WS1): connector 212 pass / 413 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub (connector: WS2 108, WS3 225, WS4 80; discovery: WS6 45), with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are WS1's specs in full (`EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec` and the three schema cases of `TestAndSchemaOperationSpec`), WS1 behaviour other specs exercise in passing, and the structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality, and `RecordedShapesSpec`'s seven checks that the fake matches the recorded service shapes. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS2): connector 320 pass / 305 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub (connector: WS3 225, WS4 80; discovery: WS6 45), with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are WS1's and WS2's specs in full (`EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec` and the three schema cases of `TestAndSchemaOperationSpec`; `EdgeSpec`, `EntityDocumentSpec`, `EdgeCodecSpec`, `EntityPayloadBuilderSpec`, `EntityDecoderSpec`), all ten of `RecordedShapesSpec`'s checks of the fake and `EntityDocument` against the recorded service shapes, and the structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, and the response helpers. The passing mapping-library tests check the library's exports and ES5 syntax.
 
-Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail.
+Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413.
 
 ### 6.4 Tests still to write
 
@@ -598,30 +599,35 @@ Do these in order; later tasks reuse earlier ones.
 
 *Starts after WS0.14c.* The task list below is the shape of the work. WS0.14c fixes the exact field names.
 
-- [ ] **WS2.01 `Edge` (S).** One relationship with explicit `sourceID`, `targetID` and `type` (D2). Validate that both ends and the type are non-blank. Provide the read-model mapping from `source`/`target`/`type`/`sourceType`.
+- [x] **WS2.01 `Edge` (S).** One relationship with explicit `sourceID`, `targetID` and `type` (D2). Validate that both ends and the type are non-blank. Provide the read-model mapping from `source`/`target`/`type`/`sourceType`.
   *Green:* `EdgeSpec` as revised.
-- [ ] **WS2.02 `EntityDocument` (M).** Three models:
+- [x] **WS2.02 `EntityDocument` (M).** Three models:
   - the write model (EntityDTO: `id`, `baseType`, `attributes` as string to string, `relationships`, `directArchetypes`), always emitting the two collections so a write is explicit (P15);
   - the read model (Entity: `id`, `baseType`, `Attributes` as `{name, type, value}`, `compoundAttributes`, `relationships`, `lastEvaluated`, `reconciliationStarted`);
   - the search item (`uid`, `name`, `baseType` as a name, `attributes`, `isArchetypes`, `directArchetypes`, `lastEvaluated`).
   *Green:* `EntityDocumentSpec` as revised.
-- [ ] **WS2.03 `EdgeCodec.serialise` and `serialiseAll` (S).** Canonical JSON in the D2 format, no whitespace, sorted.
+- [x] **WS2.03 `EdgeCodec.serialise` and `serialiseAll` (S).** Canonical JSON in the D2 format, no whitespace, sorted.
   *Gotcha:* Groovy's `JsonOutput` escapes non-ASCII as `\uXXXX`. Prefer a `JsonGenerator` with unicode escaping disabled.
-- [ ] **WS2.04 `EdgeCodec.parse` (M).** Reject malformed input with `InvalidAttributeValueException` naming the offending value.
+- [x] **WS2.04 `EdgeCodec.parse` (M).** Reject malformed input with `InvalidAttributeValueException` naming the offending value.
   *Gotcha:* `JsonSlurper` can be lenient about trailing characters. Add an end-of-input check if needed.
-- [ ] **WS2.05 `EdgeCodec.parseAll` (S).** Null or empty gives an empty list. Remove duplicates, keeping first-seen order.
+- [x] **WS2.05 `EdgeCodec.parseAll` (S).** Null or empty gives an empty list. Remove duplicates, keeping first-seen order.
   *Green:* `EdgeCodecSpec`.
-- [ ] **WS2.06 `EntityPayloadBuilder.idForCreate` (S).** Prefer `__NAME__`, fall back to `__UID__`, otherwise throw `InvalidAttributeValueException`.
-- [ ] **WS2.07 `EntityPayloadBuilder.build` (M).** Build the write model:
+- [x] **WS2.06 `EntityPayloadBuilder.idForCreate` (S).** Prefer `__NAME__`, fall back to `__UID__`, otherwise throw `InvalidAttributeValueException`.
+- [x] **WS2.07 `EntityPayloadBuilder.build` (M).** Build the write model:
   - `id` from the uid (A3) and `baseType` from the type's kind (D5);
   - configured attributes as strings (D7);
   - `directArchetypes` as the static archetypes plus delivered ones (D9);
   - `relationships` from `entityRelationships`, complete (P15).
   Ignore read-only attributes such as `lastEvaluated` rather than rejecting them.
   *Green:* `EntityPayloadBuilderSpec`.
-- [ ] **WS2.08 `EntityDecoder.decode` (M).** Decode both the search item and the read model into a `ConnectorObject`: `__UID__` and `__NAME__` from `uid` or `id`, configured attributes, and archetypes. Include `entityRelationships` only from the read model; search items carry none (D4, deferred to WS10).
+- [x] **WS2.08 `EntityDecoder.decode` (M).** Decode both the search item and the read model into a `ConnectorObject`: `__UID__` and `__NAME__` from `uid` or `id`, configured attributes, and archetypes. Include `entityRelationships` only from the read model; search items carry none (D4, deferred to WS10).
   *Green:* `EntityDecoderSpec`.
-- [ ] **WS2.09 Review (S).** `build` and `decode` stay pure functions with no API, log or clock dependencies.
+- [x] **WS2.09 Review (S).** `build` and `decode` stay pure functions with no API, log or clock dependencies.
+  *Done 2026-11-21.* `build`, `decode` and the codec take only their inputs; no API, log or clock. Notes on what was built:
+  - `EdgeCodec.parse` rejects text after the JSON object with its own brace scan, because `JsonSlurper` stops at the first value. Serialisation uses a `JsonGenerator` with unicode escaping off, so `ü` stays `ü`. Messages name the offending value, cut to 200 characters.
+  - `EntityPayloadBuilder.build` also rejects a `__UID__` that disagrees with the id, as it does `__NAME__` (A3). An `entityRelationships` attribute that is absent builds an empty list; refusing an update that omits it is `UpdateOperation`'s job (P4, WS3).
+  - `EntityDocument` keeps `""` values as read; `EntityDecoder` drops them (P20 amended). A numeric `baseType` the connector does not know is kept as the number; an unknown name reads as null.
+  - `EntityDecoder` emits `directArchetypes` from a search item's `isArchetypes` (C9), otherwise from `directArchetypes` when the document carries it. As C9 implies, for a search item this includes archetypes assigned by policy, so a mapping that writes `directArchetypes` straight back would assign those directly. WS7's mappings must take that into account.
 
 ### WS3 — Transport, error mapping and write operations
 

@@ -1,8 +1,11 @@
 package au.com.azwork.idm.graphentity.payload
 
+import au.com.azwork.idm.graphentity.codec.EdgeCodec
 import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
 import au.com.azwork.idm.graphentity.model.EntityDocument
+import org.identityconnectors.framework.common.objects.AttributeBuilder
 import org.identityconnectors.framework.common.objects.ConnectorObject
+import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder
 import org.identityconnectors.framework.common.objects.ObjectClass
 
 /**
@@ -17,8 +20,21 @@ import org.identityconnectors.framework.common.objects.ObjectClass
  */
 class EntityDecoder {
 
-    /** TODO WS2. */
     static ConnectorObject decode(EntityDocument doc, ObjectTypeConfig type, ObjectClass objectClass) {
-        throw new UnsupportedOperationException('TODO WS2: EntityDecoder.decode')
+        if (doc?.id == null) throw new IllegalArgumentException('Cannot decode an entity without an id')
+        ConnectorObjectBuilder b = new ConnectorObjectBuilder().setObjectClass(objectClass).setUid(doc.id).setName(doc.id)
+        type.attributes.each { String name ->
+            String value = doc.attributes?.get(name)
+            if (value != null && value != '') b.addAttribute(AttributeBuilder.build(name, value))
+        }
+        List<String> archetypes = doc.isArchetypes != null ? doc.isArchetypes : doc.directArchetypes
+        if (archetypes != null) {
+            b.addAttribute(AttributeBuilder.build(EntityPayloadBuilder.ATTR_DIRECT_ARCHETYPES, new ArrayList<Object>(archetypes)))
+        }
+        if (doc.relationships != null) {
+            b.addAttribute(AttributeBuilder.build(EntityPayloadBuilder.ATTR_ENTITY_RELATIONSHIPS, new ArrayList<Object>(EdgeCodec.serialiseAll(doc.relationships))))
+        }
+        if (doc.lastEvaluated != null) b.addAttribute(AttributeBuilder.build(EntityPayloadBuilder.ATTR_LAST_EVALUATED, doc.lastEvaluated))
+        b.build()
     }
 }
