@@ -17,8 +17,10 @@ class ProbeOptions {
     boolean allowWrites = false
     int maxPages = 5
     int timeoutSeconds = 15
-    /** Use this search path instead of trying the candidates. */
+    /** Search endpoint, called with POST and a JSON body. Null means /admin/entities/search. */
     String searchPath
+    /** Request-body field that filters by last-updated time, if known. Null means try the candidates. */
+    String timestampField
     File outDir
     String runId = LocalDateTime.now().format(DateTimeFormatter.ofPattern('yyyyMMdd-HHmmss'))
 

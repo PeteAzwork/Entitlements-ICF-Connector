@@ -9,7 +9,9 @@ import java.time.temporal.ChronoUnit
  * WS0 contract probe. Observes the graph entity service and answers as many of the delivery plan's WS0
  * questions (WS0.02–WS0.10) as can be answered by observation, recording every exchange as evidence.
  *
- * <p>Read-only by default: only GET requests are issued. With {@code allowWrites}, it also creates,
+ * <p>Read-only by default: only GET requests and search POSTs (to the search endpoint, which reads) are
+ * issued. Search is {@code POST /admin/entities/search} with a JSON body of filter and paging fields, where
+ * {@code {}} is the unfiltered search (decision P14). With {@code allowWrites}, it also creates,
  * replaces and deletes entities whose ID starts with a per-run prefix ({@code ws0-probe-<runId>-}), and
  * removes them all at the end, including after a failure. It never touches any other entity.
  *
@@ -21,7 +23,9 @@ class ContractProbe {
     static final String EDGE_TYPE = 'Ws0ProbeEdge'
     static final List<String> STANDARD_KEYS = ['ID', 'BaseType', 'attributes', 'Relationships', 'directArchetypes']
 
-    static final List<String> SEARCH_PATHS = ['/admin/entities', '/admin/entities/']
+    static final String SEARCH_PATH = '/admin/entities/search'
+    /** Paths a search POST must never go to: a POST there creates an entity. */
+    static final List<String> CREATE_PATHS = ['/admin/entities', '/admin/entities/']
     static final List<String> TIMESTAMP_PARAMS = ['updatedAfter', 'modifiedSince', 'updatedSince', 'since', 'lastUpdatedAfter', 'changedSince', 'from']
     static final List<String> PAGE_SIZE_PARAMS = ['pageSize', 'limit', 'size', 'page_size', 'per_page', '_pageSize', 'count', 'top', 'max']
     static final List<String> OFFSET_PARAMS = ['offset', 'start', 'skip', 'from', 'startIndex', '_pagedResultsOffset']
@@ -46,7 +50,7 @@ class ContractProbe {
     ContractProbe(ProbeOptions opts, ProbeHttp http = null) {
         this.opts = opts
         this.http = http ?: new ProbeHttp(opts.baseUrl, opts.apiKeyHeader, opts.apiKey, Duration.ofSeconds(opts.timeoutSeconds))
-        this.scrubber = new Scrubber(opts.prefix)
+        this.scrubber = new Scrubber(opts.prefix, [opts.searchPath ?: SEARCH_PATH])
     }
 
     // ------------------------------------------------------------------ orchestration
@@ -164,10 +168,15 @@ class ContractProbe {
     static String shape(Exchange ex) {
         if (ex.status == -1) return "no response (${ex.error})"
         String ct = ex.contentType ? ex.contentType.split(';')[0] : 'no content type'
-        if (ex.body instanceof Map) return "${ct}, JSON object with keys ${(ex.body as Map).keySet().sort()}"
+        if (ex.body instanceof Map) return "${ct}, JSON object with keys ${(ex.body as Map).keySet().sort()}${allow(ex)}"
         if (ex.body instanceof List) return "${ct}, JSON array"
-        if (ex.rawBody) return "${ct}, text body"
-        "${ct}, empty body"
+        if (ex.rawBody) return "${ct}, text body${allow(ex)}"
+        "${ct}, empty body${allow(ex)}"
+    }
+
+    /** A 405 usually names the methods the path does accept; surface them, as they say what to try instead. */
+    private static String allow(Exchange ex) {
+        ex.headers['allow'] ? "; Allow: ${ex.headers['allow']}" : ''
     }
 
     static boolean timestampLike(Object v) {
@@ -182,17 +191,21 @@ class ContractProbe {
         "ISO-8601, ${frac}, ${zone}"
     }
 
-    private Map<String, String> baseQuery(String since = EPOCH) {
-        contract.timestampParam ? [(contract.timestampParam as String): since] : [:]
+    /** Request-body fields for a search from {@code since}; empty until the timestamp field is known. */
+    private Map<String, Object> baseQuery(String since = EPOCH) {
+        contract.timestampParam ? [(contract.timestampParam as String): since] as Map<String, Object> : [:] as Map<String, Object>
     }
 
-    private Exchange search(Map<String, ?> q) { http.get(contract.searchPath as String, q) }
+    /** One search request: POST to the search path with the fields as a JSON body. */
+    private Exchange search(Map<String, ?> body) { http.post(contract.searchPath as String, body ?: [:]) }
+
+    String getSearchPath() { opts.searchPath ?: SEARCH_PATH }
 
     /** Follows the discovered paging protocol for up to maxPages pages. Returns the items (in memory only). */
     List<Map> enumerate(String since = EPOCH, int pageSize = 200, int maxPages = opts.maxPages, Closure afterPage = null) {
         List<Map> all = []
         Map<String, Object> q = baseQuery(since)
-        if (contract.pageSizeParam) q[contract.pageSizeParam as String] = pageSize as String
+        if (contract.pageSizeParam) q[contract.pageSizeParam as String] = pageSize
         int offset = 0
         for (int page = 0; page < maxPages; page++) {
             def ex = search(q)
@@ -203,11 +216,11 @@ class ContractProbe {
             if (afterPage) afterPage(items)
             if (items.empty) break
             if (contract.cursorParam && env.cursor != null) {
-                q[contract.cursorParam as String] = env.cursor as String
+                q[contract.cursorParam as String] = env.cursor
             } else if (contract.offsetParam && contract.pageSizeParam) {
                 offset += items.size()
                 if (env.total instanceof Number && offset >= (env.total as Number).intValue()) break
-                q[contract.offsetParam as String] = offset as String
+                q[contract.offsetParam as String] = offset
             } else {
                 break
             }
@@ -218,14 +231,15 @@ class ContractProbe {
     // ------------------------------------------------------------------ WS0.10 auth
 
     void checkAuth() {
-        String path = opts.searchPath ?: SEARCH_PATHS[0]
+        // A read of an ID that cannot exist: a valid key should get 404, so 401 means the key itself was refused.
+        String path = entityPath(pid('auth-check-does-not-exist'))
         def none = http.get(path, [:], [auth: 'none'])
         def wrong = http.get(path, [:], [auth: 'invalid'])
         def valid = http.get(path, [:])
         String challenge = none.headers['www-authenticate'] ? " with challenge `${none.headers['www-authenticate']}`" : ''
         add('WS0.10', 'auth.status', "How does the service respond to a missing, wrong and valid `${opts.apiKeyHeader}` key?",
             "No key: ${none.status}${challenge}. Wrong key: ${wrong.status}. Valid key: ${valid.status}.",
-            'observed', "The key is sent raw in the `${opts.apiKeyHeader}` header. The service uses one shared key, so a 403 (authenticated but not permitted) is not expected.", [none, wrong, valid])
+            'observed', "Checked with a GET of an entity ID that does not exist, so a valid key should get 404. The key is sent raw in the `${opts.apiKeyHeader}` header. The service uses one shared key, so a 403 is not expected.", [none, wrong, valid])
         if (valid.status == -1) {
             aborted = true
             add('WS0.10', 'transport', 'Is the service reachable?', "No: ${valid.error}", 'error', null, [valid])
@@ -250,24 +264,31 @@ class ContractProbe {
     // ------------------------------------------------------------------ WS0.02 search endpoint
 
     void checkSearchEndpoint() {
-        List<String> paths = opts.searchPath ? [opts.searchPath] : SEARCH_PATHS
-        List<Exchange> tried = paths.collect { http.get(it) }
-        def chosen = tried.find { it.success && envelope(it.body).items != null }
-        add('WS0.02', 'search.path', 'Which path serves the entity search?',
-            chosen ? "`${chosen.path}`" : 'Neither candidate returned a list of entities.',
-            chosen ? 'observed' : 'error',
-            tried.collect { "GET ${it.path} → ${it.status}, ${shape(it)}" }.join('; '), tried)
-        if (!chosen) { aborted = true; return }
-        contract.searchPath = chosen.path
+        String path = searchPath
+        if (path in CREATE_PATHS) {
+            aborted = true
+            add('WS0.02', 'search.path', 'Which request serves the entity search?',
+                "Refused to search via `POST ${path}`: a POST there creates entities.", 'error')
+            return
+        }
+        def bare = http.post(path, [:])
+        boolean ok = bare.success && envelope(bare.body).items != null
+        add('WS0.02', 'search.path', 'Which request serves the entity search?',
+            ok ? "`POST ${path}` with a JSON body. `{}` returned ${count(bare)} entities." :
+                 "`POST ${path}` with `{}` did not return a list of entities: ${bare.status}, ${shape(bare)}.",
+            ok ? 'observed' : 'error', null, [bare])
+        if (!ok) { aborted = true; return }
+        contract.searchPath = path
 
         String future = DateTimeFormatter.ISO_INSTANT.format(Instant.now().plus(3650, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS))
         List<String> lines = []
         List<Exchange> ev = []
         String honoured = null
         boolean anyData = false
-        for (name in TIMESTAMP_PARAMS) {
-            def e1 = http.get(contract.searchPath as String, [(name): EPOCH])
-            def e2 = http.get(contract.searchPath as String, [(name): future])
+        List<String> candidates = opts.timestampField ? [opts.timestampField] : TIMESTAMP_PARAMS
+        for (name in candidates) {
+            def e1 = search([(name): EPOCH])
+            def e2 = search([(name): future])
             ev << e1 << e2
             int c1 = count(e1), c2 = count(e2)
             anyData = anyData || c1 > 0
@@ -276,23 +297,23 @@ class ContractProbe {
             if (verdict == 'honoured' && !honoured) honoured = name
         }
         contract.timestampParam = honoured
-        add('WS0.02', 'search.timestampParam', 'What is the timestamp search parameter called?',
+        add('WS0.02', 'search.timestampParam', 'Which request-body field filters the search by last-updated time?',
             honoured ? "`${honoured}`" : (anyData ? 'None of the candidate names was honoured.' : 'Cannot tell: the search returned no entities.'),
             honoured ? 'observed' : 'inconclusive',
-            "A parameter is honoured when a far-future value returns fewer entities than the epoch. " + lines.join('; '), ev)
+            "A field is honoured when a far-future value returns fewer entities than the epoch. " + lines.join('; '), ev)
 
         if (!honoured) return
-        Map<String, String> formats = [
+        Map<String, Object> formats = [
             'ISO-8601, seconds, Z'       : '1970-01-01T00:00:00Z',
             'ISO-8601, milliseconds, Z'  : '1970-01-01T00:00:00.000Z',
             'ISO-8601, +00:00 offset'    : '1970-01-01T00:00:00+00:00',
-            'epoch milliseconds'         : '0',
+            'epoch milliseconds'         : 0,
             'date only'                  : '1970-01-01']
-        int reference = count(ev[TIMESTAMP_PARAMS.indexOf(honoured) * 2])
+        int reference = count(ev[candidates.indexOf(honoured) * 2])
         List<String> accepted = []
         List<Exchange> fev = []
         formats.each { label, value ->
-            def e = http.get(contract.searchPath as String, [(honoured): value])
+            def e = search([(honoured): value])
             fev << e
             if (e.success && count(e) == reference) accepted << label
         }
@@ -305,7 +326,7 @@ class ContractProbe {
     // ------------------------------------------------------------------ WS0.03 paging
 
     void checkPaging() {
-        Map<String, String> base = baseQuery()
+        Map<String, Object> base = baseQuery()
         def baseline = search(base)
         def env = envelope(baseline.body)
         int n0 = count(baseline)
@@ -323,7 +344,7 @@ class ContractProbe {
 
         List<Exchange> ev = []
         String sizeParam = PAGE_SIZE_PARAMS.find { name ->
-            def e = search(base + [(name): '1']); ev << e
+            def e = search(base + [(name): 1]); ev << e
             e.success && count(e) == 1
         }
         contract.pageSizeParam = sizeParam
@@ -331,22 +352,22 @@ class ContractProbe {
             sizeParam ? 'observed' : 'inconclusive', "Tried: ${PAGE_SIZE_PARAMS.join(', ')}.", ev)
         if (!sizeParam) return
 
-        def p1 = search(base + [(sizeParam): '1'])
+        def p1 = search(base + [(sizeParam): 1])
         String first = ids(p1) ? ids(p1)[0] : null
         ev = [p1]
         String offsetParam = OFFSET_PARAMS.find { name ->
-            def e = search(base + [(sizeParam): '1', (name): '1']); ev << e
+            def e = search(base + [(sizeParam): 1, (name): 1]); ev << e
             e.success && ids(e) && ids(e)[0] != first
         }
         String pageNumberParam = PAGE_NUMBER_PARAMS.find { name ->
-            def a = search(base + [(sizeParam): '1', (name): '1']); def b = search(base + [(sizeParam): '1', (name): '2']); ev << a << b
+            def a = search(base + [(sizeParam): 1, (name): 1]); def b = search(base + [(sizeParam): 1, (name): 2]); ev << a << b
             a.success && b.success && ids(a) && ids(b) && ids(a)[0] != ids(b)[0]
         }
         def p1env = envelope(p1.body)
         String cursorParam = null
         if (p1env.cursor != null) {
             cursorParam = CURSOR_PARAMS.find { name ->
-                def e = search(base + [(sizeParam): '1', (name): p1env.cursor as String]); ev << e
+                def e = search(base + [(sizeParam): 1, (name): p1env.cursor]); ev << e
                 e.success && ids(e) && ids(e)[0] != first
             }
         }
@@ -359,14 +380,14 @@ class ContractProbe {
                 .findAll().join('; ') ?: 'No offset, page-number or cursor parameter changed the results.',
             (offsetParam || pageNumberParam || cursorParam) ? 'observed' : 'inconclusive', null, ev)
 
-        def big = search(base + [(sizeParam): '10000'])
-        def thousand = search(base + [(sizeParam): '1000'])
+        def big = search(base + [(sizeParam): 10000])
+        def thousand = search(base + [(sizeParam): 1000])
         add('WS0.03', 'paging.maxPageSize', 'What is the largest page the service will return?',
             "Asked for 10000: ${big.status}, ${count(big)} items. Asked for 1000: ${thousand.status}, ${count(thousand)} items.",
             'observed', env.total != null ? "Total reported: ${env.total}. If fewer items came back than both the request and the total, that is the cap." : 'No total is reported, so a cap can only be inferred when the count is a round number below the request.', [big, thousand])
 
-        def a = search(base + [(sizeParam): '5'])
-        def b = search(base + [(sizeParam): '5'])
+        def a = search(base + [(sizeParam): 5])
+        def b = search(base + [(sizeParam): 5])
         List<String> ia = ids(a), ib = ids(b)
         String tsField = (envelope(a.body).items ?: []).findAll { it instanceof Map }.collectMany { (it as Map).findAll { k, v -> !(k in STANDARD_KEYS) && timestampLike(v) }.keySet() as List }.find()
         def tsValues = tsField ? (envelope(a.body).items as List<Map>).collect { it[tsField] as String } : []
@@ -378,7 +399,7 @@ class ContractProbe {
     // ------------------------------------------------------------------ WS0.06 document fields
 
     void checkDocumentFields() {
-        def page = search(baseQuery() + (contract.pageSizeParam ? [(contract.pageSizeParam as String): '20'] : [:]))
+        def page = search(baseQuery() + (contract.pageSizeParam ? [(contract.pageSizeParam as String): 20] : [:]))
         List<Map> items = (envelope(page.body).items ?: []).findAll { it instanceof Map } as List<Map>
         Map sample = items.find { !scrubber.isProbeId(it.ID) } ?: items.find()
         if (!sample) {

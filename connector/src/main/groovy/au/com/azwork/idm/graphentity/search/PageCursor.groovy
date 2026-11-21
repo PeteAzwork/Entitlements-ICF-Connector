@@ -24,7 +24,7 @@ class PageCursor {
         throw new UnsupportedOperationException('TODO WS4: PageCursor.encode')
     }
 
-    /** Query parameters for this page. TODO WS4. */
+    /** Request-body fields for this page, merged into the search POST body (P14). TODO WS4. */
     Map<String, Object> toQuery(int pageSize) {
         throw new UnsupportedOperationException('TODO WS4: PageCursor.toQuery')
     }

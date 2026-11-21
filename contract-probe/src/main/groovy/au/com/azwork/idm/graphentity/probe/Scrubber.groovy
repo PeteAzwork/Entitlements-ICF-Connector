@@ -13,9 +13,14 @@ class Scrubber {
     static final String REDACTED = '<scrubbed>'
 
     final String probePrefix
+    /** Paths under /admin/entities/ that are endpoints, not entity IDs (the search endpoint). */
+    final Set<String> endpointPaths
     private final Map<String, String> aliases = [:]
 
-    Scrubber(String probePrefix) { this.probePrefix = probePrefix }
+    Scrubber(String probePrefix, Collection<String> endpointPaths = ['/admin/entities/search']) {
+        this.probePrefix = probePrefix
+        this.endpointPaths = endpointPaths as Set<String>
+    }
 
     boolean isProbeId(Object id) { id instanceof String && id.startsWith(probePrefix) }
 
@@ -27,7 +32,7 @@ class Scrubber {
     /** Replaces a foreign entity ID in an entity path, e.g. /admin/entities/Sanne → /admin/entities/scrubbed-1. */
     String scrubPath(String rawPath) {
         String prefix = '/admin/entities/'
-        if (rawPath == null || !rawPath.startsWith(prefix) || rawPath.length() == prefix.length()) return rawPath
+        if (rawPath == null || !rawPath.startsWith(prefix) || rawPath.length() == prefix.length() || rawPath in endpointPaths) return rawPath
         String id = URLDecoder.decode(rawPath.substring(prefix.length()).replace('+', '%2B'), 'UTF-8')
         isProbeId(id) ? rawPath : prefix + alias(id)
     }

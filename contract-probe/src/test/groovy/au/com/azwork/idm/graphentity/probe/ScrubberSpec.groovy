@@ -56,4 +56,10 @@ class ScrubberSpec extends Specification {
         s.scrubPath('/admin/entities') == '/admin/entities'
         s.scrubPath('/admin/entities/') == '/admin/entities/'
     }
+
+    def "the search endpoint is not mistaken for an entity ID"() {
+        expect:
+        s.scrubPath('/admin/entities/search') == '/admin/entities/search'
+        new Scrubber('p-', ['/admin/find']).scrubPath('/admin/find') == '/admin/find'
+    }
 }

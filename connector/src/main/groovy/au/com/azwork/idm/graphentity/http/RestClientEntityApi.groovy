@@ -9,6 +9,8 @@ package au.com.azwork.idm.graphentity.http
 class RestClientEntityApi implements EntityApi {
 
     static final String ENTITIES_PATH = '/admin/entities/'
+    /** Search is a POST with a JSON body of filter and paging fields; {@code {}} means everything (P14). */
+    static final String SEARCH_PATH = '/admin/entities/search'
 
     private final Object restClient
 
@@ -37,7 +39,7 @@ class RestClientEntityApi implements EntityApi {
     }
 
     @Override
-    HttpResponse search(Map<String, Object> query) {
+    HttpResponse search(Map<String, Object> fields) {
         throw new UnsupportedOperationException('TODO WS3: RestClientEntityApi.search')
     }
 

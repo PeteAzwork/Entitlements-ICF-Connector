@@ -14,7 +14,10 @@ import java.time.format.DateTimeParseException
  * Real HTTP front-end for {@link FakeGraphService}, so tools that speak HTTP (the contract probe, and later
  * WS8-style checks) can be tested against the documented service semantics without a real instance.
  *
- * Routes (design §2): GET|POST {@code /admin/entities[/]}, GET|PUT|DELETE {@code /admin/entities/{id}}.
+ * Routes (design §2, decision P14): POST {@code /admin/entities/search} with a JSON body of filter and paging
+ * fields ({@code {}} is the unfiltered search); POST {@code /admin/entities[/]} creates; GET|PUT|DELETE
+ * {@code /admin/entities/{id}}. Like the real service, any other method on {@code /admin/entities} gets
+ * 405 with {@code Allow: POST}.
  * Adds what the in-memory model leaves to the transport: API-key authentication (a raw key in the
  * {@code X-API-KEY} header; a missing or wrong key gets 401, as the service does), JSON parsing, a 400 for
  * a POST without {@code ID} or with a malformed body or timestamp, and percent-decoding of the ID path
@@ -59,8 +62,12 @@ class FakeGraphHttpServer implements Closeable {
             String id = collection ? null : decodeSegment(rest.substring(1))
             String method = ex.requestMethod
 
-            if (collection && method == 'GET') {
-                send(ex, service.search(parseQuery(ex.requestURI.rawQuery)))
+            if (rest == '/search' && method == 'POST') {
+                def body = readJson(ex)
+                if (!(body instanceof Map)) { send(ex, new HttpResponse(status: 400, body: [error: 'body must be a JSON object'])); return }
+                send(ex, service.search(body as Map))
+            } else if (collection && method != 'POST') {
+                send(ex, new HttpResponse(status: 405, headers: [Allow: 'POST']))
             } else if (collection && method == 'POST') {
                 def body = readJson(ex)
                 if (!(body instanceof Map)) { send(ex, new HttpResponse(status: 400, body: [error: 'body must be a JSON object'])); return }

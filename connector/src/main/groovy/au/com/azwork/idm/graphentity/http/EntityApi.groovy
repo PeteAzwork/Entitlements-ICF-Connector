@@ -18,6 +18,10 @@ interface EntityApi {
     /** DELETE /admin/entities/{id} */
     HttpResponse delete(String id)
 
-    /** GET /admin/entities?{query} — timestamp search with paging (parameter names are configuration). */
-    HttpResponse search(Map<String, Object> query)
+    /**
+     * POST /admin/entities/search with {@code fields} as the JSON body (decision P14). {@code [:]} sends
+     * {@code {}}, the unfiltered search. Field names for the timestamp filter and paging are configuration
+     * until WS0 confirms them.
+     */
+    HttpResponse search(Map<String, Object> fields)
 }

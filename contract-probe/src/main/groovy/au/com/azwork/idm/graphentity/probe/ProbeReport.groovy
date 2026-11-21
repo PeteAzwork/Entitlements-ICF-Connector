@@ -44,6 +44,10 @@ class ProbeReport {
         probe.http.exchanges.findAll { it.status > 0 && it.auth == 'valid' }.each { ex ->
             def request = [method: ex.method, urlPath: s.scrubPath(ex.path)] as Map<String, Object>
             if (ex.query) request.queryParameters = ex.query.collectEntries { k, v -> [(k): [equalTo: v]] }
+            // Searches all POST to one path, so the body is what tells recorded requests apart.
+            if (ex.method in ['POST', 'PUT'] && (ex.requestBody instanceof Map || ex.requestBody instanceof List)) {
+                request.bodyPatterns = [[equalToJson: JsonOutput.toJson(s.scrub(ex.requestBody))]]
+            }
             def response = [status: ex.status] as Map<String, Object>
             if (ex.contentType) response.headers = ['Content-Type': ex.contentType]
             if (ex.body != null) response.jsonBody = s.scrub(ex.body)
@@ -86,11 +90,11 @@ class ProbeReport {
         sb << "## Suggested values\n\nThese follow from the answers above. Check them before changing any code.\n\n"
         sb << "| Setting | Suggested value | Where it goes |\n|---|---|---|\n"
         def c = probe.contract
-        sb << "| Search path | ${v(c.searchPath)} | `RestClientEntityApi` |\n"
-        sb << "| Timestamp parameter | ${v(c.timestampParam)} | `timestampSearchParam` default in `ConnectorConfig` |\n"
+        sb << "| Search request | ${c.searchPath ? "`POST ${c.searchPath}` with a JSON body" : '—'} | `RestClientEntityApi.search` |\n"
+        sb << "| Timestamp field (request body) | ${v(c.timestampParam)} | `timestampSearchParam` default in `ConnectorConfig` |\n"
         sb << "| Datetime formats accepted | ${c.acceptedDatetimeFormats ? (c.acceptedDatetimeFormats as List).join('; ') : '—'} | `SearchPlanner` |\n"
-        sb << "| Page size parameter | ${v(c.pageSizeParam)} | `PageCursor.toQuery` |\n"
-        sb << "| Offset parameter | ${v(c.offsetParam)} | `PageCursor.toQuery` |\n"
+        sb << "| Page size field | ${v(c.pageSizeParam)} | `PageCursor.toQuery` |\n"
+        sb << "| Offset field | ${v(c.offsetParam)} | `PageCursor.toQuery` |\n"
         sb << "| Cursor | ${c.cursorParam ? "response `${c.cursorKey}` → request `${c.cursorParam}`" : '—'} | `PageCursor` |\n"
         sb << "| Response envelope | ${c.envelope ?: '—'}${c.totalKey ? ", total in `${c.totalKey}`" : ''} | `PageCursor.next`, `FakeGraphService.search` |\n"
         sb << "| Last-updated field | ${v(c.lastUpdatedField)}${c.lastUpdatedFormat ? ", ${c.lastUpdatedFormat}" : ''} | `EntityDocument`, `EntityDecoder` |\n"

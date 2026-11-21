@@ -1,7 +1,7 @@
 # Delivery Plan — Ping IDM Scripted REST Connector for the Graph Entity Service
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06)
-**Plan status:** Proposed, v1.3 — 2026-11-21 (authentication confirmed: shared API key in `X-API-KEY`, decision P13)
+**Plan status:** Proposed, v1.4 — 2026-11-21 (search is `POST /admin/entities/search`, decision P14; authentication is a shared `X-API-KEY`, P13)
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. This repository already contains the complete unit test suite and thin stubs; implementation work turns specs green workstream by workstream.
 
@@ -33,7 +33,7 @@ Every test name in the suite cites the design section it proves (for example `§
 |---|---|---|---|---|
 | D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/graphentity/` | API fixed, bodies are stubs |
 | D2 | Seven ICF operation scripts | §4 | `connector/src/main/scripts/*.groovy` | Written (thin delegation) |
-| D3 | Connector unit + script-harness + contract + scenario tests | §6 of this plan | `connector/src/test/groovy/…` | **Complete: 29 specs, 535 test executions** |
+| D3 | Connector unit + script-harness + contract + scenario tests | §6 of this plan | `connector/src/test/groovy/…` | **Complete: 29 specs, 537 test executions** |
 | D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js` | API fixed, bodies are stubs |
 | D5 | Mapping library tests (Node test runner, Rhino-like isolation) | §8.2 | `mapping-lib/test/` | **Complete: 67 tests** |
 | D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…` | API fixed, bodies are stubs |
@@ -43,7 +43,7 @@ Every test name in the suite cites the design section it proves (for example `§
 | D10 | Integration test harness against IDM 7.5 in Docker | this plan §6.4 | `integration/` (to be created) | Not started |
 | D11 | Operator runbook (deployment, recon cadence, REPORT→DELETE promotion, log interpretation) | §9–§11, §14 | `docs/runbook.md` (to be created) | Not started |
 | D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` | Question register written; no answers confirmed yet |
-| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (59 tests); not yet run against the real service** |
+| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (66 tests). First real run on 2026-11-21 found that search is a POST (P14); not yet run to completion** |
 
 ### 2.2 Out of scope (unchanged from the design)
 
@@ -92,6 +92,7 @@ These are places where turning the design into testable code forced a concrete c
 | P11 | **Verification GET failure after a successful POST does not fail the create**; it is logged at WARN. | §9.1 makes verification an audit aid; failing the create would create a retry loop for an entity that already exists (409 on retry). | `CreateOperationSpec` |
 | P12 | **Package namespace `au.com.azwork.idm.graphentity`.** | Derived from the organisation domain; rename is a find-and-replace before WS1 starts if a different namespace is preferred. | everywhere |
 | P13 | **Authentication is one shared API key, sent raw in the `X-API-KEY` header.** Missing and wrong keys both return 401. The key is stored in the Scripted REST `password` property, which IDM encrypts, and the customizer sends it as a default header. `defaultAuthMethod` is `NONE` and there is no username. The header name can be overridden with `apiKeyHeader` in `customConfiguration`. *Decided 2026-11-21.* | Stated by the project owner on 2026-11-21, replacing the design's HTTP Basic. Reusing `password` keeps the key in IDM's encrypted-property handling with no custom secret store. Whether `customSensitiveConfiguration` would serve better is checked in WS3.01. The probe will observe the 401 behaviour (`auth.status`). | `ConnectorConfigSpec`, `CustomizerScriptSpec`, `RestClientEntityApiSpec`, `HttpErrorMapperSpec`, `ScriptSupportSpec`, `ContractProbeSpec` |
+| P14 | **Search is `POST /admin/entities/search` with a JSON body of filter and paging fields. `{}` is the unfiltered search.** `EntityApi.search(Map)` takes those body fields, and `PageCursor.toQuery` produces body fields, not query parameters. The service answers `GET /admin/entities` with 405. *Decided 2026-11-21.* | Stated by the project owner on 2026-11-21, after the first probe run against the real service got 405 for `GET /admin/entities` (run `20261121-150804`, exchanges 4 and 5). The names of the timestamp and paging fields are still open (Q02.2, Q03.2, Q03.3). | `RestClientEntityApiSpec`, `OperationScriptsSpec`, `ContractProbeSpec` |
 
 ---
 
@@ -234,7 +235,7 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `payload/EdgeVerifierSpec` | §9.1 | 8 | 8 |
 | `http/HttpErrorMapperSpec` | §13, P13 | 20 | 108 |
 | `http/HttpResponseSpec` | — | 2 | 2 |
-| `http/RestClientEntityApiSpec` | §2, §14 | 12 | 24 |
+| `http/RestClientEntityApiSpec` | §2, §14, P14 | 14 | 26 |
 | `schema/SchemaFactorySpec` | §5.2, §6, §9.5 | 10 | 13 |
 | `search/SearchPlannerSpec` | §9.4 | 11 | 19 |
 | `search/PageCursorSpec` | §9.4, §15 | 12 | 14 |
@@ -249,21 +250,21 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `scripts/OperationScriptsSpec` | §4 | 13 | 13 |
 | `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **307** | **535** |
+| **Connector total** | | **309** | **537** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 8 | 8 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 16 | 16 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2, §11 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **41** | **41** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **67** |
-| `contract-probe/ContractProbeSpec` | WS0, §2 | 19 | 19 |
+| `contract-probe/ContractProbeSpec` | WS0, §2 | 22 | 22 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 9 | 9 |
-| `contract-probe/ScrubberSpec` | §13 | 6 | 6 |
-| `contract-probe/ProbeMainSpec` | WS0 | 11 | 25 |
-| **Contract probe total** | | **45** | **59** |
-| **Grand total** | | | **702** |
+| `contract-probe/ScrubberSpec` | §13 | 7 | 7 |
+| `contract-probe/ProbeMainSpec` | WS0 | 11 | 28 |
+| **Contract probe total** | | **49** | **66** |
+| **Grand total** | | | **711** |
 
-Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 59 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21): connector 9 pass / 523 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 66 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write (WS8/WS9)
 
@@ -329,7 +330,7 @@ Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Step
 
 A workstream is done when its named specs are green with no test modified except to reflect a WS0-confirmed contract change or an accepted plan decision, code review has checked the §8.4 invariant (every update payload carries the full edge set), and the design → code map in §2.3 is still accurate.
 
-The project is done when M5 is reached: all 702 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
+The project is done when M5 is reached: all 711 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
 
 ---
 
@@ -391,9 +392,9 @@ The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding
 
 - [ ] **WS0.01 Book the session and name the service-side contact (S).** Send the question list below in advance so answers can be checked against a running instance, not memory.
   *Progress:* the question pack is ready. It is `docs/service-contract.md`, sections 2 and 3, with the service-team-only questions in section 3, led by T1, design invariant A1. Booking the session and naming a contact need a person.
-- [ ] **WS0.02 Search endpoint (S).** Confirm the exact path, with or without a trailing slash. Confirm the timestamp parameter name and datetime format: ISO-8601 with `Z`, an offset, or milliseconds, and the precision. Confirm whether the filter is strictly after or inclusive.
+- [ ] **WS0.02 Search endpoint (S).** *Progress, 2026-11-21:* the endpoint is answered and folded in (P14). It is `POST /admin/entities/search` with a JSON body, and `{}` returns everything. The timestamp field's name, format and boundary are still open. Pass `--timestamp-field` to the probe if the name is known. Confirm the exact path, with or without a trailing slash. Confirm the timestamp parameter name and datetime format: ISO-8601 with `Z`, an offset, or milliseconds, and the precision. Confirm whether the filter is strictly after or inclusive.
   *Impacts:* `ConnectorConfig.DEFAULT_TIMESTAMP_PARAM`, and whether `SearchPlanner` maps `GreaterThanOrEqual` differently from `GreaterThan` (WS4.04).
-- [ ] **WS0.03 Paging protocol (M).** Confirm offset or cursor, the parameter names, and the response envelope: a top-level array or `items`, with or without `totalCount` or `nextCursor`. Confirm the maximum page size and whether ordering is stable across pages.
+- [ ] **WS0.03 Paging protocol (M).** *Progress, 2026-11-21:* paging fields travel in the search POST body (P14). Their names and the response envelope are still open. Confirm offset or cursor, the parameter names, and the response envelope: a top-level array or `items`, with or without `totalCount` or `nextCursor`. Confirm the maximum page size and whether ordering is stable across pages.
   *Ask specifically:* if an entity is updated mid-enumeration, can it be skipped or returned twice? Being returned twice is harmless for recon. Being skipped is not.
   *Impacts:* `PageCursor`, `PageCursorSpec`, `FakeGraphService.search`, `ConnectorConfig.MAX_PAGE_SIZE`.
 - [ ] **WS0.04 Duplicate `POST` (S).** Ask whether it returns 409, silently upserts, or returns 400. If it upserts, raise the risk in §9 and decide whether `CreateOperation` should `GET` first behind a flag.
@@ -412,14 +413,14 @@ The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding
 - [ ] **WS0.10 Auth and limits (S).** Confirm the authentication scheme and the semantics of 401 versus 403. Confirm rate limits, and whether 429 carries `Retry-After` as seconds or as an HTTP-date. Confirm the service account's scoping options (§14).
   *Progress, 2026-11-21:* authentication is answered and folded into the code (P13). It is one shared key, sent raw in `X-API-KEY`, with 401 for a missing or wrong key, so no 403 is expected. Scoping is answered: the key cannot be scoped. Rate limits remain open.
 - [ ] **WS0.11 Record real traffic (M).** *Progress:* the probe writes every exchange as a scrubbed WireMock stub. What remains is a run against the real service, then choosing which stubs to keep. Capture one real document of each type plus a search page as WireMock JSON under `connector/src/test/resources/wiremock/`. Scrub PII and replace names with Appendix A values. These recordings feed WS8 and a contract spec in WS4.09.
-- [ ] **WS0.12 Fold the answers into the code and plan (M).** *Progress, 2026-11-21:* the authentication answers (Q10.1, Q10.2, T5) are folded in. That covers the probe, configuration model, customizer contract, redaction rules, provisioner sample, fixtures and specs, the design's §2, §4 and §14, decision P13 and the risk register. Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
+- [ ] **WS0.12 Fold the answers into the code and plan (M).** *Progress, 2026-11-21:* the authentication answers (Q10.1, Q10.2, T5) and the search endpoint (Q02.1, P14) are folded in. That covers the probe, configuration model, customizer contract, redaction rules, provisioner sample, fixtures and specs, the design's §2, §4 and §14, decision P13 and the risk register. Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
   *Green:* all suites still compile, and changed specs fail only on stubs.
 - [x] **WS0.13 Contract probe (L). Done 2026-11-04.**
   - Built `contract-probe/`, a command-line tool that observes the service and answers the observable WS0 questions, citing numbered exchanges as evidence.
   - It is read-only by default. `--allow-writes` limits writes to `ws0-probe-<run>-` IDs and always cleans up.
   - Outputs never contain credentials or data from entities it did not create.
   - It was tested against `FakeGraphHttpServer`, an HTTP front-end over the in-memory model of design §2, so a difference in a real run's report is a real difference in the service.
-  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (59 tests).
+  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (66 tests).
 
 ### WS1 — Configuration, convention and schema
 
@@ -535,7 +536,7 @@ Do these in order; later tasks reuse earlier ones.
 - [ ] **WS3.03 `HttpErrorMapper.retryAfterSeconds` (S).** Accept non-negative delta-seconds, or an RFC 1123 HTTP-date converted to seconds from now and clamped at zero. Anything else returns null. Header lookup ignores case.
 - [ ] **WS3.04 `HttpErrorMapper.redact` (S).** Mask `X-API-KEY` values as a header, JSON field or query parameter, in any case, along with `apiKey` and `api_key` fields, `Authorization` values (Basic and Bearer) and JSON `password` fields. Leave other text untouched and accept null. Separately, `raise` must strip the configured key's literal value from any message, because the service may echo the key without a recognisable label, and one leaked key exposes every consumer (P13).
   *Green:* `HttpErrorMapperSpec`.
-- [ ] **WS3.05 `RestClientEntityApi` (L).** Implement the five calls over `RESTClient`. Convert responses to `HttpResponse`, carrying the status, the parsed body (Map or List, or null for a non-JSON body), the raw body and the headers. Never throw for a non-2xx status. Let transport failures propagate as `IOException`.
+- [ ] **WS3.05 `RestClientEntityApi` (L).** Implement the five calls over `RESTClient`. `search` is a POST to `SEARCH_PATH` with the fields as a JSON body. An empty map sends `{}` (P14). Convert responses to `HttpResponse`, carrying the status, the parsed body (Map or List, or null for a non-JSON body), the raw body and the headers. Never throw for a non-2xx status. Let transport failures propagate as `IOException`.
   *Gotcha:* `RESTClient` parses bodies by content type and consumes the stream, so the raw body is lost unless you take control. Request text and parse JSON with `JsonSlurper` yourself, or register a buffering parser.
   *Gotcha:* the path encoding. `RESTClient` and `URIBuilder` can re-encode `%` as `%25`. The spec requires `GET` of `a/b` to hit `/admin/entities/a%2Fb` exactly, so build the request URI from the already-encoded segment.
   *Gotcha:* `URLEncoder` encodes a space as `+`, but a path segment needs `%20`.
@@ -564,7 +565,7 @@ Do these in order; later tasks reuse earlier ones.
 - [ ] **WS3.10 Reject partial-value updates in `UpdateScript` (S). New test needed.** The Groovy toolkit routes `ADD_ATTRIBUTE_VALUES` and `REMOVE_ATTRIBUTE_VALUES` through the update script with a different `operation` binding. Those carry deltas, not the full state, so turning them into a `PUT` would delete edges. Throw `UnsupportedOperationException` for them, and add an `OperationScriptsSpec` case for each.
 - [ ] **WS3.11 `DeleteOperation` (S).** `DELETE`, then map the outcome. A tolerated 404 logs INFO with the id. Never `GET`.
   *Green:* `DeleteOperationSpec`.
-- [ ] **WS3.12 `TestOperation` (S).** Run a search from epoch with page size 1 using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
+- [ ] **WS3.12 `TestOperation` (S).** Run a search POST from epoch with page size 1 using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
   *Green:* the test cases in `TestAndSchemaOperationSpec`.
 - [ ] **WS3.13 `CustomizerScript` (M).**
   - `init` reads the API key from the `GuardedString` `password` property and adds it, raw, as a default `X-API-KEY` header, or under the `apiKeyHeader` override from the property bag. It never sends an `Authorization` header (P13).
@@ -581,7 +582,7 @@ Do these in order; later tasks reuse earlier ones.
 Build against assumption P6. Adjust after WS0.03.
 
 - [ ] **WS4.01 `PageCursor.encode` and `decode` (S).** Encode as URL-safe base64 of compact JSON, such as `{"o":400,"c":"tok"}`. A blank cookie means the first page. Anything undecodable, a negative offset or a non-integer offset throws `IllegalArgumentException`. Never silently restart from the first page.
-- [ ] **WS4.02 `PageCursor.toQuery` (S).** With an opaque cursor, return `[cursor:, pageSize:]`. Otherwise return `[offset:, pageSize:]`. The parameter names come from WS0.03.
+- [ ] **WS4.02 `PageCursor.toQuery` (S).** The result is merged into the search POST body, so values stay numbers rather than strings (P14). With an opaque cursor, return `[cursor:, pageSize:]`. Otherwise return `[offset:, pageSize:]`. The parameter names come from WS0.03.
 - [ ] **WS4.03 `PageCursor.next` (S).**
   - An empty page is the end.
   - A `nextCursor` value becomes the opaque cursor.
