@@ -116,7 +116,7 @@ Measured `createFullConfig` time on the same machine:
 | Sources | 2.6 s | about 0.9 s |
 | Jar | 0.9 s | about 0.26 s |
 
-Operations cost the same once initialised. A 300-user reconciliation ran at 68 ms per user in both modes, and IDM's memory was the same.
+Operations cost the same once initialised: a 300-user reconciliation took the same time per user in both modes, and IDM's memory was the same. (The absolute figure from that run, 68 ms, was inflated by the test stand-in, H20; 50,000 users later reconciled at 3.4 ms per user, runbook §4.)
 
 ### 4. Layout, permissions and change control
 

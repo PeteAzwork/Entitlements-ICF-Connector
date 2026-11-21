@@ -23,6 +23,8 @@ test {
     systemProperty 'idm.scale', project.findProperty('idmScale') ?: '0'
     // IDM's heap; the scale run needs more than the default at 50,000 entities.
     systemProperty 'idm.javaOpts', project.findProperty('idmJavaOpts') ?: '-Xmx2g -Xms1g'
+    // -PidmCpus=2 limits the IDM container's CPUs, to reproduce a small CI runner's timing locally.
+    systemProperty 'idm.cpus', project.findProperty('idmCpus') ?: ''
     maxHeapSize = '4g'   // the in-memory service keeps every request for the specs to inspect
     // The JDK HTTP server behind the in-memory service otherwise leaves Nagle's algorithm on, and with the client's
     // delayed ACK that adds ~40 ms to every exchange: timings would measure the stand-in, not IDM (WS8.11).

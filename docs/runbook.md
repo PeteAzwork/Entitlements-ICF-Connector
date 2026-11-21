@@ -89,7 +89,18 @@ VERSION
 
 Load them as `config/schedule/recon-graphentity-account` and `…-user`. The integration suite checks that IDM accepts them.
 
-- **Duration.** Expect about 68 ms per entity per thread, measured at 300 entities on test hardware (WS8.11). The generated mappings use `taskThreads: 4` (IDM's default is 10), the setting shown to converge under concurrent implicit sync (WS8.10). 50,000 users is very roughly 15 minutes at 4 threads; measure in your environment before relying on it, and keep the two schedules from overlapping.
+- **Duration.** Measured at 50,000 users and 50,000 accounts (WS8.11), on a 4-CPU, 16 GiB test host with an in-memory stand-in for the service and `taskThreads: 4`:
+
+  | Reconciliation | Time | Per entity |
+  |---|---|---|
+  | Users, first load (each building its relationships) | 2 min 49 s | 3.4 ms |
+  | Accounts, first load | 1 min 35 s | 1.9 ms |
+  | Users, steady state (one PUT per user, below) | 2 min 43 s | 3.3 ms |
+
+  - **The real service adds its own latency.** The stand-in answers in well under a millisecond. Against the real service, add roughly *entities × one write's round trip ÷ `taskThreads`*. For example, at 50 ms per write, 50,000 users at 4 threads adds about 10 minutes. Measure it in the dry run (section 10), and size the schedules from that.
+  - **Threads.** The generated mappings use `taskThreads: 4` (IDM's default is 10). That setting was shown to converge under concurrent implicit sync, at 50,000 users with 500 changes during the run (WS8.10).
+  - **Memory.** IDM stayed at about 3 GiB throughout. Give IDM a heap of at least 4 GiB at this size (`-Xmx4g`).
+  - Keep the two schedules from overlapping.
 - **Every reconciliation restates every linked entity (WS4.08).** Search results carry no relationships, so IDM sees `entityRelationships` as changed and writes each entity again, one PUT each. That's correct (the write changes nothing), costs one write per entity, and repairs drift as a side effect.
 - **IDM refuses to reconcile from an empty source** (*"Cannot reconcile from an empty data source, unless allowEmptySourceSet is true"*). Leave that safeguard on: an empty source reconciliation against a full target is how mass deletions happen.
 

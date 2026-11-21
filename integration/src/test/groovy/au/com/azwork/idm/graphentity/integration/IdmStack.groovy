@@ -168,7 +168,11 @@ class IdmStack {
         }
         File lib = new File(stage, 'lib')
         copyTree(new File(ROOT, 'mapping-lib/src/lib'), lib)
-        dockerChecked('create', '--name', CONTAINER, '--network', 'host', '-e', "JAVA_OPTS=${System.getProperty('idm.javaOpts', '-Xmx2g -Xms1g')}", IMAGE)
+        String cpus = System.getProperty('idm.cpus', '')
+        List<String> create = ['create', '--name', CONTAINER, '--network', 'host',
+                               '-e', "JAVA_OPTS=${System.getProperty('idm.javaOpts', '-Xmx2g -Xms1g')}".toString()]
+        if (cpus) create += ['--cpus', cpus]
+        dockerChecked(*(create + [IMAGE]))
         dockerChecked('cp', connector.path, "${CONTAINER}:/opt/openidm/connectors/graphentity")
         dockerChecked('cp', lib.path + '/.', "${CONTAINER}:/opt/openidm/script/lib/")
         dockerChecked('start', CONTAINER)
