@@ -248,6 +248,18 @@ class SearchOperationSpec extends OperationSpecBase {
         service.requestsOf('SEARCH').size() == 1
     }
 
+    def "an ICF ResultsHandler is accepted as well as a Closure"() {
+        given:
+        (1..2).each { seedUser("U$it") }
+        def seen = []
+
+        when:
+        new SearchOperation(ctx()).execute(Fixtures.USER, null, { ConnectorObject o -> seen << o; true } as org.identityconnectors.framework.common.objects.ResultsHandler, null)
+
+        then:
+        seen*.uid*.uidValue == ['U1', 'U2']
+    }
+
     def "a 5xx from the search endpoint → ConnectorIOException"() {
         given:
         service.failNextWith(502)

@@ -15,26 +15,28 @@ import au.com.azwork.idm.graphentity.model.EntityDocument
  */
 class TypeScoper {
 
-    /** The type's scope archetype, or null when it has no static archetypes. TODO WS4. */
+    /** The type's scope archetype, or null when it has no static archetypes. */
     static String scopeArchetype(ObjectTypeConfig type) {
-        throw new UnsupportedOperationException('TODO WS4: TypeScoper.scopeArchetype')
+        type?.archetypes ? type.archetypes[0] : null
     }
 
     /**
      * Enumeration scope: the document's base type matches the type's kind and its {@code isArchetypes} or
      * {@code directArchetypes} contain the scope archetype. A type without a scope archetype matches on base type alone (allowed only when
-     * no other type shares its kind). TODO WS4.
+     * no other type shares its kind). Archetype names are case-sensitive.
      */
     static boolean inEnumerationScope(EntityDocument doc, ObjectTypeConfig type) {
-        throw new UnsupportedOperationException('TODO WS4: TypeScoper.inEnumerationScope')
+        if (!inByIdScope(doc, type)) return false
+        String scope = scopeArchetype(type)
+        scope == null || scope in (doc.isArchetypes ?: []) || scope in (doc.directArchetypes ?: [])
     }
 
     /**
      * Read-by-ID scope: the base type alone. An existing entity without the scope archetype is still found, so
      * IDM can correlate it and the next update stamps the archetype. A document with an unknown base type is out of
-     * scope. TODO WS4.
+     * scope.
      */
     static boolean inByIdScope(EntityDocument doc, ObjectTypeConfig type) {
-        throw new UnsupportedOperationException('TODO WS4: TypeScoper.inByIdScope')
+        doc?.baseType != null && doc.baseType == type.entityKind.baseType
     }
 }

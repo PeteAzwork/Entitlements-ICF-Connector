@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.16 — 2026-11-21** (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.17 — 2026-11-21** (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -61,7 +61,7 @@ The design document says *what* the connector is. This plan says *in what order*
 
 ### 2.3 Design → code map
 
-The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes and are still stubs. WS1's classes (configuration, convention, schema, `ObjectClassResolver`) and WS2's (`Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`) and WS3's (transport, error mapping, `ScriptSupport`, `ClientCustomizer`, the write and test operations, the scripts) are implemented.
+The map below is the current one. Every connector class in it is implemented (WS1–WS4); the connector library has no stubs left.
 
 | Design section | Library class(es) | Spec(s) |
 |---|---|---|
@@ -75,13 +75,14 @@ The map below is the current one. The classes marked † were revised in WS0.14 
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
 | §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` | `CreateOperationSpec`, `EdgeVerifierSpec` |
 | §9.3 delete | `ops.DeleteOperation` | `DeleteOperationSpec` |
-| §9.4 search, get, scoping, paging | `search.SearchPlanner` †, `search.TypeScoper` †, `search.PageCursor` †, `ops.SearchOperation`, `payload.EntityDecoder` | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
+| §9.4 search, get, scoping, paging | `search.SearchPlanner`, `search.TypeScoper`, `search.PageCursor`, `ops.SearchOperation`, `payload.EntityDecoder` | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
 | §9.5 test and schema | `ops.TestOperation`, `ops.SchemaOperation` | `TestAndSchemaOperationSpec` |
 | §13 exception mapping | `http.HttpErrorMapper` | `HttpErrorMapperSpec` |
 | §2/§14 transport and auth | `http.RestClientEntityApi`, `ops.ClientCustomizer`, `CustomizerScript` | `RestClientEntityApiSpec`, `CustomizerScriptSpec` |
 | §4 scripts as the harness runs them | `ops.ScriptSupport`, `schema.SchemaDsl`, scripts | `OperationScriptsSpec`, `ScriptSupportSpec` |
 | §12 discovery | `discovery.*` | `ManagedSchemaReaderSpec`, `ObjectTypesGeneratorSpec`, `MappingSkeletonGeneratorSpec`, `DiffSummarySpec` |
-| Appendix A | all operations against `FakeGraphService` † | `WorkedExampleSpec` |
+| Appendix A | all operations against `FakeGraphService` | `WorkedExampleSpec` |
+| WS0.11 recordings | the connector against the real service's recorded exchanges | `RecordedShapesSpec`, `RecordedContractSpec` |
 
 ---
 
@@ -175,6 +176,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Implement:** `SearchPlanner`, `PageCursor`, `TypeScoper`, `SearchOperation`, as revised by WS0.14. Timestamp ("since") searches are **not** part of WS4; they belong to WS10 if the service ever offers one.
 **Acceptance:** `SearchPlannerSpec`, `PageCursorSpec`, `TypeScoperSpec`, `SearchOperationSpec`, the search cases of `OperationScriptsSpec`, then `WorkedExampleSpec` (Appendix A end to end) as the milestone check.
 **Estimate:** 3.5 days (filter-tree translation replaces the timestamp search).
+**Status:** Done 2026-11-21. All acceptance specs green, `WorkedExampleSpec` included: **M3 reached**.
 
 ### WS5 — Mapping-side payload library
 
@@ -282,20 +284,21 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `http/RestClientEntityApiSpec` | §2, §14, P14 | 15 | 27 |
 | `schema/SchemaFactorySpec` | §5.2, §6, §9.5 | 10 | 13 |
 | `search/SearchPlannerSpec` | §9.4, P21 (timestamp searches refused, P16) | 12 | 25 |
-| `search/PageCursorSpec` | §9.4, §15 | 8 | 14 |
+| `search/PageCursorSpec` | §9.4, §15 | 10 | 16 |
 | `search/TypeScoperSpec` | §9.4 | 5 | 20 |
 | `ops/ObjectClassResolverSpec` | §5.2 | 4 | 4 |
 | `ops/CreateOperationSpec` | §9.1, §13 | 20 | 20 |
 | `ops/UpdateOperationSpec` | §8.4, §9.2 | 17 | 17 |
 | `ops/DeleteOperationSpec` | §9.3 | 11 | 11 |
-| `ops/SearchOperationSpec` | §9.4 | 21 | 21 |
+| `ops/SearchOperationSpec` | §9.4 | 22 | 22 |
 | `ops/TestAndSchemaOperationSpec` | §9.5 | 15 | 15 |
 | `ops/ScriptSupportSpec` | §4, P13 | 8 | 8 |
 | `scripts/OperationScriptsSpec` | §4, WS3.01, WS3.10 | 18 | 19 |
 | `scripts/CustomizerScriptSpec` | §4, §14, P13, WS3.01 | 8 | 8 |
 | `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **369** | **639** |
+| `scenario/RecordedContractSpec` | WS4.09, WS0.11 | 5 | 5 |
+| **Connector total** | | **377** | **647** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
@@ -308,11 +311,11 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **879** |
+| **Grand total** | | | **887** |
 
-Current result (2026-11-21, after WS3): connector 554 pass / 83 fail / 2 skipped (the `@Stepwise` scenario stops at its first search step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub (connector: WS4 83; discovery: WS6 45), with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. Every connector spec except WS4's (`SearchPlannerSpec`, `PageCursorSpec`, `TypeScoperSpec`, `SearchOperationSpec`, the two search cases of `OperationScriptsSpec` and the search steps of `WorkedExampleSpec`) is green. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS4): **connector 647 pass / 0 fail / 0 skipped**: every connector spec is green, and the `@Stepwise` Appendix A scenario runs to the end (M3). Discovery 0 / 45 and mapping library 3 pass / 66 fail; every failure there is a `TODO WSn` stub (WS6 45, WS5 66), with no failures caused by the test harness. The contract probe's 126 tests all pass. The passing mapping-library tests check the library's exports and ES5 syntax.
 
-Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305.
+Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83.
 
 ### 6.4 Tests still to write
 
@@ -704,26 +707,31 @@ Do these in order; later tasks reuse earlier ones.
 
 *Starts after WS3 and WS0.14d.* Search is `POST /admin/entities/search` (P14).
 
-- [ ] **WS4.01 `PageCursor` encode and decode (S).** The ICF cookie wraps the service's opaque `pagedResultsCookie`. A blank ICF cookie is the first page. A corrupt one throws `IllegalArgumentException`; never restart from the first page silently.
-- [ ] **WS4.02 `PageCursor.toQuery` (S).** Produce `{pageSize, pagedResultsCookie}` request-body fields; numbers stay numbers.
-- [ ] **WS4.03 `PageCursor.next` (S).** The next page exists when the response carries a non-null `pagedResultsCookie` (`hasMore` true). `totalResults` of −1 means unknown.
-  *Green:* `PageCursorSpec` as revised.
-- [ ] **WS4.04 `SearchPlanner.plan` (M).**
+- [x] **WS4.01 `PageCursor` encode and decode (S).** The ICF cookie wraps the service's opaque `pagedResultsCookie`. A blank ICF cookie is the first page. A corrupt one throws `IllegalArgumentException`; never restart from the first page silently.
+- [x] **WS4.02 `PageCursor.toQuery` (S).** Produce `{pageSize, pagedResultsCookie}` request-body fields; numbers stay numbers.
+- [x] **WS4.03 `PageCursor.next` (S).** The next page exists when the response carries a non-null `pagedResultsCookie` (`hasMore` true). `totalResults` of −1 means unknown.
+  *Green:* `PageCursorSpec` as revised. *Done 2026-11-21.* The ICF cookie is URL-safe base64 of `{"c": <service cookie>, "n": <results before it>}`. `n` lets a paged search report the remaining count against `totalResults`, which the opaque service cookie cannot. `next` also stops on `hasMore: false` and on an empty page, so a cookie on an empty page cannot loop.
+- [x] **WS4.04 `SearchPlanner.plan` (M).**
   - No filter: enumerate the type's `objectClass`.
   - `EqualsFilter` on `__UID__` or `__NAME__`: read by ID.
   - Equals, contains, starts-with, and, or and not on configured attributes: translate into the service's filter tree, if D8 approves them.
   - Anything else: `UnsupportedOperationException` with "filter" in the message (P7).
   - Page size from options, capped, defaulting to `pageSizeDefault` (the service's default is 100).
-  *Green:* `SearchPlannerSpec` as revised.
-- [ ] **WS4.05 `TypeScoper` (S).** Scope by `objectClass` in the request, then by the type's archetypes in the results (D6).
-  *Green:* `TypeScoperSpec`.
-- [ ] **WS4.06 `SearchOperation` by ID (S).** GET; a 404 is an empty result. Decode the read model, check scope, call the handler.
+  *Green:* `SearchPlannerSpec` as revised. *Done 2026-11-21.* D8 approved the filters (P21). AND and OR with more than two operands fold into a nested tree; NOT toggles `not`. Only a top-level equals on `__UID__`/`__NAME__` reads by ID.
+- [x] **WS4.05 `TypeScoper` (S).** Scope by `objectClass` in the request, then by the type's archetypes in the results (D6).
+  *Green:* `TypeScoperSpec`. *Done 2026-11-21.* Enumeration matches the base type, then the scope archetype in `isArchetypes` or `directArchetypes` (P19 amended); a read by ID checks the base type only.
+- [x] **WS4.06 `SearchOperation` by ID (S).** GET; a 404 is an empty result. Decode the read model, check scope, call the handler.
   *Gotcha:* GET returned 500 in the first real run (C1). Map a 500 to `ConnectorIOException`, never to "not found".
-- [ ] **WS4.07 `SearchOperation` enumerate (L).** Loop over pages with the cookie. Decode each search item, skip undecodable ones with one WARN and no attribute values, scope, and call the handler, stopping when it returns false. With a caller page size, return one page with the ICF cookie and remaining count. Never buffer across pages.
+- [x] **WS4.07 `SearchOperation` enumerate (L).** Loop over pages with the cookie. Decode each search item, skip undecodable ones with one WARN and no attribute values, scope, and call the handler, stopping when it returns false. With a caller page size, return one page with the ICF cookie and remaining count. Never buffer across pages.
   *Gotcha:* the toolkit's `handler` may be a `Closure` or a `ResultsHandler`. Accept both.
-  *Green:* `SearchOperationSpec`, the search cases of `OperationScriptsSpec`, and **`WorkedExampleSpec` (milestone M3)**.
-- [ ] **WS4.08 Reconciliation without relationships (S).** Search items carry no relationships, so IDM sees `entityRelationships` as changed on every reconciliation and re-sends it. The write is idempotent (P15), so this is correct but costly. Document it, and decide with WS8.11's measurements whether to stop returning `entityRelationships` from search. The real fix is WS10.
-- [ ] **WS4.09 Contract spec from real recordings (M).** Replay the WS0.11 recordings through `RestClientEntityApi` and the decoders. If the service drifts from the fake, this spec fails first.
+  *Green:* `SearchOperationSpec`, the search cases of `OperationScriptsSpec`, and **`WorkedExampleSpec` (milestone M3)**. *Done 2026-11-21.*
+  - By ID: GET, or with `byIdLookup: search` an `EQUALS` on `ID` whose result must match the id exactly. A 404 is an empty result; a 500 is `ConnectorIOException` (C1).
+  - Enumeration holds one page at a time. Items repeated within a page (C14) are delivered once. A service that returns the same cookie twice stops the loop with a WARN rather than spinning.
+  - Only an explicit `false` from the handler stops the search, so a handler closure that returns nothing does not end it early.
+- [x] **WS4.08 Reconciliation without relationships (S).** Search items carry no relationships, so IDM sees `entityRelationships` as changed on every reconciliation and re-sends it. The write is idempotent (P15), so this is correct but costly. Document it, and decide with WS8.11's measurements whether to stop returning `entityRelationships` from search. The real fix is WS10.
+  *Documented 2026-11-21.* As built, an enumerated object has no `entityRelationships` attribute at all (absent, not empty), while a read by ID has it. In a reconciliation, IDM compares the mapped target value with the absent one and updates every linked entity whose relationships are non-empty, restating the same relationships; the service treats a restatement as a no-op (owner, 2026-11-21). Costs: one PUT per such entity per reconciliation, and the PUT also restates attributes and archetypes. Options for WS8.11 to measure: (a) keep it; (b) give the mapping a condition that skips `entityRelationships` during reconciliation (relationship changes then flow only through implicit sync); (c) return `entityRelationships` from search by reading each entity by ID, an extra GET per entity that C1 makes unreliable today. The decision waits for WS8.11's numbers; the real fix (comparing relationships) is WS10.
+- [x] **WS4.09 Contract spec from real recordings (M).** Replay the WS0.11 recordings through `RestClientEntityApi` and the decoders. If the service drifts from the fake, this spec fails first.
+  *Done 2026-11-21:* `RecordedContractSpec`. Through WireMock and the real HTTP client: the create body the connector builds matches, byte for byte as JSON, the body the service accepted; the recorded read model decodes with its relationship; the recorded search page is scoped and paged; the recorded 400 maps to `InvalidAttributeValueException` with the service's message; and the Test operation reads archetype names from the recorded export bundle.
 
 ### WS5 — Mapping-side payload library
 

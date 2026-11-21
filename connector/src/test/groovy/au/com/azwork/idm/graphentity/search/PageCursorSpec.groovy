@@ -25,6 +25,20 @@ class PageCursorSpec extends Specification {
         PageCursor.decode(new PageCursor(serviceCookie: 'opaque=+/token').encode()).serviceCookie == 'opaque=+/token'
     }
 
+    def "the ICF cookie also carries how many results came before it, so a paged search can report what remains"() {
+        expect:
+        PageCursor.decode(new PageCursor(serviceCookie: '100', consumed: 40).encode()).consumed == 40
+        PageCursor.decode(new PageCursor(serviceCookie: '100').encode()).consumed == 0
+    }
+
+    def "a cookie with an invalid count is rejected"() {
+        when:
+        PageCursor.decode(Base64.urlEncoder.encodeToString('{"c":"1","n":-3}'.bytes))
+
+        then:
+        thrown(IllegalArgumentException)
+    }
+
     def "the ICF cookie is URL-safe"() {
         expect:
         new PageCursor(serviceCookie: 'opaque=+/token').encode() ==~ /[A-Za-z0-9_-]+=*/
