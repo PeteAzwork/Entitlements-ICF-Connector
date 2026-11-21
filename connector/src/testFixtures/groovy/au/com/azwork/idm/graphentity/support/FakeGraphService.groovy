@@ -248,9 +248,15 @@ class FakeGraphService implements EntityApi {
 
     protected static Map<String, String> json() { ['Content-Type': 'application/json; charset=utf-8'] }
 
+    /**
+     * RFC 7807 problem details. A 400 has the service's shape (recorded in run 20261121-215954): a generic title and
+     * an {@code errors} map from field to messages; other statuses carry the given title.
+     */
     protected static HttpResponse problem(int status, String title) {
-        def body = [type: "https://tools.ietf.org/html/rfc9110#section-15.5.${status == 400 ? 1 : (status == 404 ? 5 : 10)}".toString(),
-                    title: title, status: status, traceId: '00-fake-00']
+        def body = status == 400 ?
+            [type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1', title: 'One or more validation errors occurred.', status: 400,
+             errors: [entity: [title]], traceId: '00-fake-00'] :
+            [type: "https://tools.ietf.org/html/rfc9110#section-15.5.${status == 404 ? 5 : 10}".toString(), title: title, status: status, traceId: '00-fake-00']
         new HttpResponse(status: status, body: body, rawBody: groovy.json.JsonOutput.toJson(body),
             headers: ['Content-Type': 'application/problem+json; charset=utf-8'])
     }

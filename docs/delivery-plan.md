@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.12 — 2026-11-21** (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.13 — 2026-11-21** (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -306,7 +306,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | **Contract probe total** | | **106** | **126** |
 | **Grand total** | | | **859** |
 
-Current result (2026-11-21, after WS0.15h and WS0.22): connector 11 pass / 603 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS0.11): connector 18 pass / 596 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality, and `RecordedShapesSpec`'s seven checks that the fake matches the recorded service shapes. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write
 
@@ -405,7 +405,7 @@ The **project** is done at M6: WS10's acceptance run green, and orphan promotion
 
 | Workstream | Order | Tasks open | Estimate (days) |
 |---|---|---|---|
-| WS0 Service contract and design revision | 1 | 7 | 1 + elapsed |
+| WS0 Service contract and design revision | 1 | 6 | 0.5 + elapsed |
 | WS1 Configuration, convention, schema | 2 | 17 | 3.5 |
 | WS6 Discovery tool | 2 | 9 | 6 |
 | WS2 Model, codec, payload | 3 | 9 | 3 |
@@ -461,7 +461,14 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
   - IDs are case-sensitive.
   - The service team should still state any documented maximum length.
 - [ ] **WS0.10 Rate limits (S).** The rate-limit policy, and whether 429 carries `Retry-After`. Authentication is settled (P13).
-- [ ] **WS0.11 Keep real recordings (M).** From a scrubbed probe run, keep one document of each model (create body, GET, search page) under `connector/src/test/resources/wiremock/`. These feed WS4.09 and WS8.
+- [x] **WS0.11 Keep real recordings (M).** Done 2026-11-21. Five recordings from run `20261121-215954` (scrubbed) are kept as WireMock mappings under `connector/src/test/resources/wiremock/recorded/`, with a README:
+  - the create body;
+  - the read model;
+  - a search page;
+  - a 400 with problem details;
+  - the manifests bundle.
+
+  `RecordedShapesSpec` holds the fake to those shapes: read model, search envelope and items, archetypes in `isArchetypes`, the 400's `errors` map, the create body's fields, and the bundle. It checks that no recording holds another entity's data, and runs `EntityDocument` on the real documents (WS2). The fake's 400s now carry `errors`, as the service's do.
 - [ ] **WS0.12 Fold answers in as they arrive (M, ongoing).** For each answer: change the code, fake and specs it names, add a decision to §3, and close the item in §10 and in the contract.
 
 #### Part B — Revise the design to the real API
