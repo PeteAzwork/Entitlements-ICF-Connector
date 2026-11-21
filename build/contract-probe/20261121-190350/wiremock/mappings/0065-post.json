@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/ws0-probe-20261121-190350-edge-A/relationships",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"sourceID\":\"ws0-probe-20261121-190350-edge-A\",\"targetID\":\"ws0-probe-20261121-190350-edge-B\",\"type\":\"Ws0ProbeEdge\"}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200
+    },
+    "metadata": {
+        "probeExchange": 65,
+        "check": "WS0.07",
+        "runId": "20261121-190350"
+    }
+}

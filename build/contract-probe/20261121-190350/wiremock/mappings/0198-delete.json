@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "DELETE",
+        "urlPath": "/admin/entities/ws0-probe-20261121-190350-shape-7"
+    },
+    "response": {
+        "status": 200
+    },
+    "metadata": {
+        "probeExchange": 198,
+        "check": "cleanup",
+        "runId": "20261121-190350"
+    }
+}

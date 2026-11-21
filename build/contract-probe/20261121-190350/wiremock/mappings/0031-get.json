@@ -1,0 +1,20 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/manifests"
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "paths": "<scrubbed>"
+        }
+    },
+    "metadata": {
+        "probeExchange": 31,
+        "check": "WS0.15",
+        "runId": "20261121-190350"
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/entities/ws0-probe-20261121-190350-edge-B"
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "id": "ws0-probe-20261121-190350-edge-B",
+            "lastEvaluated": "2026-11-21T08:03:51Z",
+            "reconciliationStarted": null,
+            "baseType": 2,
+            "Attributes": {
+                "probe": {
+                    "name": "probe",
+                    "type": "",
+                    "value": "ws0"
+                }
+            },
+            "compoundAttributes": {
+                
+            },
+            "relationships": [
+                {
+                    "source": "ws0-probe-20261121-190350-edge-A",
+                    "target": "ws0-probe-20261121-190350-edge-B",
+                    "type": "Ws0ProbeEdge",
+                    "sourceType": "Resource"
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "probeExchange": 69,
+        "check": "WS0.07",
+        "runId": "20261121-190350"
+    }
+}

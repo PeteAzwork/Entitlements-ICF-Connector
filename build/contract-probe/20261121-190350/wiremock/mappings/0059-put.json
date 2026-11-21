@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "PUT",
+        "urlPath": "/admin/entities/ws0-probe-20261121-190350-edge-B",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"id\":\"ws0-probe-20261121-190350-edge-B\",\"baseType\":2,\"attributes\":{\"ID\":\"ws0-probe-20261121-190350-edge-B\",\"probe\":\"ws0\"},\"relationships\":[],\"directArchetypes\":[]}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200
+    },
+    "metadata": {
+        "probeExchange": 59,
+        "check": "WS0.07",
+        "runId": "20261121-190350"
+    }
+}

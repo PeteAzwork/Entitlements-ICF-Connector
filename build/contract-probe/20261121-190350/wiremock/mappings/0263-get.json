@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/entities/ws0-probe-20261121-190350-id.with.dots"
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 263,
+        "check": "cleanup",
+        "runId": "20261121-190350"
+    }
+}
