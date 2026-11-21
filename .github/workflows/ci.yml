@@ -19,6 +19,8 @@ jobs:
         run: ./gradlew --no-daemon --continue test
       - name: Lint the mappings under config/ (WS6.09)
         run: ./gradlew --no-daemon :discovery:lintMappings
+      - name: Compile with IDM 7.5's Groovy 3.0.9 (scripts deployment, script_vs_jar.md)
+        run: ./gradlew --no-daemon :connector:compileWithIdmGroovy
       - name: Publish test reports
         if: always()
         uses: actions/upload-artifact@v4

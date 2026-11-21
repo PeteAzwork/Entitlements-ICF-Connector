@@ -17,6 +17,8 @@ test {
     systemProperty 'repo.root', rootProject.projectDir.absolutePath
     systemProperty 'idm.image', project.findProperty('idmImage') ?: 'gcr.io/forgerock-io/idm:7.5.0'
     systemProperty 'idm.keep', project.findProperty('idmKeep') ?: 'false'
+    // How the connector library is deployed: 'sources' (Groovy sources on the provisioner classpath) or 'jar'.
+    systemProperty 'idm.library', project.findProperty('idmLibrary') ?: 'sources'
     // WS8.10/8.11: -PidmScale=N adds ScaleInIdmSpec with N users and N accounts (skipped otherwise).
     systemProperty 'idm.scale', project.findProperty('idmScale') ?: '0'
     maxParallelForks = 1

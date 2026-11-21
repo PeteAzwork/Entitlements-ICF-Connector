@@ -54,7 +54,7 @@ The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-co
 ./gradlew :integration:test -Pidm -PidmScale=2000     # adds the volume and concurrency spec; timings in integration/build/scale-report.txt
 ```
 
-The suite starts IDM 7.5 in Docker on the host network (port 8080), deploys the connector as the runbook does, and drives it through IDM's REST API against an in-memory stand-in for the service. Deploying by hand, mind what IDM showed (`docs/service-contract.md` §4.1): the library goes in as `graphentity-connector-lib.jar` (`./gradlew :connector:connectorScripts`); the provisioner's object types come from `POST system?_action=createFullConfig`, called *before* the provisioner is saved; and the two library transforms need `"source": ""`.
+The suite starts IDM 7.5 in Docker on the host network (port 8080), deploys the connector as the runbook does, and drives it through IDM's REST API against an in-memory stand-in for the service. It deploys the library as Groovy sources by default; `-PidmLibrary=jar` deploys the jar instead. Deploying by hand, mind what IDM showed (`docs/service-contract.md` §4.1, `script_vs_jar.md`): `./gradlew :connector:connectorScripts` builds what goes into `<idm>/connectors/graphentity` (scripts and the library sources; `-PlibraryAs=jar` for the jar); the provisioner's object types come from `POST system?_action=createFullConfig`, called *before* the provisioner is saved; and the two library transforms need `"source": ""`.
 
 ### Discovery tool
 
@@ -93,6 +93,7 @@ connector/
 discovery/        ManagedSchemaReader, ObjectTypesGenerator, MappingSkeletonGenerator, DiffSummary,
                   DiscoveryTool (CLI), IdmManagedSource, MappingLint     (§12)
 fixtures/         convention-cases.json, shared by the connector and mapping-lib tests (§7)
+script_vs_jar.md  deploying the library as Groovy scripts (the default) or as a jar
 integration/      WS8: IdmStack (IDM 7.5 in Docker + the fake service), IDM specs, fixture managed.json
 contract-probe/   WS0 probe: ContractProbe, ProbeReport, Scrubber, ProbeMain
 mapping-lib/      graphEntityPayload.js + Node tests                     (§8.2)
