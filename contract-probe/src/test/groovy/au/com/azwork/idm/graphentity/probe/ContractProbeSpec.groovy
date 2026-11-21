@@ -36,7 +36,7 @@ class ContractProbeSpec extends Specification {
 
     ProbeOptions options(Map overrides = [:]) {
         def o = new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
-            runId: 't1', outDir: dir, maxPages: 5, timeoutSeconds: 5)
+            runId: 't1', outDir: dir, maxPages: 5, timeoutSeconds: 5, settleSeconds: 0)
         overrides.each { k, v -> o."$k" = v }
         o
     }
@@ -94,8 +94,8 @@ class ContractProbeSpec extends Specification {
         def p = probe()
 
         then:
-        ['baseType.create', 'search.createdVisible', 'create.duplicate', 'edges', 'attributes.omission', 'archetypes.replace',
-         'ids', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
+        ['create.shape', 'create.relationshipShape', 'search.reflectsDelete', 'baseType.create', 'search.createdVisible', 'create.duplicate',
+         'edges', 'attributes.omission', 'archetypes.replace', 'ids', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
     }
 
     def "the probe writes the service's write model: lowercase id, numeric base type, string attributes, sourceID/targetID (P17, P18, P20)"() {
@@ -268,6 +268,147 @@ class ContractProbeSpec extends Specification {
         p.contract.baseTypeOnCreate == 'confirmed: 4 = Subject'
     }
 
+    def "WS0.15: each create variant is tried once, and the documented EntityDTO is adopted when it is accepted"() {
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'create.shape').answer == 'The documented EntityDTO is accepted.'
+        f(p, 'create.shape').detail.contains('1. documented EntityDTO → 200')
+        f(p, 'create.shape').detail.contains('7. design casing (ID, BaseType, Relationships) → 400')
+        p.contract.createShape == 'documented EntityDTO'
+        service.requests.findAll { it.op == 'POST' && (it.body?.id ?: it.body?.ID)?.contains('-shape-') }.size() == ContractProbe.CREATE_VARIANTS.size()
+    }
+
+    def "WS0.15: when the service needs attributes.ID, that variant is adopted and every later write carries it"() {
+        given:
+        server.close()
+        def picky = new FakeGraphService() {
+            @Override HttpResponse create(Map<String, Object> d) { (d.attributes as Map)?.ID == d.id ? super.create(d) : new HttpResponse(status: 500) }
+            @Override HttpResponse replace(String id, Map<String, Object> d) { (d.attributes as Map)?.ID == d.id ? super.replace(id, d) : new HttpResponse(status: 500) }
+        }
+        seedForeign(picky)
+        server = new FakeGraphHttpServer(picky).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'create.shape').answer.contains('the first variant that is: EntityDTO + attributes.ID')
+        f(p, 'baseType.create').answer.startsWith('Yes')
+        f(p, 'attributes.omission').answer.startsWith('Yes')
+        picky.requests.findAll { it.op in ['POST', 'PUT'] && !(it.body?.id as String)?.contains('-shape-') && it.body?.id }
+            .every { (it.body.attributes as Map).ID == it.body.id || (it.body.id as String).contains('non-string') }
+        p.cleanupProblems == []
+    }
+
+    def "WS0.15: when no create variant is accepted, the other write checks are skipped with the reason, and cleanup asks for no proof"() {
+        given:
+        server.close()
+        def closed = new FakeGraphService() {
+            @Override HttpResponse create(Map<String, Object> d) { requests << [op: 'POST', body: d]; new HttpResponse(status: 500) }
+        }
+        seedForeign(closed)
+        server = new FakeGraphHttpServer(closed).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'create.shape').confidence == 'error'
+        ['baseType.create', 'edges', 'attributes.omission', 'ids', 'search.reflectsDelete'].every {
+            f(p, it).confidence == 'not-tested' && f(p, it).answer.contains('no create variant was accepted')
+        }
+        p.written.empty
+        p.cleanupProblems == []
+        p.cleanupUnconfirmed == []
+    }
+
+    def "WS0.15: reports which relationship form a create accepts (P17)"() {
+        expect:
+        f(probe(allowWrites: true), 'create.relationshipShape').answer == 'P17 `{sourceID, targetID, type}` → 200; design `{TargetID, type}` → 400.'
+    }
+
+    def "WS0.02: search stops returning a deleted entity in the fake"() {
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'search.reflectsDelete').answer.startsWith('Yes')
+        p.contract.searchReflectsDelete == true
+    }
+
+    def "WS0.02: when search still returns a deleted entity, a later search miss is not taken as proof of removal"() {
+        given:
+        server.close()
+        def lagging = new FakeGraphService() {
+            Map<String, Integer> ghosts = [:]
+            @Override HttpResponse get(String id) { requests << [op: 'GET', id: id]; new HttpResponse(status: 500) }
+            @Override HttpResponse delete(String id) {
+                def r = super.delete(id)
+                if (r.status == 200 && id.endsWith('delete-check')) ghosts[id] = 1
+                r
+            }
+            @Override HttpResponse search(Map<String, Object> q) {
+                def r = super.search(q)
+                String id = (q.filter as Map)?.right
+                if ((q.filter as Map)?.operation == 'EQUALS' && (ghosts[id] ?: 0) > 0) {
+                    ghosts[id]--
+                    (r.body.results as List) << [uid: id, name: id, baseType: 'Resource', attributes: [:], isArchetypes: [], directArchetypes: [], lastEvaluated: '2026-01-01T00:00:00Z']
+                }
+                r
+            }
+        }
+        seedForeign(lagging)
+        server = new FakeGraphHttpServer(lagging).start()
+
+        when:
+        def p = probe(allowWrites: true)
+        ProbeReport.write(p, dir)
+
+        then:
+        f(p, 'search.reflectsDelete').answer.startsWith('No: after DELETE (200) a search still finds it')
+        p.cleanupProblems == []
+        p.cleanupUnconfirmed
+        p.cleanupUnconfirmed.every { it in p.written }
+        new File(dir, 'report.md').text.contains('**Removal not confirmed**')
+        !new File(dir, 'report.md').text.contains('confirmed gone')
+    }
+
+    def "WS0.15: entities left by earlier probe runs are listed, and kept out of the type statistics"() {
+        given:
+        service.seed([id: 'ws0-probe-20250101-000000-seed-1', baseType: 2, attributes: [probe: 'ws0'], isArchetypes: ['Ws0Probe']])
+        service.seed([id: 'ws0-probe-20250101-000000-seed-2', baseType: 2, attributes: [probe: 'ws0'], isArchetypes: ['Ws0Probe']])
+
+        when:
+        def p = probe()
+
+        then:
+        f(p, 'probe.leftovers').answer == 'Yes: 2, from run(s) 20250101-000000 ×2. Remove them by hand; their IDs are in the detail.'
+        f(p, 'probe.leftovers').detail == 'ws0-probe-20250101-000000-seed-1, ws0-probe-20250101-000000-seed-2'
+        f(p, 'types.baseTypes').answer == 'Resource: 2, Subject: 2'
+        !f(p, 'types.archetypes').detail.contains('Ws0Probe')
+    }
+
+    def "WS0.15: a manifests response that is not the documented list is described by its outline, without values"() {
+        given:
+        server.close()
+        def odd = new FakeGraphService() {
+            @Override HttpResponse manifests() {
+                new HttpResponse(status: 200, headers: ['Content-Type': 'application/json'], body: [paths: [[name: 'PII-x', count: 2, rules: [a: 'PII-y']]]])
+            }
+        }
+        seedForeign(odd)
+        server = new FakeGraphHttpServer(odd).start()
+
+        when:
+        def a = f(probe(), 'manifests.archetypes')
+
+        then:
+        a.answer == 'Cannot tell: 200, but not the documented list of manifests. Outline: {paths: list of 1 × {name: string, count: number, rules: object (1 fields)}}.'
+        !a.answer.contains('PII-')
+    }
+
     def "WS0.07/WS0.04: write checks observe every relationship semantic, including Q07.8"() {
         when:
         def p = probe(allowWrites: true)
@@ -291,7 +432,8 @@ class ContractProbeSpec extends Specification {
         probe(allowWrites: true)
 
         then:
-        def bodies = service.requests.findAll { it.op in ['POST', 'PUT'] && it.body?.relationships }*.body
+        // rel-design deliberately sends the design's one-sided form, to see whether the service accepts it.
+        def bodies = service.requests.findAll { it.op in ['POST', 'PUT'] && it.body?.relationships && !(it.body.id as String).endsWith('rel-design') }*.body
         bodies
         bodies.every { b -> b.relationships.every { r -> r.keySet() == ['sourceID', 'targetID', 'type'] as Set && b.id in [r.sourceID, r.targetID] } }
     }

@@ -129,6 +129,17 @@ class ScrubberSpec extends Specification {
         s.scrubResponse('/admin/entities/search', [results: [[uid: 'Cor']]]) == [results: [[uid: 'scrubbed-1']]]
     }
 
+    def "with a namespace, earlier probe runs' entities are probe data too; without one, only this run's are"() {
+        given:
+        def withNs = new Scrubber('ws0-probe-r1-', ['/admin/entities/search'], 'ws0-probe-')
+
+        expect:
+        withNs.isProbeId('ws0-probe-r0-seed-1')
+        withNs.scrub([uid: 'ws0-probe-r0-seed-1', attributes: [probe: 'ws0']]) == [uid: 'ws0-probe-r0-seed-1', attributes: [probe: 'ws0']]
+        !s.isProbeId('ws0-probe-r0-seed-1')
+        !withNs.isProbeId('Cor')
+    }
+
     def "the search endpoint is not mistaken for an entity ID"() {
         expect:
         s.scrubPath('/admin/entities/search') == '/admin/entities/search'

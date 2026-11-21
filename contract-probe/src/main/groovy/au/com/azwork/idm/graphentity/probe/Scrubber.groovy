@@ -37,16 +37,22 @@ class Scrubber {
     static final Set<String> PATH_KEYWORDS = ['search', 'bulk', 'relationships', 'direct-assign-archetype', 'delegations'] as Set
 
     final String probePrefix
+    /** IDs under this namespace were made by some probe run (possibly an earlier one) and hold no real data. */
+    final String probeNamespace
     /** Whole paths under /admin/entities/ that are endpoints (the search endpoint). */
     final Set<String> endpointPaths
     private final Map<String, String> aliases = [:]
 
-    Scrubber(String probePrefix, Collection<String> endpointPaths = ['/admin/entities/search']) {
+    Scrubber(String probePrefix, Collection<String> endpointPaths = ['/admin/entities/search'], String probeNamespace = null) {
         this.probePrefix = probePrefix
         this.endpointPaths = endpointPaths as Set<String>
+        this.probeNamespace = probeNamespace
     }
 
-    boolean isProbeId(Object id) { id instanceof String && id.startsWith(probePrefix) }
+    /** True for this run's IDs, and for any earlier run's when a namespace is set. */
+    boolean isProbeId(Object id) {
+        id instanceof String && (id.startsWith(probePrefix) || (probeNamespace && id.startsWith(probeNamespace)))
+    }
 
     /** The entity's identity in whichever casing it carries, or null. */
     static String identity(Map m) {

@@ -138,3 +138,16 @@ Each decision below gives the context, the decision, its consequences, what must
 | Whether each entity's collection must list relationships where it is the target (Q07.8, P17) | WS5.05 | Service team, WS0.15 |
 | Names of the filter operations (P21) | The ends-with and comparison filters only | Service team |
 | GET by ID works (C1) | Whether reads by ID use GET or the search fallback | Service team |
+
+---
+
+## Findings since these decisions
+
+The first realigned probe runs (`20261121-173141`, `20261121-173153`) bear on three decisions. Details are in `docs/service-contract.md` §5.5.
+
+| Decision | Finding | Effect |
+|---|---|---|
+| P18 | `objectClass: 4` returns only Subjects and `2` only Resources (C6) | Supports the numbering. Confirming it on create waits for C8 |
+| P17, P20, P22 | Every create in the EntityDTO shape got 500, while the design-shaped creates of the first run were accepted (C8) | None of the write conditions could be checked. The probe now finds the accepted body (`create.shape`) |
+| P19 | Search shows `directArchetypes` empty on every entity; archetypes written as direct appear in `isArchetypes` (C9) | Scoping on a direct scope archetype would find nothing. To be revisited (plan WS0.18) |
+
