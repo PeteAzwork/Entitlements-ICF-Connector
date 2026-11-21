@@ -4,7 +4,10 @@ import org.identityconnectors.framework.common.objects.ObjectClass
 import org.identityconnectors.framework.common.objects.OperationOptions
 import org.identityconnectors.framework.common.objects.Uid
 
-/** Delete (design §9.3): DELETE /admin/entities/{id}; 404 tolerated per {@code deleteMissingTolerated}. */
+/**
+ * Delete (design §9.3): DELETE /admin/entities/{id}; 404 tolerated per {@code deleteMissingTolerated}. A Uid
+ * containing {@code /} is rejected before any request, because the service cannot address it by path (P23).
+ */
 class DeleteOperation {
     private final OperationContext ctx
 

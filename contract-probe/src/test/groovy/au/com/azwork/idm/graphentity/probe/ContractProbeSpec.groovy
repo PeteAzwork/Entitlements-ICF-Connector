@@ -587,6 +587,116 @@ class ContractProbeSpec extends Specification {
         f(p, 'edges.postToMissing').answer.startsWith('Cannot tell')
     }
 
+    /** C15: an entity's read model shows relationships as they were at its own last write; another entity's write does not refresh it. */
+    static class StaleOtherEndService extends FakeGraphService {
+        final Map<String, List> snapshot = [:]
+
+        private void snap(String id) {
+            snapshot[id] = edges.findAll { it[0] == id || it[1] == id }.collect { new ArrayList(it) }
+        }
+
+        @Override HttpResponse create(Map<String, Object> d) {
+            def r = super.create(d)
+            if (r.status == 200) snap(d.id as String)
+            r
+        }
+
+        @Override HttpResponse replace(String id, Map<String, Object> d) {
+            def r = super.replace(id, d)
+            if (r.status == 200) snap(id)
+            r
+        }
+
+        @Override Map<String, Object> renderEntity(String id) {
+            def e = super.renderEntity(id)
+            if (snapshot.containsKey(id)) e.relationships = snapshot[id].collect { [source: it[0], target: it[1], type: it[2], sourceType: 'Resource'] }
+            e
+        }
+    }
+
+    /** C13: a write that arrives while the previous write to the same entity is still being applied is lost. */
+    static class LosingService extends LaggingService {
+        LosingService(int lag) { super(lag) }
+
+        @Override HttpResponse replace(String id, Map<String, Object> d) {
+            if (((stale[id]?.left ?: 0) as int) > 0) { requests << [op: 'PUT', id: id, body: d, lost: true]; return new HttpResponse(status: 200) }
+            super.replace(id, d)
+        }
+    }
+
+    def "WS0.15f: every write in the relationship and attribute checks carries an increasing revision marker"() {
+        when:
+        probe(allowWrites: true)
+
+        then:
+        def revs = service.requests.findAll { it.op in ['POST', 'PUT'] && (it.body?.id as String)?.endsWith('edge-A') }*.body*.attributes*.rev
+        revs == (1..revs.size())*.toString()
+        revs.size() >= 5
+    }
+
+    def "WS0.15f: relationship outcomes are read on the written entity, so a stale other end cannot mislead them (C15)"() {
+        given:
+        server.close()
+        def stale = new StaleOtherEndService()
+        seedForeign(stale)
+        server = new FakeGraphHttpServer(stale).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'edges.sourceOmission').answer.startsWith('Yes: A, written without A → B, no longer lists it.')
+        f(p, 'edges.inboundOnCreate').answer.startsWith('Yes')
+        f(p, 'edges.otherEndRefreshed').answer.startsWith('No')
+    }
+
+    def "WS0.15f: settled writes still get answers from a service that loses a write sent too soon (C13)"() {
+        given:
+        server.close()
+        def losing = new LosingService(3)
+        seedForeign(losing)
+        server = new FakeGraphHttpServer(losing).start()
+
+        when:
+        def p = probe(allowWrites: true, settleSeconds: 2, pollMillis: 5)
+
+        then:
+        f(p, 'attributes.omission').answer.startsWith('Yes: once the update was visible')
+        f(p, 'edges.sourceOmission').answer.startsWith('Yes')
+        f(p, 'archetypes.replace').answer.startsWith('Yes')
+        !losing.requests.any { it.lost && !((it.id as String).contains('-stab-') || (it.id as String).contains('never-created')) }
+    }
+
+    def "WS0.15f: --remove-leftovers deletes earlier runs' probe entities, skips IDs with a slash, and touches nothing else"() {
+        given:
+        service.seed([id: 'ws0-probe-20250101-000000-seed-1', baseType: 2, attributes: [probe: 'ws0']])
+        service.seed([id: 'ws0-probe-20250101-000000-seed-2', baseType: 2, attributes: [probe: 'ws0']])
+        service.seed([id: 'ws0-probe-20250101-000000-a/b', baseType: 2, attributes: [probe: 'ws0']])
+        def foreignBefore = service.entities.keySet().findAll { !it.startsWith('ws0-probe-') }
+
+        when:
+        def p = probe(allowWrites: true, removeLeftovers: true)
+
+        then:
+        f(p, 'probe.leftoversRemoved').answer.startsWith('Removed 2 of 3.')
+        f(p, 'probe.leftoversRemoved').answer.contains('Not addressable by path')
+        !service.entities.containsKey('ws0-probe-20250101-000000-seed-1')
+        service.entities.containsKey('ws0-probe-20250101-000000-a/b')
+        service.entities.keySet().findAll { !it.startsWith('ws0-probe-') } == foreignBefore
+    }
+
+    def "WS0.15f: without --remove-leftovers, leftovers are only reported"() {
+        given:
+        service.seed([id: 'ws0-probe-20250101-000000-seed-1', baseType: 2, attributes: [probe: 'ws0']])
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        !p.findings*.key.contains('probe.leftoversRemoved')
+        service.entities.containsKey('ws0-probe-20250101-000000-seed-1')
+    }
+
     def "WS0.15e: poll stops as soon as the condition holds, and makes exactly one attempt with no window"() {
         given:
         def p = new ContractProbe(options(settleSeconds: 2, pollMillis: 1))

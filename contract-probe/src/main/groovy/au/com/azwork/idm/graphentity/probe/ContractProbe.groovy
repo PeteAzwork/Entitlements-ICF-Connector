@@ -74,6 +74,10 @@ class ContractProbe {
     final Map<String, String> cleanupConfirmedBy = [:]
     /** Probe entities deleted with a 2xx whose removal no read could prove (GET fails and search is not trusted). */
     final List<String> cleanupUnconfirmed = []
+    /** Per-ID revision counter for settled writes: each carries attributes.rev, and waits for it to show (WS0.15f). */
+    final Map<String, Integer> revs = [:]
+    /** Entities left by earlier probe runs, found by {@code probe.leftovers}. */
+    final List<String> leftoverIds = []
     /** Probe IDs whose create or update was accepted. Only these need their removal proved. */
     final Set<String> written = new LinkedHashSet<>()
     /** The create variant adopted by {@code create.shape}; the documented EntityDTO until then. */
@@ -112,6 +116,7 @@ class ContractProbe {
             step('WS0.15') { checkManifests() }
             step('WS0.05') { checkErrorsReadOnly() }
             step('WS0.15') { checkLeftovers() }
+            if (opts.allowWrites && opts.removeLeftovers) step('WS0.15') { removeLeftovers() }
             if (opts.allowWrites && writable) {
                 step('WS0.15') { checkRelationshipShape() }
                 step('WS0.02') { checkSearchReflectsDelete() }
@@ -418,6 +423,42 @@ class ContractProbe {
      */
     Exchange getSettled(String id, Closure<Boolean> want = null) {
         poll({ http.get(entityPath(id)) }, { Exchange g -> g.status == 404 || (g.success && g.body instanceof Map && (want == null || want(g.body as Map))) }).result as Exchange
+    }
+
+    /**
+     * A write that waits until it has been applied (WS0.15f). Rapid writes to one entity can be lost (C13), so the
+     * write carries {@code attributes.rev}, a per-entity counter, and the next step waits until search shows that
+     * revision. Returns [write, rev, applied, item, search, waitedMs].
+     */
+    Map settledWrite(Map doc, boolean create = false) {
+        String id = doc.id as String
+        int n = (revs[id] ?: 0) + 1
+        revs[id] = n
+        String rev = n as String
+        Map d = new LinkedHashMap(doc)
+        d.attributes = ((doc.attributes ?: [:]) as Map) + [rev: rev]
+        Exchange w = create ? createProbe(d) : putProbe(d)
+        Map seen = w.success ? findInSearch(id, null, { Map i -> i != null && attributesOf(i).rev == rev }) : null
+        [write: w, rev: rev, applied: (seen?.settled ?: false) as boolean, item: seen?.item, search: seen?.exchange, waitedMs: seen?.waitedMs ?: 0L]
+    }
+
+    /**
+     * Reads the read model of the entity a settled write went to, once it shows that write's revision. An entity's
+     * read model is refreshed only when the entity itself is re-evaluated (C15), so relationship outcomes are read
+     * here, on the written entity, and not on the other end. Returns [ok, ex, doc, why].
+     */
+    Map readWritten(String id, Map sw) {
+        if (!sw.write.success) return [ok: false, ex: sw.write, why: "the write failed (${sw.write.status})".toString()]
+        def g = getSettled(id, { Map d -> attributesOf(d).rev == sw.rev })
+        boolean ok = g.success && g.body instanceof Map && attributesOf(g.body as Map).rev == sw.rev
+        [ok: ok, ex: g, doc: ok ? g.body as Map : null,
+         why: ok ? null : (g.success ? "the entity's read model never showed the write ${window()}" : "GET returned ${g.status == -1 ? 'no response' : g.status} ${window()}").toString()]
+    }
+
+    /** Adds an observed finding from a written entity's read model, or an inconclusive one saying why not. */
+    private void addFromWritten(String task, String key, String question, Map r, Closure<String> answer, String detail, List<Exchange> evidence) {
+        if (r.ok) add(task, key, question, answer(r.doc as Map), 'observed', detail, evidence)
+        else add(task, key, question, "Cannot tell: ${r.why}.", 'inconclusive', detail, evidence)
     }
 
     private String window() { opts.settleSeconds > 0 ? "within the ${opts.settleSeconds}s settle window" : 'with a single read (no settle window)' }
@@ -827,9 +868,35 @@ class ContractProbe {
         List<String> ids = found.collect { idOf(it) }.findAll { it?.startsWith(ns) && !it.startsWith(opts.prefix) }.unique().sort()
         Map<String, Integer> byRun = ids.countBy { String id -> (id.substring(ns.length()) =~ /^(\d{8}-\d{6}|[^-]+)/).with { it.find() ? it.group(1) : '?' } }
         contract.leftoverProbeEntities = ids.size()
+        leftoverIds.clear()
+        leftoverIds.addAll(ids)
         add('WS0.15', 'probe.leftovers', 'Are entities from earlier probe runs still in the service?',
             ids ? "Yes: ${ids.size()}, from run(s) ${byRun.collect { k, v -> "${k} ×${v}" }.join(', ')}. Remove them by hand; their IDs are in the detail." : 'None found.',
             'observed', ids ? ids.take(60).join(', ') + (ids.size() > 60 ? ", and ${ids.size() - 60} more" : '') : null)
+    }
+
+    /**
+     * With {@code --remove-leftovers}: deletes the entities earlier probe runs left behind, now that deletes work
+     * (C10), and waits for each to disappear. Only IDs in the probe namespace are touched. IDs containing {@code /}
+     * cannot be addressed by path (Q09.1) and are listed for the service team.
+     */
+    void removeLeftovers() {
+        String q = 'Were the leftover probe entities removed?'
+        if (!leftoverIds) {
+            add('WS0.15', 'probe.leftoversRemoved', q, 'Nothing to remove.', 'observed')
+            return
+        }
+        List<String> unaddressable = leftoverIds.findAll { it.contains('/') }
+        List<String> gone = [], remaining = []
+        leftoverIds.findAll { !it.contains('/') && it.startsWith(ProbeOptions.NAMESPACE) }.each { id ->
+            http.delete(entityPath(id))
+            (readBack(id, { it == null }).found == false ? gone : remaining) << id
+        }
+        add('WS0.15', 'probe.leftoversRemoved', q,
+            "Removed ${gone.size()} of ${leftoverIds.size()}." +
+                (remaining ? " Still found after DELETE ${window()}: ${remaining.join(', ')}." : '') +
+                (unaddressable ? " Not addressable by path, so not attempted (Q09.1): ${unaddressable.join(', ')}. Ask the service team to remove them." : ''),
+            'observed')
     }
 
     // ------------------------------------------------------------------ WS0.15 decision checks (writes)
@@ -870,123 +937,129 @@ class ContractProbe {
     }
 
     /**
-     * P15, P17, A7, Q07.8 and the relationship endpoints. Relationships are only in the read model, so every answer
-     * needs GET. Each read is retried within the settle window, until it shows the outcome being tested for or the
-     * window closes; "No" answers therefore mean "not within the window".
+     * P15, P17, A7, Q07.8 and the relationship endpoints (WS0.15f). Every write is settled: it carries a revision
+     * marker and the next step waits for it (C13). Each outcome is read on the entity that was written, once its
+     * read model shows that write, because a relationship change does not refresh the other end (C15).
      */
     void checkEdgeSemantics() {
         String A = pid('edge-A'), B = pid('edge-B'), C = pid('edge-C')
         Map ab = edge(A, B)
-        Closure<Boolean> linked = { Map d -> hasEdge(d, A, B) }
-        Closure<Boolean> unlinked = { Map d -> !hasEdge(d, A, B) }
-        String w = "Read ${window()}."
+        String w = "Settled writes; read on the written entity ${window()}."
 
-        def postA = createProbe(probeDoc(A, [ab]))
-        if (!postA.success) {
-            add('WS0.07', 'edges.postToMissing', 'What happens to a relationship to a missing entity on POST (A7)?', "The POST itself failed: ${postA.status}, ${shape(postA)}.", 'error', null, [postA])
+        Map wA = settledWrite(probeDoc(A, [ab]), true)
+        if (!wA.write.success) {
+            add('WS0.07', 'edges.postToMissing', 'What happens to a relationship to a missing entity on POST (A7)?', "The POST itself failed: ${wA.write.status}, ${shape(wA.write)}.", 'error', null, [wA.write])
             return
         }
-        def getA1 = getSettled(A)
-        addFromReads('WS0.07', 'edges.postToMissing', 'What happens to a relationship to a missing entity on POST (A7)?', [getA1], {
-            hasEdge(getA1.body as Map, A, B) ? 'Kept: the relationship is stored although the other entity does not exist.' : 'Dropped silently: POST succeeded and the relationship is absent.'
-        }, "POST ${postA.status}. ${w}", [postA, getA1])
+        Map rA = readWritten(A, wA)
+        addFromWritten('WS0.07', 'edges.postToMissing', 'What happens to a relationship to a missing entity on POST (A7)?', rA, { Map d ->
+            hasEdge(d, A, B) ? 'Kept: the relationship is stored although the other entity does not exist.' : 'Dropped silently: POST succeeded and the relationship is absent.'
+        }, w, [wA.write, wA.search, rA.ex])
 
-        def dup = createProbe(probeDoc(A, [ab], [probe: 'second']))
-        Map rbDup = readBack(A, { Map d -> d != null && attributesOf(d).probe == 'second' })
-        addFromReads('WS0.04', 'create.duplicate', 'What does a duplicate POST return?', [rbDup.found == null ? null : (rbDup.search ?: rbDup.get)], {
-            boolean replaced = rbDup.settled && attributesOf(rbDup.doc).probe == 'second'
-            dup.status == 409 ? '409, and the entity is unchanged.' :
-                "${dup.status}${dup.success ? '' : ": ${shape(dup)}"}, and the entity was ${replaced ? "replaced (upsert), visible after ${rbDup.waitedMs} ms" : "left unchanged ${window()}"}."
-        }, "Duplicate POST returned ${dup.status}. Read back by ${rbDup.via ?: 'nothing'}.", [dup, rbDup.get, rbDup.search])
-        if (dup.success) putProbe(probeDoc(A, [ab]))   // restore the original attributes either way
+        Map wDup = settledWrite(probeDoc(A, [ab], [probe: 'second']), true)
+        add('WS0.04', 'create.duplicate', 'What does a duplicate POST return?',
+            wDup.write.status == 409 ? '409, and the entity is unchanged.' :
+                "${wDup.write.status}${wDup.write.success ? '' : ": ${shape(wDup.write)}"}, and the entity was ${wDup.applied ? "replaced (upsert), visible after ${wDup.waitedMs} ms" : "left unchanged ${window()}"}.",
+            'observed', null, [wDup.write, wDup.search])
+        settledWrite(probeDoc(A, [ab]))   // restore the original attributes either way
 
-        def postB = createProbe(probeDoc(B, [ab]))
-        def getA2 = getSettled(A, linked)
-        def getB1 = getSettled(B, linked)
-        addFromReads('WS0.07', 'edges.inboundOnCreate', 'Does a relationship in the target\'s POST link it to an existing source?', [getA2], {
-            hasEdge(getA2.body as Map, A, B) ? 'Yes: A now shows A → B.' : 'No: A does not show A → B.'
-        }, "POST B ${postB.status}, carrying the same relationship as A's. ${w}", [postB, getA2])
-        addFromReads('WS0.07', 'edges.getShowsInbound', 'Does GET of the target show the relationship, with the other entity as source?', [getB1], {
-            hasEdge(getB1.body as Map, A, B) ? 'Yes: B lists A → B.' : "No: B's relationships are ${scrubber.scrub(relationshipsOf(getB1.body as Map))}."
-        }, w, [getB1])
-        if (getB1.success && relationshipsOf(getB1.body as Map)) {
-            Set<String> keys = relationshipsOf(getB1.body as Map).collectMany { it.keySet() as List } as Set<String>
-            add('WS0.07', 'edges.readShape', 'Which keys does the read model use for a relationship (P17)?', keys.sort().join(', '), 'observed', null, [getB1])
+        Map wB = settledWrite(probeDoc(B, [ab]), true)
+        Map rB = readWritten(B, wB)
+        addFromWritten('WS0.07', 'edges.inboundOnCreate', 'Does a relationship in the target\'s POST link it to an existing source?', rB, { Map d ->
+            hasEdge(d, A, B) ? 'Yes: B, written with A → B, lists it.' : 'No: B, written with A → B, does not list it.'
+        }, w, [wB.write, wB.search, rB.ex])
+        addFromWritten('WS0.07', 'edges.getShowsInbound', 'Does GET of the target show the relationship, with the other entity as source?', rB, { Map d ->
+            hasEdge(d, A, B) ? 'Yes: B lists A → B, with A as source.' : "No: B's relationships are ${scrubber.scrub(relationshipsOf(d))}."
+        }, w, [rB.ex])
+        if (rB.ok && relationshipsOf(rB.doc as Map)) {
+            Set<String> keys = relationshipsOf(rB.doc as Map).collectMany { it.keySet() as List } as Set<String>
+            add('WS0.07', 'edges.readShape', 'Which keys does the read model use for a relationship (P17)?', keys.sort().join(', '), 'observed', null, [rB.ex])
         }
+        // C15: does the other end's read model pick the relationship up without a write of its own?
+        def gA = http.get(entityPath(A))
+        add('WS0.07', 'edges.otherEndRefreshed', 'Does the other end\'s read model show a relationship it did not write (C15)?',
+            !gA.success ? "Cannot tell: GET A returned ${gA.status}." :
+                (hasEdge(gA.body as Map, A, B) ? 'Yes: A lists A → B, although only B was written.' : 'No: A, last written without B existing, does not list A → B until A is written again.'),
+            gA.success ? 'observed' : 'inconclusive', 'Read once, straight after B\'s write was applied.', [gA])
 
-        def putA = putProbe(probeDoc(A, []))
-        def getB2 = getSettled(B, unlinked)
-        addFromReads('WS0.07', 'edges.sourceOmission', 'Does writing the source without the relationship delete it (P15)?', [getB2], {
-            hasEdge(getB2.body as Map, A, B) ? "No: B still lists A → B ${window()}." : 'Yes: B no longer lists A → B.'
-        }, "PUT A ${putA.status}.", [putA, getB2])
+        Map wA0 = settledWrite(probeDoc(A, []))
+        Map rA0 = readWritten(A, wA0)
+        addFromWritten('WS0.07', 'edges.sourceOmission', 'Does writing the source without the relationship delete it (P15)?', rA0, { Map d ->
+            hasEdge(d, A, B) ? 'No: A, written without A → B, still lists it.' : 'Yes: A, written without A → B, no longer lists it.'
+        }, w, [wA0.write, wA0.search, rA0.ex])
 
-        def putB = putProbe(probeDoc(B, [ab]))
-        def getA3 = getSettled(A, linked)
-        addFromReads('WS0.07', 'edges.inboundOnPut', 'Does a relationship in the target\'s PUT link the entities?', [getA3], {
-            hasEdge(getA3.body as Map, A, B) ? 'Yes: A shows A → B again.' : "No, not ${window()}."
-        }, "PUT B ${putB.status}.", [putB, getA3])
+        Map wB1 = settledWrite(probeDoc(B, [ab]))
+        Map rB1 = readWritten(B, wB1)
+        addFromWritten('WS0.07', 'edges.inboundOnPut', 'Does a relationship in the target\'s PUT link the entities?', rB1, { Map d ->
+            hasEdge(d, A, B) ? 'Yes: B, written with A → B, lists it.' : 'No: B, written with A → B, does not list it.'
+        }, w, [wB1.write, wB1.search, rB1.ex])
 
-        def putB2 = putProbe(probeDoc(B, []))
-        def getA4 = getSettled(A, unlinked)
-        addFromReads('WS0.07', 'edges.targetOmission', 'Does writing the target without the relationship delete it (Q07.8)?', [getA4], {
-            hasEdge(getA4.body as Map, A, B) ?
-                "No: A still lists A → B ${window()}. A write only removes relationships where the entity is the source." :
-                'Yes: A no longer lists A → B. Every write must list the relationships where the entity is the target, as design A2 provides.'
-        }, "PUT B without the relationship: ${putB2.status}.", [putB2, getA4])
+        Map wB0 = settledWrite(probeDoc(B, []))
+        Map rB0 = readWritten(B, wB0)
+        addFromWritten('WS0.07', 'edges.targetOmission', 'Does writing the target without the relationship delete it (Q07.8)?', rB0, { Map d ->
+            hasEdge(d, A, B) ?
+                'No: B, written without A → B, still lists it. A write only removes relationships where the entity is the source.' :
+                'Yes: B, written without A → B, no longer lists it. Every write must list the relationships where the entity is the target, as design A2 provides.'
+        }, w, [wB0.write, wB0.search, rB0.ex])
 
-        def putAC = putProbe(probeDoc(A, [ab, edge(A, C)]))
-        def getA5 = getSettled(A, linked)
-        if (!putAC.success) {
-            add('WS0.07', 'edges.putToMissing', 'What happens to a relationship to a missing entity on PUT?', "Rejected: ${putAC.status}, ${shape(putAC)}.", 'observed', null, [putAC])
+        Map wAC = settledWrite(probeDoc(A, [ab, edge(A, C)]))
+        if (!wAC.write.success) {
+            add('WS0.07', 'edges.putToMissing', 'What happens to a relationship to a missing entity on PUT?', "Rejected: ${wAC.write.status}, ${shape(wAC.write)}.", 'observed', null, [wAC.write])
         } else {
-            addFromReads('WS0.07', 'edges.putToMissing', 'What happens to a relationship to a missing entity on PUT?', [getA5], {
-                hasEdge(getA5.body as Map, A, C) ? 'Kept dangling: the relationship to the missing entity is stored.' :
-                    (hasEdge(getA5.body as Map, A, B) ? 'Dropped silently: PUT succeeded and only the relationship to the existing entity remains.' : 'Both relationships are absent.')
-            }, w, [putAC, getA5])
+            Map rAC = readWritten(A, wAC)
+            addFromWritten('WS0.07', 'edges.putToMissing', 'What happens to a relationship to a missing entity on PUT?', rAC, { Map d ->
+                hasEdge(d, A, C) ? 'Kept dangling: the relationship to the missing entity is stored.' :
+                    (hasEdge(d, A, B) ? 'Dropped silently: PUT succeeded and only the relationship to the existing entity remains.' : 'Both relationships are absent.')
+            }, w, [wAC.write, wAC.search, rAC.ex])
         }
 
+        // The relationship endpoints carry no attributes, so there is no marker to wait for: GET is retried until the
+        // expected outcome shows, and a "not" answer means "not within the window".
         String relPath = entityPath(A) + '/relationships'
         def del = http.delete(relPath + '/' + ProbeHttp.encodeSegment(B) + '/' + EDGE_TYPE)
-        def getA6 = getSettled(A, unlinked)
+        def getA6 = getSettled(A, { Map d -> !hasEdge(d, A, B) })
         def addRel = http.post(relPath, ab)
-        def getA7 = getSettled(A, linked)
+        def getA7 = getSettled(A, { Map d -> hasEdge(d, A, B) })
         addFromReads('WS0.07', 'edges.relationshipEndpoints', 'Do the relationship endpoints remove and add one relationship?', [getA6, getA7], {
-            "DELETE ${del.status}: ${hasEdge(getA6.body as Map, A, B) ? "A still lists A → B ${window()}" : 'removed'}. POST ${addRel.status}: ${hasEdge(getA7.body as Map, A, B) ? 'added back' : 'not added'}. The connector does not use them (P15)."
+            "DELETE ${del.status}: ${hasEdge(getA6.body as Map, A, B) ? "A still lists A → B ${window()}" : 'removed'}. POST ${addRel.status}: ${hasEdge(getA7.body as Map, A, B) ? 'added back' : "not added ${window()}"}. The connector does not use them (P15)."
         }, null, [del, getA6, addRel, getA7])
 
+        // Deleting B: A's read model refreshes only when A is re-evaluated (C15), so A is rewritten with its
+        // relationship to B and then read. A relationship to a missing entity is dropped on PUT (Q07.6), so this shows
+        // whether B is really gone, not whether DELETE cascades on its own.
         def delB = http.delete(entityPath(B))
-        def getA8 = getSettled(A, unlinked)
-        def getB3 = http.get(entityPath(B))
-        addFromReads('WS0.07', 'edges.deleteCascades', 'Does DELETE remove the relationships touching the entity?', [getA8], {
-            hasEdge(getA8.body as Map, A, B) ? "No: A still lists a relationship to the deleted entity ${window()}." : 'Yes: A no longer lists it.'
-        }, "DELETE ${delB.status} (${shape(delB)}); GET of the deleted entity then returns ${getB3.status}.", [delB, getA8, getB3])
+        Map goneB = readBack(B, { it == null })
+        Map wA2 = settledWrite(probeDoc(A, [ab]))
+        Map rA2 = readWritten(A, wA2)
+        addFromWritten('WS0.07', 'edges.deleteCascades', 'After DELETE, is the deleted entity gone from the other end\'s relationships?', rA2, { Map d ->
+            hasEdge(d, A, B) ? 'No: A, rewritten with A → B after B was deleted, still lists it.' : 'Yes: A, rewritten with A → B after B was deleted, no longer lists it.'
+        }, "DELETE ${delB.status}; B ${goneB.found == false ? 'gone from search' : 'still found'} ${window()}.", [delB, goneB.search, wA2.write, rA2.ex])
     }
 
     /**
-     * P20: does an update that omits an attribute remove it? Waits until the update's own change ({@code keep}
-     * becoming {@code k2}) is visible before judging the omitted attribute.
+     * P20: does an update that omits an attribute remove it? Both writes are settled (C13): the update is sent only
+     * once the create is visible, and judged only once the update is.
      */
     void checkAttributeOmission() {
         String X = pid('attrs')
         String q = 'Does an update that omits an attribute remove it (P20)?'
-        def c = createProbe(probeDoc(X, [], [keep: 'k1', drop: 'd1']))
-        def p = putProbe(probeDoc(X, [], [keep: 'k2']))
-        if (!c.success || !p.success) {
-            add('WS0.15', 'attributes.omission', q, "A write failed: POST ${c.status}, PUT ${p.status}.", 'error', null, [c, p])
+        Map c = settledWrite(probeDoc(X, [], [keep: 'k1', drop: 'd1']), true)
+        if (!c.write.success || !c.applied) {
+            add('WS0.15', 'attributes.omission', q, c.write.success ? "Cannot tell: the create never became visible ${window()}." : "The create failed: ${c.write.status}.",
+                c.write.success ? 'inconclusive' : 'error', null, [c.write, c.search])
             return
         }
-        Map rb = readBack(X, { Map d -> d != null && attributesOf(d).keep == 'k2' })
-        if (!rb.found || !rb.settled) {
-            add('WS0.15', 'attributes.omission', q,
-                rb.found == null ? "Cannot tell: GET returned ${rb.get.status} and no search was possible." :
-                    "Cannot tell: the update never became visible ${window()} (read by ${rb.via}).", 'inconclusive', null, [c, p, rb.get, rb.search])
+        Map u = settledWrite(probeDoc(X, [], [keep: 'k2']))
+        if (!u.write.success || !u.applied) {
+            add('WS0.15', 'attributes.omission', q, u.write.success ? "Cannot tell: the update never became visible ${window()}." : "The update failed: ${u.write.status}.",
+                u.write.success ? 'inconclusive' : 'error', null, [c.write, c.search, u.write, u.search])
             return
         }
-        Map attrs = attributesOf(rb.doc)
+        Map attrs = attributesOf(u.item as Map)
         add('WS0.15', 'attributes.omission', q,
             attrs.containsKey('drop') ? 'No: once the update was visible, the omitted attribute was still there. The connector must send empty values explicitly instead of omitting them.' :
-                "Yes: once the update was visible (after ${rb.waitedMs} ms), the omitted attribute was gone.",
-            'observed', "Read back by ${rb.via}.", [c, p, rb.get, rb.search])
+                "Yes: once the update was visible (after ${u.waitedMs} ms), the omitted attribute was gone, and `keep` read ${attrs.keep}.",
+            'observed', 'Read by search after each write was applied.', [c.write, c.search, u.write, u.search])
     }
 
     /**
@@ -1001,21 +1074,20 @@ class ContractProbe {
         String source = opts.archetypes ? '--archetypes' : (pool.size() >= 2 ? 'the manifests' : 'probe archetypes')
         if (pool.size() < 2) pool = [PROBE_ARCHETYPE + 'A', PROBE_ARCHETYPE + 'B']
         String a1 = pool[0], a2 = pool[1], Y = pid('archetypes')
-        def c = createProbe(probeDoc(Y, [], [rev: '1'], RESOURCE, [a1, a2]))
-        Map before = c.success ? findInSearch(Y, null, { Map i -> i != null && attributesOf(i).rev == '1' }) : null
-        def p = putProbe(probeDoc(Y, [], [rev: '2'], RESOURCE, [a2]))
-        Map after = p.success ? findInSearch(Y, null, { Map i -> i != null && attributesOf(i).rev == '2' }) : null
-        List<Exchange> ev = [c, before?.exchange, p, after?.exchange]
-        if (!c.success || !p.success) {
-            add('WS0.15', 'archetypes.replace', q, "A write failed: POST ${c.status}, PUT ${p.status}. ${shape(c.success ? p : c)}.", 'error', null, ev)
+        Map before = settledWrite(probeDoc(Y, [], [:], RESOURCE, [a1, a2]), true)
+        Map after = before.write.success && before.applied ? settledWrite(probeDoc(Y, [], [:], RESOURCE, [a2])) : null
+        List<Exchange> ev = [before.write, before.search, after?.write, after?.search]
+        if (!before.write.success || (after != null && !after.write.success)) {
+            Exchange failed = before.write.success ? after.write : before.write
+            add('WS0.15', 'archetypes.replace', q, "A write failed: ${failed.method} ${failed.status}, ${shape(failed)}.", 'error', null, ev)
             return
         }
-        if (!before.settled || !after.settled) {
+        if (!before.applied || !after.applied) {
             add('WS0.15', 'archetypes.replace', q,
-                "Cannot tell: the ${!before.settled ? 'create' : 'update'} never became visible in search ${window()} (C5).", 'inconclusive', null, ev)
+                "Cannot tell: the ${!before.applied ? 'create' : 'update'} never became visible in search ${window()} (C5).", 'inconclusive', null, ev)
             return
         }
-        List stored = archetypesOf(before.item), now = archetypesOf(after.item)
+        List stored = archetypesOf(before.item as Map), now = archetypesOf(after.item as Map)
         String created = stored as Set == [a1, a2] as Set ? 'Created with both' : "Created with ${stored}"
         add('WS0.15', 'archetypes.replace', q,
             now == [a2] ? "Yes: ${created}; after an update listing only `${a2}`, only `${a2}` remains." :

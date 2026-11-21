@@ -36,6 +36,8 @@ class ProbeOptions {
     int settleSeconds = 10
     /** Pause between read-back attempts within the settle window. */
     int pollMillis = 500
+    /** With allowWrites: delete the entities earlier probe runs left behind (probe namespace only). */
+    boolean removeLeftovers = false
 
     String getPrefix() { "${NAMESPACE}${runId}-".toString() }
 
