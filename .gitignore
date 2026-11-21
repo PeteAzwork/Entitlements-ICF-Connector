@@ -1,7 +1,9 @@
 # Gradle
 .gradle/
-
-
+# Build output. Probe reports already committed under build/contract-probe/ stay tracked;
+# add a new run deliberately with `git add -f`, and only one made by the fixed scrubber.
+build/
+**/build/
 !gradle/wrapper/gradle-wrapper.jar
 # IDE
 .idea/
