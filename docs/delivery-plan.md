@@ -1,7 +1,7 @@
 # Delivery Plan — Ping IDM Scripted REST Connector for the Graph Entity Service
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06)
-**Plan status:** Proposed, v1.4 — 2026-11-21 (search is `POST /admin/entities/search`, decision P14; authentication is a shared `X-API-KEY`, P13)
+**Plan status:** Proposed, v1.5 — 2026-11-21 (service OpenAPI definition received; design revision WS0.14 needed before WS1)
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. This repository already contains the complete unit test suite and thin stubs; implementation work turns specs green workstream by workstream.
 
@@ -43,7 +43,7 @@ Every test name in the suite cites the design section it proves (for example `§
 | D10 | Integration test harness against IDM 7.5 in Docker | this plan §6.4 | `integration/` (to be created) | Not started |
 | D11 | Operator runbook (deployment, recon cadence, REPORT→DELETE promotion, log interpretation) | §9–§11, §14 | `docs/runbook.md` (to be created) | Not started |
 | D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` | Question register written; no answers confirmed yet |
-| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (66 tests). First real run on 2026-11-21 found that search is a POST (P14); not yet run to completion** |
+| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (81 tests). First real run on 2026-11-21 found that search is a POST (P14); not yet run to completion** |
 
 ### 2.2 Out of scope (unchanged from the design)
 
@@ -258,13 +258,14 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | **Discovery total** | | **41** | **41** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **67** |
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 22 | 22 |
-| `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 9 | 9 |
-| `contract-probe/ScrubberSpec` | §13 | 7 | 7 |
+| `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
+| `contract-probe/ScrubberSpec` | §13 | 13 | 13 |
+| `contract-probe/RealShapedServiceSpec` | WS0.16 | 8 | 8 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 28 |
-| **Contract probe total** | | **49** | **66** |
-| **Grand total** | | | **711** |
+| **Contract probe total** | | **64** | **81** |
+| **Grand total** | | | **726** |
 
-Current result (2026-11-21): connector 9 pass / 523 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 66 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21): connector 9 pass / 523 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 81 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write (WS8/WS9)
 
@@ -330,7 +331,7 @@ Current result (2026-11-21): connector 9 pass / 523 fail / 5 skipped (the `@Step
 
 A workstream is done when its named specs are green with no test modified except to reflect a WS0-confirmed contract change or an accepted plan decision, code review has checked the §8.4 invariant (every update payload carries the full edge set), and the design → code map in §2.3 is still accurate.
 
-The project is done when M5 is reached: all 711 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
+The project is done when M5 is reached: all 726 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
 
 ---
 
@@ -415,12 +416,20 @@ The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding
 - [ ] **WS0.11 Record real traffic (M).** *Progress:* the probe writes every exchange as a scrubbed WireMock stub. What remains is a run against the real service, then choosing which stubs to keep. Capture one real document of each type plus a search page as WireMock JSON under `connector/src/test/resources/wiremock/`. Scrub PII and replace names with Appendix A values. These recordings feed WS8 and a contract spec in WS4.09.
 - [ ] **WS0.12 Fold the answers into the code and plan (M).** *Progress, 2026-11-21:* the authentication answers (Q10.1, Q10.2, T5) and the search endpoint (Q02.1, P14) are folded in. That covers the probe, configuration model, customizer contract, redaction rules, provisioner sample, fixtures and specs, the design's §2, §4 and §14, decision P13 and the risk register. Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
   *Green:* all suites still compile, and changed specs fail only on stubs.
+- [ ] **WS0.14 Revise the design to the real API (L). New 2026-11-21. Blocks WS1, WS2 and WS4.**
+  - The OpenAPI definition shows the design's model of the API is wrong in several places. See `docs/service-contract.md` sections 5 and 6.
+  - Decide D1 to D9 with the design owner. D1 (full-state PUT, or relationship endpoints), D3 (no "updated since" search) and D4 (no relationships in search results) change the design most.
+  - Raise contradictions C1 to C7 with the service team. C1, GET by ID returning 500, blocks verification, recon and drift detection.
+  - Then amend design §2, §6, §7, §8, §9.4 and §11, and update the stubs and specs those sections drive. Today `EntityDocument`, `Edge`, `EdgeCodec`, `EntityKind`, `TypeScoper`, `SearchPlanner` and `PageCursor` encode the old model.
+- [ ] **WS0.15 Realign the probe's write checks to the real API (M). New 2026-11-21.** Send EntityDTO-shaped documents (`id`, enum `baseType`, `relationships` with `sourceID`/`targetID`), and exercise the single-edge relationship endpoints. Read the Entity model on GET. Until then, treat write-mode results as unreliable. Depends on the D5 answer (base-type numbering).
+- [x] **WS0.16 Fix the probe's scrubbing and read handling (M). Done 2026-11-21.** The first real run leaked unscrubbed entity data, because the scrubber only recognised `ID`. It also reported answers built on failed reads (GET returned 500) as observed. The scrubber now recognises `uid`, `id` and the read model's attribute objects, and fails closed on any search result element. Read-dependent answers become "cannot tell". Cleanup only confirms removal on a 404. Raw non-JSON bodies are only kept for errors.
+  *Green:* `RealShapedServiceSpec` (an end-to-end run against a fake with the real service's shapes and 500s), `ScrubberSpec`.
 - [x] **WS0.13 Contract probe (L). Done 2026-11-04.**
   - Built `contract-probe/`, a command-line tool that observes the service and answers the observable WS0 questions, citing numbered exchanges as evidence.
   - It is read-only by default. `--allow-writes` limits writes to `ws0-probe-<run>-` IDs and always cleans up.
   - Outputs never contain credentials or data from entities it did not create.
   - It was tested against `FakeGraphHttpServer`, an HTTP front-end over the in-memory model of design §2, so a difference in a real run's report is a real difference in the service.
-  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (66 tests).
+  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (81 tests).
 
 ### WS1 — Configuration, convention and schema
 

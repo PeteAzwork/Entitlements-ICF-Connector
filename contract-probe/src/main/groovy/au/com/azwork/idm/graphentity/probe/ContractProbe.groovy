@@ -30,7 +30,7 @@ class ContractProbe {
     static final List<String> PAGE_SIZE_PARAMS = ['pageSize', 'limit', 'size', 'page_size', 'per_page', '_pageSize', 'count', 'top', 'max']
     static final List<String> OFFSET_PARAMS = ['offset', 'start', 'skip', 'from', 'startIndex', '_pagedResultsOffset']
     static final List<String> PAGE_NUMBER_PARAMS = ['page', 'pageNumber', 'pageIndex']
-    static final List<String> CURSOR_PARAMS = ['cursor', 'nextCursor', 'continuationToken', 'pageToken', 'after', '_pagedResultsCookie']
+    static final List<String> CURSOR_PARAMS = ['pagedResultsCookie', 'cursor', 'nextCursor', 'continuationToken', 'pageToken', 'after', '_pagedResultsCookie']
     static final List<String> ITEM_KEYS = ['items', 'results', 'data', 'entities', 'resources', 'content', 'value', 'result']
     static final List<String> TOTAL_KEYS = ['totalCount', 'total', 'count', 'totalResults', 'total_count', 'resultCount']
     static final List<String> CURSOR_KEYS = ['nextCursor', 'next', 'cursor', 'continuationToken', 'nextPageToken', 'pageToken', 'pagedResultsCookie', '_pagedResultsCookie']
@@ -137,7 +137,25 @@ class ContractProbe {
     }
 
     static boolean hasEdge(Map doc, String field, String otherId) {
-        (doc?.Relationships ?: []).any { it instanceof Map && it[field] == otherId }
+        ((doc?.Relationships ?: doc?.relationships ?: []) as List).any { it instanceof Map && it[field] == otherId }
+    }
+
+    /** An entity's ID in whichever casing the service uses (ID, id or uid). */
+    static String idOf(Map m) { m == null ? null : Scrubber.identity(m) }
+
+    /**
+     * Adds a finding whose answer depends on reads. If any of those reads failed, the answer would be a guess
+     * built on a missing document, so the finding says it cannot tell instead (confidence inconclusive).
+     */
+    private Finding addFromReads(String task, String key, String question, List<Exchange> reads, Closure<String> answer,
+                                 String detail = null, List<Exchange> evidence = []) {
+        def failed = reads.find { !it.success }
+        if (failed) {
+            return add(task, key, question,
+                "Cannot tell: a read this check depends on returned ${failed.status == -1 ? 'no response' : failed.status}.",
+                'inconclusive', detail, evidence)
+        }
+        add(task, key, question, answer(), 'observed', detail, evidence)
     }
 
     /** Splits a search response into its parts, whatever the envelope looks like. */
@@ -160,7 +178,7 @@ class ContractProbe {
     }
 
     static List<String> ids(Exchange ex) {
-        (envelope(ex.body).items ?: []).findAll { it instanceof Map }.collect { it.ID as String }
+        (envelope(ex.body).items ?: []).findAll { it instanceof Map }.collect { idOf(it as Map) }
     }
 
     static int count(Exchange ex) { (envelope(ex.body).items ?: []).size() }
@@ -401,7 +419,7 @@ class ContractProbe {
     void checkDocumentFields() {
         def page = search(baseQuery() + (contract.pageSizeParam ? [(contract.pageSizeParam as String): 20] : [:]))
         List<Map> items = (envelope(page.body).items ?: []).findAll { it instanceof Map } as List<Map>
-        Map sample = items.find { !scrubber.isProbeId(it.ID) } ?: items.find()
+        Map sample = items.find { !scrubber.isProbeId(idOf(it)) } ?: items.find()
         if (!sample) {
             add('WS0.06', 'document.fields', 'Which fields does a document carry beyond §2.1?', 'Cannot tell: no entities visible.', 'inconclusive', null, [page])
             return
@@ -412,8 +430,9 @@ class ContractProbe {
             extra.keySet().find { timestampLike(extra[it]) }
         contract.lastUpdatedField = lu
         contract.lastUpdatedFormat = lu ? timestampFormat(sample[lu]) : null
-        def got = http.get(entityPath(sample.ID as String))
-        Map gdoc = got.body instanceof Map ? got.body as Map : [:]
+        String sampleId = idOf(sample)
+        def got = sampleId ? http.get(entityPath(sampleId)) : null
+        Map gdoc = got?.body instanceof Map ? got.body as Map : [:]
         Set<String> sk = sample.keySet() as Set<String>, gk = gdoc.keySet() as Set<String>
         add('WS0.06', 'document.fields', 'Which fields does a document carry beyond §2.1?', fieldList, 'observed',
             'From one search result. Only field names and value formats are reported.', [page])
@@ -421,9 +440,10 @@ class ContractProbe {
             lu ? "`${lu}`, ${contract.lastUpdatedFormat}" : 'No timestamp-like field found.', lu ? 'inferred' : 'inconclusive',
             'Inferred from the field name and value format.', [page])
         add('WS0.06', 'document.searchVsGet', 'Do search results and GET return the same document shape?',
-            got.success ? (sk == gk ? 'Yes, the same top-level fields.' : "No. Only in search: ${(sk - gk).sort()}. Only in GET: ${(gk - sk).sort()}.") : "GET of the sampled entity returned ${got.status}.",
-            got.success ? 'observed' : 'inconclusive', null, [page, got])
-        Set<String> edgeKeys = ([sample, gdoc].collectMany { (it?.Relationships ?: []) as List }.findAll { it instanceof Map }.collectMany { (it as Map).keySet() as List }) as Set<String>
+            got == null ? 'Cannot tell: the sampled search result carries no ID field.' :
+                (got.success ? (sk == gk ? 'Yes, the same top-level fields.' : "No. Only in search: ${(sk - gk).sort()}. Only in GET: ${(gk - sk).sort()}.") : "Cannot tell: GET of the sampled entity returned ${got.status}."),
+            got?.success ? 'observed' : 'inconclusive', null, [page, got])
+        Set<String> edgeKeys = ([sample, gdoc].collectMany { ((it?.Relationships ?: it?.relationships ?: []) as List) }.findAll { it instanceof Map }.collectMany { (it as Map).keySet() as List }) as Set<String>
         add('WS0.06', 'document.edgeKeys', 'Which keys appear on relationship entries?',
             edgeKeys ? edgeKeys.sort().join(', ') + (edgeKeys - ['TargetID', 'SourceID', 'type'] ? ' (more than §2.2 documents)' : '') : 'The sampled entity has no relationships.',
             edgeKeys ? 'observed' : 'inconclusive', null, [page, got])
@@ -432,22 +452,25 @@ class ContractProbe {
     // ------------------------------------------------------------------ WS0.08 type discrimination
 
     void checkTypeDiscrimination() {
-        List<Map> items = enumerate().findAll { !scrubber.isProbeId(it.ID) }
+        List<Map> items = enumerate().findAll { !scrubber.isProbeId(idOf(it)) }
         if (!items) {
             add('WS0.08', 'types.baseTypes', 'Which BaseType values occur, and do archetypes discriminate types?', 'Cannot tell: no entities other than the probe\'s are visible.', 'inconclusive')
             return
         }
-        Map<Object, Integer> baseTypes = items.countBy { it.BaseType }
+        // The service names these BaseType or baseType, and archetypes come as directArchetypes and/or isArchetypes.
+        Closure baseTypeOf = { Map e -> e.containsKey('BaseType') ? e.BaseType : e.baseType }
+        Closure archetypesOf = { Map e -> (((e.directArchetypes ?: []) as List) + ((e.isArchetypes ?: []) as List)).collect { it as String }.unique() }
+        Map<Object, Integer> baseTypes = items.countBy { baseTypeOf(it) }
         Map<String, Set> archetypeBaseTypes = [:].withDefault { [] as Set }
-        items.each { e -> (e.directArchetypes ?: []).each { a -> archetypeBaseTypes[a as String] << e.BaseType } }
+        items.each { e -> archetypesOf(e).each { a -> archetypeBaseTypes[a] << baseTypeOf(e) } }
         def ambiguous = archetypeBaseTypes.findAll { k, v -> v.size() > 1 }.keySet().sort()
-        int none = items.count { !(it.directArchetypes) } as int
-        Map<String, Integer> sets = items.countBy { ((it.directArchetypes ?: []) as List).collect { it as String }.sort().join('+') ?: '(none)' }
+        int none = items.count { !archetypesOf(it) } as int
+        Map<String, Integer> sets = items.countBy { archetypesOf(it).sort().join('+') ?: '(none)' }
         add('WS0.08', 'types.baseTypes', 'Which BaseType values occur?', baseTypes.sort { a, b -> (a.key as String) <=> (b.key as String) }.collect { k, v -> "${k}: ${v}" }.join(', '),
             'observed', "Sample of ${items.size()} entities over at most ${opts.maxPages} pages.")
         add('WS0.08', 'types.archetypes', 'Do archetypes discriminate types?',
             ambiguous ? "Not on their own: ${ambiguous.join(', ')} appear with more than one BaseType." : 'In this sample every archetype appears with a single BaseType.',
-            'observed', "${sets.size()} distinct archetype sets; ${none} entities have no archetypes. Sets: " + sets.collect { k, v -> "${k} ×${v}" }.join(', '))
+            'observed', "Archetypes read from directArchetypes and isArchetypes together. ${sets.size()} distinct archetype sets; ${none} entities have none. Sets: " + sets.collect { k, v -> "${k} ×${v}" }.join(', '))
         contract.ambiguousArchetypes = ambiguous
     }
 
@@ -470,9 +493,13 @@ class ContractProbe {
         def delMissing = http.delete(entityPath(pid('never-created-either')))
         add('WS0.05', 'errors.postWithoutId', 'What does a POST without an ID return?', "${noId.status}: ${shape(noId)}", 'observed', null, [noId])
         add('WS0.05', 'errors.malformedJson', 'What does a malformed JSON body return?', "${junk.status}: ${shape(junk)}", 'observed', null, [junk])
+        def ghostRead = putMissing.success ? http.get(entityPath(ghost)) : null
+        String upsert = !putMissing.success ? '' :
+            (ghostRead.success ? '. A read-back finds the entity, so PUT creates missing entities (upsert), which the design does not expect.' :
+             (ghostRead.status == 404 ? '. A read-back does not find it, so the 2xx did not create anything.' :
+              ". Whether it created the entity cannot be told: the read-back returned ${ghostRead.status}."))
         add('WS0.05', 'errors.putMissing', 'What does a PUT to a missing entity return?',
-            "${putMissing.status}: ${shape(putMissing)}" + (putMissing.success ? '. The PUT created the entity (upsert), which the design does not expect.' : ''),
-            'observed', null, [putMissing])
+            "${putMissing.status}: ${shape(putMissing)}${upsert}", 'observed', null, [putMissing, ghostRead])
         add('WS0.05', 'errors.deleteMissing', 'What does a DELETE of a missing entity return?', "${delMissing.status}: ${shape(delMissing)}", 'observed', null, [delMissing])
     }
 
@@ -488,45 +515,48 @@ class ContractProbe {
             return
         }
         def getA1 = http.get(entityPath(A))
-        boolean kept = hasEdge(getA1.body as Map, 'TargetID', B)
-        add('WS0.07', 'edges.postToMissing', 'What happens to an edge to a missing entity on POST (A7)?',
-            kept ? 'Kept: the edge is stored although the other entity does not exist.' : 'Dropped silently: POST succeeded and the edge is absent.',
-            'observed', "POST ${postA.status}.", [postA, getA1])
+        addFromReads('WS0.07', 'edges.postToMissing', 'What happens to an edge to a missing entity on POST (A7)?', [getA1], {
+            hasEdge(getA1.body as Map, 'TargetID', B) ? 'Kept: the edge is stored although the other entity does not exist.' : 'Dropped silently: POST succeeded and the edge is absent.'
+        }, "POST ${postA.status}.", [postA, getA1])
 
         def dup = createProbe(probeDoc(A, [toB], [probe: 'second']))
         def getA2 = http.get(entityPath(A))
-        boolean replaced = (getA2.body as Map)?.attributes?.probe == 'second'
-        add('WS0.04', 'create.duplicate', 'What does a duplicate POST return?',
-            dup.status == 409 ? '409, and the entity is unchanged.' : (dup.success ? "${dup.status}, and the entity was ${replaced ? 'replaced (upsert)' : 'left unchanged'}." : "${dup.status}: ${shape(dup)}, entity ${replaced ? 'replaced' : 'unchanged'}."),
-            'observed', null, [dup, getA2])
+        addFromReads('WS0.04', 'create.duplicate', 'What does a duplicate POST return?', [getA2], {
+            boolean replaced = (getA2.body as Map)?.attributes?.probe == 'second'
+            dup.status == 409 ? '409, and the entity is unchanged.' : (dup.success ? "${dup.status}, and the entity was ${replaced ? 'replaced (upsert)' : 'left unchanged'}." : "${dup.status}: ${shape(dup)}, entity ${replaced ? 'replaced' : 'unchanged'}.")
+        }, "Duplicate POST returned ${dup.status}.", [dup, getA2])
 
         def postB = createProbe(probeDoc(B, [[SourceID: A, type: EDGE_TYPE]]))
         def getA3 = http.get(entityPath(A))
         def getB1 = http.get(entityPath(B))
-        add('WS0.07', 'edges.inboundOnCreate', 'Does an inbound edge asserted in a POST link to an existing entity?',
-            hasEdge(getA3.body as Map, 'TargetID', B) ? 'Yes: A now shows the outbound edge to B.' : 'No: A does not show an edge to B.',
-            'observed', "POST B ${postB.status}.", [postB, getA3])
-        add('WS0.07', 'edges.getShowsInbound', 'Does GET show inbound edges as SourceID?',
-            hasEdge(getB1.body as Map, 'SourceID', A) ? 'Yes: B shows SourceID A.' : "No: B's relationships are ${scrubber.scrub((getB1.body as Map)?.Relationships)}.",
-            'observed', null, [getB1])
+        addFromReads('WS0.07', 'edges.inboundOnCreate', 'Does an inbound edge asserted in a POST link to an existing entity?', [getA3], {
+            hasEdge(getA3.body as Map, 'TargetID', B) ? 'Yes: A now shows the outbound edge to B.' : 'No: A does not show an edge to B.'
+        }, "POST B ${postB.status}.", [postB, getA3])
+        addFromReads('WS0.07', 'edges.getShowsInbound', 'Does GET show inbound edges as SourceID?', [getB1], {
+            hasEdge(getB1.body as Map, 'SourceID', A) ? 'Yes: B shows SourceID A.' : "No: B's relationships are ${scrubber.scrub((getB1.body as Map)?.Relationships ?: (getB1.body as Map)?.relationships)}."
+        }, null, [getB1])
 
         def putA = putProbe(probeDoc(A, []))
         def getB2 = http.get(entityPath(B))
-        add('WS0.07', 'edges.putOmissionDeletesInbound', 'Does a PUT that omits an edge delete it, seen from the other end?',
-            hasEdge(getB2.body as Map, 'SourceID', A) ? 'No: B still shows SourceID A.' : 'Yes: B no longer shows SourceID A.',
-            'observed', "PUT A ${putA.status}.", [putA, getB2])
+        addFromReads('WS0.07', 'edges.putOmissionDeletesInbound', 'Does a PUT that omits an edge delete it, seen from the other end?', [getB2], {
+            hasEdge(getB2.body as Map, 'SourceID', A) ? 'No: B still shows SourceID A.' : 'Yes: B no longer shows SourceID A.'
+        }, "PUT A ${putA.status}.", [putA, getB2])
 
         def putB = putProbe(probeDoc(B, [[SourceID: A, type: EDGE_TYPE]]))
         def getA4 = http.get(entityPath(A))
-        add('WS0.07', 'edges.inboundOnPut', 'Does an inbound edge asserted in a PUT link the entities?',
-            hasEdge(getA4.body as Map, 'TargetID', B) ? 'Yes: A shows the outbound edge again.' : 'No.',
-            'observed', "PUT B ${putB.status}.", [putB, getA4])
+        addFromReads('WS0.07', 'edges.inboundOnPut', 'Does an inbound edge asserted in a PUT link the entities?', [getA4], {
+            hasEdge(getA4.body as Map, 'TargetID', B) ? 'Yes: A shows the outbound edge again.' : 'No.'
+        }, "PUT B ${putB.status}.", [putB, getA4])
 
         def putAC = putProbe(probeDoc(A, [toB, [TargetID: C, type: EDGE_TYPE]]))
         def getA5 = http.get(entityPath(A))
-        add('WS0.07', 'edges.putToMissing', 'What happens to an edge to a missing entity on PUT?',
-            !putAC.success ? "Rejected: ${putAC.status}, ${shape(putAC)}." : (hasEdge(getA5.body as Map, 'TargetID', C) ? 'Kept dangling: the edge to the missing entity is stored.' : 'Dropped silently: PUT succeeded and only the edge to the existing entity remains.'),
-            'observed', null, [putAC, getA5])
+        if (!putAC.success) {
+            add('WS0.07', 'edges.putToMissing', 'What happens to an edge to a missing entity on PUT?', "Rejected: ${putAC.status}, ${shape(putAC)}.", 'observed', null, [putAC])
+        } else {
+            addFromReads('WS0.07', 'edges.putToMissing', 'What happens to an edge to a missing entity on PUT?', [getA5], {
+                hasEdge(getA5.body as Map, 'TargetID', C) ? 'Kept dangling: the edge to the missing entity is stored.' : 'Dropped silently: PUT succeeded and only the edge to the existing entity remains.'
+            }, null, [putAC, getA5])
+        }
 
         String lu = contract.lastUpdatedField
         Map latestA = getA5.body instanceof Map ? getA5.body as Map : null
@@ -535,8 +565,8 @@ class ContractProbe {
             String at = L as String
             String before = L instanceof Number ? ((L as Number).longValue() - 1000L) as String :
                 DateTimeFormatter.ISO_INSTANT.format(Instant.parse(at).minusSeconds(1))
-            boolean inAt = enumerate(at, 200, opts.maxPages).any { it.ID == A }
-            boolean inBefore = enumerate(before, 200, opts.maxPages).any { it.ID == A }
+            boolean inAt = enumerate(at, 200, opts.maxPages).any { idOf(it) == A }
+            boolean inBefore = enumerate(before, 200, opts.maxPages).any { idOf(it) == A }
             add('WS0.02', 'search.boundary', 'Is the timestamp filter strictly-after or inclusive?',
                 !inBefore ? 'Cannot tell: the entity was not found even one second earlier.' : (inAt ? 'Inclusive: searching from exactly the entity\'s timestamp returns it.' : 'Strictly after: searching from exactly the entity\'s timestamp does not return it.'),
                 inBefore ? 'observed' : 'inconclusive', "Used `${lu}` = ${at}. If the service stores sub-second precision but returns seconds, re-check with a sub-second value.", [])
@@ -545,20 +575,25 @@ class ContractProbe {
             def putTs = putProbe(probeDoc(A, [toB]) + [(lu): L instanceof Number ? 946684800000L : '2000-01-01T00:00:00Z'])
             def getA6 = http.get(entityPath(A))
             Object after = (getA6.body as Map)?.get(lu)
-            add('WS0.06', 'document.lastUpdatedOnPut', "What happens when a PUT carries `${lu}`?",
-                !putTs.success ? "Rejected: ${putTs.status}, ${shape(putTs)}. The connector must never send it." :
-                    (after as String)?.startsWith('2000') || after == 946684800000L ? 'Accepted and stored. The connector must never send it, or recon will chase its own writes.' : 'Ignored: the service set its own value.',
-                'observed', null, [putTs, getA6])
+            if (!putTs.success) {
+                add('WS0.06', 'document.lastUpdatedOnPut', "What happens when a PUT carries `${lu}`?",
+                    "Rejected: ${putTs.status}, ${shape(putTs)}. The connector must never send it.", 'observed', null, [putTs])
+            } else {
+                addFromReads('WS0.06', 'document.lastUpdatedOnPut', "What happens when a PUT carries `${lu}`?", [getA6], {
+                    (after as String)?.startsWith('2000') || after == 946684800000L ? 'Accepted and stored. The connector must never send it, or recon will chase its own writes.' : 'Ignored: the service set its own value.'
+                }, null, [putTs, getA6])
+            }
         } else {
-            add('WS0.02', 'search.boundary', 'Is the timestamp filter strictly-after or inclusive?', 'Not tested: no timestamp parameter or last-updated field was found.', 'not-tested')
+            add('WS0.02', 'search.boundary', 'Is the timestamp filter strictly-after or inclusive?',
+                'Not tested: it needs a timestamp search field, a last-updated field and a readable test entity, and at least one was missing.', 'not-tested')
         }
 
         def delB = http.delete(entityPath(B))
         def getA7 = http.get(entityPath(A))
         def getB3 = http.get(entityPath(B))
-        add('WS0.07', 'edges.deleteCascades', 'Does DELETE remove the edges touching the entity?',
-            hasEdge(getA7.body as Map, 'TargetID', B) ? 'No: A still shows an edge to the deleted entity.' : 'Yes: A no longer shows the edge.',
-            'observed', "DELETE ${delB.status}; GET of the deleted entity then returns ${getB3.status}.", [delB, getA7, getB3])
+        addFromReads('WS0.07', 'edges.deleteCascades', 'Does DELETE remove the edges touching the entity?', [getA7], {
+            hasEdge(getA7.body as Map, 'TargetID', B) ? 'No: A still shows an edge to the deleted entity.' : 'Yes: A no longer shows the edge.'
+        }, "DELETE ${delB.status}; GET of the deleted entity then returns ${getB3.status}.", [delB, getA7, getB3])
     }
 
     // ------------------------------------------------------------------ WS0.09 IDs
@@ -594,7 +629,7 @@ class ContractProbe {
             return
         }
         def g = http.get(entityPath(id))
-        String back = (g.body as Map)?.ID
+        String back = idOf(g.body instanceof Map ? g.body as Map : null)
         def d = http.delete(entityPath(id))
         def g2 = http.get(entityPath(id))
         add('WS0.09', "ids.${label}", "Is an ID with ${label} accepted and addressable when percent-encoded?",
@@ -616,7 +651,7 @@ class ContractProbe {
         List<Map> docs = []
         stab.each { createProbe(probeDoc(it)); def d = getDoc(it); if (d) docs << d }
         if (docs.size() < 4) {
-            add('WS0.03', 'paging.updateDuringEnumeration', 'Can an entity updated mid-enumeration be skipped or returned twice?', 'Could not create the test entities.', 'error')
+            add('WS0.03', 'paging.updateDuringEnumeration', 'Can an entity updated mid-enumeration be skipped or returned twice?', 'Could not create and read back the four test entities.', 'error')
             return
         }
         Object earliest = docs.collect { it[lu] }.min { a, b -> (a as String) <=> (b as String) }
@@ -625,11 +660,11 @@ class ContractProbe {
         Map<String, Integer> seen = stab.collectEntries { [(it): 0] }
         boolean touchedOne = false
         enumerate(since, 1, 50) { List<Map> page ->
-            page.each { if (seen.containsKey(it.ID)) seen[it.ID as String]++ }
-            def hit = page.find { seen.containsKey(it.ID) }
+            page.each { if (seen.containsKey(idOf(it))) seen[idOf(it)]++ }
+            def hit = page.find { seen.containsKey(idOf(it)) }
             if (hit && !touchedOne) {
                 touchedOne = true
-                putProbe(probeDoc(hit.ID as String, [], [probe: 'touched']))
+                putProbe(probeDoc(idOf(hit), [], [probe: 'touched']))
             }
         }
         def dups = seen.findAll { k, v -> v > 1 }.keySet()
@@ -658,9 +693,11 @@ class ContractProbe {
             def d = http.delete(entityPath(id))
             if (!(d.success || d.status == 404)) cleanupProblems << "DELETE ${id} returned ${d.status}".toString()
         }
+        // Only a 404 proves an entity is gone. Any other answer means removal could not be confirmed.
         touched.each { id ->
             def g = http.get(entityPath(id))
             if (g.success) cleanupProblems << "${id} still exists after cleanup".toString()
+            else if (g.status != 404) cleanupProblems << "could not confirm ${id} is gone: GET returned ${g.status == -1 ? 'no response' : g.status}".toString()
         }
     }
 }

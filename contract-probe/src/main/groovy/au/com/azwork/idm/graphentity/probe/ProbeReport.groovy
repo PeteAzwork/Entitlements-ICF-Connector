@@ -37,7 +37,7 @@ class ProbeReport {
             probe.http.exchanges.each { ex ->
                 w << JsonOutput.toJson([n: ex.n, check: ex.check, method: ex.method, path: s.scrubPath(ex.path), query: ex.query, auth: ex.auth,
                     requestBody: s.scrub(ex.requestBody), status: ex.status, headers: ex.headers, body: s.scrub(ex.body),
-                    rawBody: ex.rawBody, error: ex.error, durationMs: ex.durationMs]) << '\n'
+                    rawBody: persistedRawBody(ex), error: ex.error, durationMs: ex.durationMs]) << '\n'
             }
         }
 
@@ -51,7 +51,7 @@ class ProbeReport {
             def response = [status: ex.status] as Map<String, Object>
             if (ex.contentType) response.headers = ['Content-Type': ex.contentType]
             if (ex.body != null) response.jsonBody = s.scrub(ex.body)
-            else if (ex.rawBody != null) response.body = ex.rawBody
+            else if (persistedRawBody(ex) != null) response.body = persistedRawBody(ex)
             def mapping = [request: request, response: response, metadata: [probeExchange: ex.n, check: ex.check, runId: probe.opts.runId]]
             new File(mappings, String.format('%04d-%s.json', ex.n, ex.method.toLowerCase())).text = JsonOutput.prettyPrint(JsonOutput.toJson(mapping))
         }
@@ -103,7 +103,7 @@ class ProbeReport {
         sb << "## Cleanup\n\n"
         if (!o.allowWrites) sb << "Read-only run: nothing was created.\n\n"
         else if (probe.cleanupProblems) sb << "**Some probe entities may remain.** Remove these by hand:\n\n" + probe.cleanupProblems.collect { "- ${it}" }.join('\n') + "\n\n"
-        else sb << "All ${probe.touched.size()} probe entity IDs were deleted and confirmed gone.\n\n"
+        else sb << "All ${probe.touched.size()} probe entity IDs were deleted and confirmed gone (a GET of each returned 404).\n\n"
 
         sb << "## Not answerable by the probe\n\n"
         sb << "These need the service team. They are listed in `docs/service-contract.md`:\n\n"
@@ -112,6 +112,15 @@ class ProbeReport {
         sb << "- Documented limits on ID length and characters, as opposed to what happens to be accepted today.\n"
         sb << "- Whether ordering and paging behaviour are guaranteed or incidental.\n"
         sb.toString()
+    }
+
+    /**
+     * A non-JSON body cannot be scrubbed field by field, so it is only kept for error responses, where it explains
+     * the failure, and then only its first 500 characters. A successful non-JSON body is never written.
+     */
+    static String persistedRawBody(Exchange ex) {
+        if (ex.rawBody == null || ex.status < 400) return null
+        ex.rawBody.length() > 500 ? ex.rawBody.substring(0, 500) + '…' : ex.rawBody
     }
 
     private static String v(Object x) { x ? "`${x}`" : '—' }
