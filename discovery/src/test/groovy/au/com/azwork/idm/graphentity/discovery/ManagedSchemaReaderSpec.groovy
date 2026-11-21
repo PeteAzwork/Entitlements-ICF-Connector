@@ -64,10 +64,16 @@ class ManagedSchemaReaderSpec extends Specification {
         ManagedSchemaReader.read(managed).find { it.name == 'user' }.relationships.find { it.property == 'orphanLink' }.reversePropertyName == null
     }
 
-    def "indexed properties are natural key candidates"() {
+    def "properties with a uniqueness policy are natural-key candidates (WS6.01: managed.json has no index declaration)"() {
         expect:
         ManagedSchemaReader.read(managed).find { it.name == 'user' }.naturalKeyCandidates == ['userName']
         ManagedSchemaReader.read(managed).find { it.name == 'account' }.naturalKeyCandidates == ['accountId']
+    }
+
+    def "a property without a uniqueness policy is not a natural-key candidate"() {
+        expect:
+        ManagedSchemaReader.read([objects: [[name: 't', schema: [properties: [code: [type: 'string', policies: [[policyId: 'required']]]]]]]])[0]
+            .naturalKeyCandidates == []
     }
 
     def "a type with no relationships yields an empty list"() {

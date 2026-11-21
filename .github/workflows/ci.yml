@@ -17,6 +17,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Test
         run: ./gradlew --no-daemon --continue test
+      - name: Lint the mappings under config/ (WS6.09)
+        run: ./gradlew --no-daemon :discovery:lintMappings
       - name: Publish test reports
         if: always()
         uses: actions/upload-artifact@v4

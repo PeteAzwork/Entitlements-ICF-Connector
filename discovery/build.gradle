@@ -1,5 +1,25 @@
 description = 'Discovery tool: generates connector objectTypes configuration and mapping skeletons from managed.json'
 
+apply plugin: 'application'
+
 dependencies {
     implementation project(':connector')
 }
+
+application {
+    mainClass = 'au.com.azwork.idm.graphentity.discovery.DiscoveryTool'
+    applicationName = 'discovery'
+}
+
+// WS6.09: every mapping under config/ that targets the connector must map entityRelationships and
+// directArchetypes, unconditionally. Run in CI; fails the build on a violation.
+tasks.register('lintMappings', JavaExec) {
+    group = 'verification'
+    description = 'Checks the mappings under config/ for the entityRelationships and directArchetypes rules (§8.4)'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    def mappings = fileTree(rootProject.file('config')) { include 'sync*.json' }
+    inputs.files(mappings)
+    doFirst { args = ['--lint'] + mappings.files.sort()*.absolutePath }
+}
+check.dependsOn 'lintMappings'
