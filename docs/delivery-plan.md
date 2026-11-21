@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.13 — 2026-11-21** (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.14 — 2026-11-21** (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -61,15 +61,15 @@ The design document says *what* the connector is. This plan says *in what order*
 
 ### 2.3 Design → code map
 
-The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes; they are still stubs.
+The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes and are still stubs. WS1's classes (configuration, convention, schema, `ObjectClassResolver`) are implemented.
 
 | Design section | Library class(es) | Spec(s) |
 |---|---|---|
 | §2.1 document shape | `model.EntityDocument` † | `EntityDocumentSpec` |
 | §2.2 edge rules | `model.Edge` † | `EdgeSpec` |
-| §3 A3/A4 identity and kind | `config.EntityKind` †, `payload.EntityPayloadBuilder` † | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
-| §5.2/§6 per-type dynamic schema | `config.ObjectTypesParser`, `config.ConnectorConfig`, `schema.SchemaFactory` | `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `SchemaFactorySpec` |
-| §7 convention (normative) | `convention.RelationshipConvention` | `RelationshipConventionSpec`, and the JavaScript `resolvePair`/`resolveRelationship` tests |
+| §3 A3/A4 identity and kind | `config.EntityKind`, `payload.EntityPayloadBuilder` † | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
+| §5.2/§6 per-type dynamic schema | `config.ObjectTypesParser`, `config.ObjectTypeConfig`, `config.ConnectorConfig`, `schema.SchemaFactory`, `ops.ObjectClassResolver` | `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `SchemaFactorySpec`, `ObjectClassResolverSpec` |
+| §7 convention (normative) | `convention.RelationshipConvention`, `config.Direction` | `RelationshipConventionSpec`, `DirectionSpec`, and the JavaScript `resolvePair`/`resolveRelationship` tests |
 | §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js` |
 | §8.3 ICF encoding | `codec.EdgeCodec` † | `EdgeCodecSpec` |
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
@@ -151,6 +151,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Implement:** `EntityKind`, `Direction`, `ObjectTypesParser`, `ConnectorConfig`, `ObjectTypeConfig.syncedRelationships`, `RelationshipConvention`, `ObjectClassResolver`, `SchemaFactory`, `SchemaOperation`.
 **Acceptance:** `EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec`, and the schema cases of `TestAndSchemaOperationSpec`.
 **Estimate:** 3.5 days.
+**Status:** Done 2026-11-21. All acceptance specs green.
 
 ### WS2 — Model, codec and payload
 
@@ -266,7 +267,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `config/EntityKindSpec` | §3 A4, §6 | 5 | 29 |
 | `config/DirectionSpec` | §7 | 3 | 10 |
 | `config/ObjectTypesParserSpec` | §6 | 22 | 38 |
-| `config/ConnectorConfigSpec` | §6, §15, P13 | 20 | 44 |
+| `config/ConnectorConfigSpec` | §6, §15, P13 | 21 | 45 |
 | `convention/RelationshipConventionSpec` | §7 | 24 | 54 |
 | `model/EdgeSpec` | §2.2 | 8 | 17 |
 | `model/EntityDocumentSpec` | §2.1 | 18 | 18 |
@@ -292,7 +293,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
 | `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **360** | **629** |
+| **Connector total** | | **361** | **630** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
@@ -305,9 +306,11 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **869** |
+| **Grand total** | | | **870** |
 
-Current result (2026-11-21, after WS0.11): connector 18 pass / 606 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality, and `RecordedShapesSpec`'s seven checks that the fake matches the recorded service shapes. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS1): connector 212 pass / 413 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub (connector: WS2 108, WS3 225, WS4 80; discovery: WS6 45), with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are WS1's specs in full (`EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec` and the three schema cases of `TestAndSchemaOperationSpec`), WS1 behaviour other specs exercise in passing, and the structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality, and `RecordedShapesSpec`'s seven checks that the fake matches the recorded service shapes. The passing mapping-library tests check the library's exports and ES5 syntax.
+
+Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail.
 
 ### 6.4 Tests still to write
 
@@ -535,30 +538,32 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
 
 Do these in order; later tasks reuse earlier ones.
 
-- [ ] **WS1.01 Settle the package name (S).** If P12 changes, rename `au.com.azwork.idm.graphentity` across all three projects now, before any implementation lands.
-- [ ] **WS1.02 `EntityKind` (S).** P18 keeps the design's numbering, 4 = Subject and 2 = Resource, as `EntityKindSpec` already expects. `fromBaseType` also accepts the names `"Subject"` and `"Resource"` that search returns. *Gated by WS0.15* confirming the numbering against the service. `fromConfig` trims the value and ignores case. A null, blank or unknown value throws `ConfigurationException`, with "entityKind" and the value in the message. `fromBaseType` returns null for an unknown or null BaseType, so a strange remote document never fails a read.
+- [x] **WS1.01 Settle the package name (S).** If P12 changes, rename `au.com.azwork.idm.graphentity` across all three projects now, before any implementation lands. *Done 2026-11-21: P12 holds, so nothing was renamed.*
+- [x] **WS1.02 `EntityKind` (S).** P18 keeps the design's numbering, 4 = Subject and 2 = Resource, as `EntityKindSpec` already expects. `fromBaseType` also accepts the names `"Subject"` and `"Resource"` that search returns. *Gated by WS0.15* confirming the numbering against the service. `fromConfig` trims the value and ignores case. A null, blank or unknown value throws `ConfigurationException`, with "entityKind" and the value in the message. `fromBaseType` returns null for an unknown or null BaseType, so a strange remote document never fails a read.
   *Green:* `EntityKindSpec`.
-- [ ] **WS1.03 `Direction` (S).** `fromConfig` ignores case and rejects null, blank or unknown values with `ConfigurationException`. Implement `opposite`.
+- [x] **WS1.03 `Direction` (S).** `fromConfig` ignores case and rejects null, blank or unknown values with `ConfigurationException`. Implement `opposite`.
   *Green:* `DirectionSpec`.
-- [ ] **WS1.04 `ObjectTypesParser.parse(String)` (S).** Parse with `JsonSlurper` and convert `JsonException` to `ConfigurationException`. Reject null, blank, a non-object root, a type whose value is not an object, and an empty document.
-- [ ] **WS1.05 `ObjectTypesParser.parse(Map)` (M).**
+- [x] **WS1.04 `ObjectTypesParser.parse(String)` (S).** Parse with `JsonSlurper` and convert `JsonException` to `ConfigurationException`. Reject null, blank, a non-object root, a type whose value is not an object, and an empty document.
+- [x] **WS1.05 `ObjectTypesParser.parse(Map)` (M).**
   - The type name comes from the map key and the relationship property from its key.
   - `idmResource`, `entityKind` and `idProperty` are required. A missing one is reported with the type and field named.
   - `attributes` and `archetypes` must be lists of non-blank strings. Missing optional blocks default to empty.
-  - Reserved attribute names are rejected: `directArchetypes`, `entityRelationships`, `lastUpdated`, `__UID__`, `__NAME__` and `ID`. WS0.14 may rename `lastUpdated`, since the service has `lastEvaluated`, which is not a modification time.
+  - Reserved attribute names are rejected: `directArchetypes`, `entityRelationships`, `lastEvaluated`, `__UID__`, `__NAME__`, `ID` and `id` (WS0.14 renamed `lastUpdated` to `lastEvaluated`; `ID` and `id` collide with the entity ID, C8).
+  - Unknown keys are rejected, at type and relationship level, so a misspelt key cannot silently drop configuration.
+  - The P19 rule: when several types share an entityKind, each needs a scope archetype (its first archetype) and no two may share one.
   - A relationship entry is *explicit* only when it has both `remoteType` and `direction`. Having only one of them is rejected as a half override, naming the property. `sync` defaults to true. `relatedType` and `reverseProperty` are carried as hints (P2).
   *Gotcha:* `ObjectTypeConfig` and `RelationshipConfig` use `@Canonical` equality. Normalise every list to `ArrayList` and every map to `LinkedHashMap`, or "map input equals JSON input" fails on collection type alone.
   *Green:* `ObjectTypesParserSpec`.
-- [ ] **WS1.06 `ObjectTypeConfig.syncedRelationships` (S).** Return the entries whose `sync` is not false, in configuration order.
-- [ ] **WS1.07 `RelationshipConvention.normalise` (S).** Upper-case the first letter. Strip a trailing `Set` or `List` only when it is a capitalised suffix with something before it, so `ownsSet` becomes `Owns` but `settings`, `set` and `list` keep their letters. A blank value throws `IllegalArgumentException`.
-- [ ] **WS1.08 `RelationshipConvention.isPassive` (S).** Strip any `Set`/`List` suffix first. The name is passive when it then ends in a capital `By` with at least one character before it. So `ownedBy` and `ownedBySet` are passive, and `by` and `standby` are not.
-- [ ] **WS1.09 `RelationshipConvention.resolvePair` (S).** The result must not depend on argument order. Exactly one side must be passive, and the remote type is `normalise` of the active side. Report the pair unresolved, with a reason, when neither or both sides are passive, the reverse is null or blank, or the pair is self-referential.
-- [ ] **WS1.10 `RelationshipConvention.resolve` (S).**
+- [x] **WS1.06 `ObjectTypeConfig.syncedRelationships` (S).** Return the entries whose `sync` is not false, in configuration order.
+- [x] **WS1.07 `RelationshipConvention.normalise` (S).** Upper-case the first letter. Strip a trailing `Set` or `List` only when it is a capitalised suffix with something before it, so `ownsSet` becomes `Owns` but `settings`, `set` and `list` keep their letters. A blank value throws `IllegalArgumentException`.
+- [x] **WS1.08 `RelationshipConvention.isPassive` (S).** Strip any `Set`/`List` suffix first. The name is passive when it then ends in a capital `By` with at least one character before it. So `ownedBy` and `ownedBySet` are passive, and `by` and `standby` are not.
+- [x] **WS1.09 `RelationshipConvention.resolvePair` (S).** The result must not depend on argument order. Exactly one side must be passive, and the remote type is `normalise` of the active side. Report the pair unresolved, with a reason, when neither or both sides are passive, the reverse is null or blank, or the pair is self-referential.
+- [x] **WS1.10 `RelationshipConvention.resolve` (S).**
   1. `sync: false` returns null.
   2. An explicit override is used as-is.
   3. Otherwise apply the convention, using the reverse property from the argument or from the entry's hint.
   4. If none of these resolve it, throw `ConfigurationException` naming both properties.
-- [ ] **WS1.11 `RelationshipConvention.validate` (L).**
+- [x] **WS1.11 `RelationshipConvention.validate` (L).**
   - Resolve every synced entry, explicit or convention-derived.
   - Find each entry's counterpart through `relatedType` plus `reverseProperty`. Same-type pairs such as `manager`/`reports` on `user` must work.
   - Require opposite directions and the same `remoteType` on each pair.
@@ -566,7 +571,7 @@ Do these in order; later tasks reuse earlier ones.
   - Collect *all* violations into one `ConfigurationException`.
   - Return warnings for a counterpart type that isn't configured and for entries without hints.
   *Green:* `RelationshipConventionSpec`.
-- [ ] **WS1.12 `ConnectorConfig.from` (M).**
+- [x] **WS1.12 `ConnectorConfig.from` (M).**
   - `serviceAddress` must be an http or https URI with a host. Strip a trailing slash.
   - `apiKey` is required, as a String or `char[]`, and must contain no control characters, since it becomes a header value. Never echo it in a message. There is no username (P13).
   - `apiKeyHeader` defaults to `X-API-KEY` and must be a header name of letters, digits and dashes.
@@ -576,16 +581,18 @@ Do these in order; later tasks reuse earlier ones.
   - `typeFor` is null-safe.
   - Validation warnings need a way out. Add a `warnings` property on the config for `ScriptSupport` to log at WARN.
   *Green:* `ConnectorConfigSpec`.
-- [ ] **WS1.13 `ObjectClassResolver` (S).** A null or unknown class throws `ConnectorException`, naming it and the configured classes. There is no implicit `__ACCOUNT__` alias.
+- [x] **WS1.13 `ObjectClassResolver` (S).** A null or unknown class throws `ConnectorException`, naming it and the configured classes. There is no implicit `__ACCOUNT__` alias.
   *Green:* `ObjectClassResolverSpec`.
-- [ ] **WS1.14 `SchemaFactory.objectClassInfo` (S).** Domain attributes are single-valued strings (P20). `__NAME__` is required. Domain attributes are single-valued strings. `directArchetypes` and `entityRelationships` are multivalued strings. `lastUpdated` is readable but neither creatable nor updatable.
-  *Decide:* whether `lastUpdated` should be returned by default. The spec title says it is not, but no assertion checks this, because mappings don't map it. Pick one, then make the spec assert it.
-- [ ] **WS1.15 `SchemaFactory.build` (M).** Use one `SchemaBuilder` for all types. Support Schema, Test, Search, Get, Create, Update and Delete. Do not support Sync or Authenticate.
-  *Gotcha:* `SchemaBuilder` derives its default operation set from the SPI interfaces the connector class implements. The spec passes the bare `Connector` interface, which implements none. In IDM the class is `ScriptedRESTConnector`, which implements all of them, including Sync. So the implementation must add and remove support per operation explicitly. Alternatively, change the spec to pass a test class implementing exactly the seven SPI interfaces. Record the decision in the PR.
+- [x] **WS1.14 `SchemaFactory.objectClassInfo` (S).** Domain attributes are single-valued strings (P20). `__NAME__` is required. Domain attributes are single-valued strings. `directArchetypes` and `entityRelationships` are multivalued strings. `lastEvaluated` is readable but neither creatable nor updatable.
+  *Decided 2026-11-21:* `lastEvaluated` **is** returned by default. Every read carries it at no cost and mappings ignore it; `SchemaFactorySpec` now asserts it. The spec also asked for `creatable`, which ConnId spells `createable`; corrected in the spec, with the expectation unchanged.
+- [x] **WS1.15 `SchemaFactory.build` (M).** Use one `SchemaBuilder` for all types. Support Schema, Test, Search, Get, Create, Update and Delete. Do not support Sync or Authenticate.
+  *Gotcha:* `SchemaBuilder` derives its default operation set from the SPI interfaces the connector class implements, and even with explicit operations it drops any the class does not implement. The spec passes the bare `Connector` interface, which implements none. In IDM the class is `ScriptedRESTConnector`, which implements all of them, including Sync.
+  *Decided 2026-11-21:* `SchemaFactory` assembles the `Schema` directly, mapping its fixed list of SPI operations (Schema, Test, Search, Create, Update, Delete) to API operations with `FrameworkUtil.spi2apis`, so Search also gives Get. The result does not depend on the connector class; the spec is unchanged.
   *Green:* `SchemaFactorySpec`.
-- [ ] **WS1.16 `SchemaOperation` (S).** Delegate to `SchemaFactory` and make no HTTP calls.
+- [x] **WS1.16 `SchemaOperation` (S).** Delegate to `SchemaFactory` and make no HTTP calls.
   *Green:* the three schema cases in `TestAndSchemaOperationSpec`.
-- [ ] **WS1.17 WS1 review pass (S).** Check that every exception message names the type and property involved, that no message contains configuration secrets, and that the §2.3 map still matches the code.
+- [x] **WS1.17 WS1 review pass (S).** Check that every exception message names the type and property involved, that no message contains configuration secrets, and that the §2.3 map still matches the code.
+  *Done 2026-11-21.* Configuration messages name `objectTypes.<type>.<field>` or `<type>.<property>`; the convention collects every violation into one exception. No message carries `apiKey`'s value. The review found one leak path: a `serviceAddress` with credentials in it (`https://user:pass@host`) would have been echoed. It is now rejected, and an address containing `@` is never repeated (new `ConnectorConfigSpec` case). Validation warnings (a counterpart type not configured, an entry without hints) are on `ConnectorConfig.warnings` for `ScriptSupport` to log at WARN in WS3. §2.3 updated.
 
 ### WS2 — Model, codec and payload
 

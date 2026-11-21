@@ -1,5 +1,6 @@
 package au.com.azwork.idm.graphentity.ops
 
+import au.com.azwork.idm.graphentity.schema.SchemaFactory
 import org.identityconnectors.framework.common.objects.Schema
 
 /** Schema (design §9.5): delegates to SchemaFactory. */
@@ -8,8 +9,8 @@ class SchemaOperation {
 
     SchemaOperation(OperationContext ctx) { this.ctx = ctx }
 
-    /** TODO WS1. */
+    /** Builds the schema from configuration alone; makes no HTTP calls. */
     Schema execute(Class<?> connectorClass) {
-        throw new UnsupportedOperationException('TODO WS1: SchemaOperation.execute')
+        SchemaFactory.build(ctx.config, connectorClass)
     }
 }

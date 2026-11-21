@@ -93,6 +93,16 @@ class ConnectorConfigSpec extends Specification {
         address << ['localhost:5276', 'ftp://host', 'http://', '::']
     }
 
+    def "a serviceAddress carrying credentials is rejected without repeating them: the key belongs in apiKey"() {
+        when:
+        ConnectorConfig.from(Fixtures.connectorProps(serviceAddress: 'https://someone:s3cret@host:5276'))
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('serviceAddress')
+        !e.message.contains('s3cret')
+    }
+
     def "serviceAddress trailing slash is normalised away so paths concatenate cleanly"() {
         expect:
         ConnectorConfig.from(Fixtures.connectorProps(serviceAddress: 'http://localhost:5276/')).serviceAddress == 'http://localhost:5276'
