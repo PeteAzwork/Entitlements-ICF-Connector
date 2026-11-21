@@ -1,0 +1,27 @@
+{
+  "_comment": "The §7 relationship convention cases, shared by the connector (RelationshipConventionSpec, Groovy) and the mapping library (graphEntityPayload.test.js, JavaScript), so the two implementations cannot drift apart (plan WS5.01). Add a case here and both suites check it.",
+  "normalise": [
+    ["owns", "Owns"], ["Owns", "Owns"], ["ownsSet", "Owns"], ["ownsList", "Owns"], ["memberList", "Member"],
+    ["memberOfSet", "MemberOf"], ["ownedBy", "OwnedBy"], ["manager", "Manager"], ["reports", "Reports"], ["a", "A"],
+    ["set", "Set"], ["list", "List"], ["assetList", "Asset"], ["settings", "Settings"], ["  owns  ", "Owns"]
+  ],
+  "normaliseRejects": [null, "", "  "],
+  "passive": [
+    ["ownedBy", true], ["managedBy", true], ["ownedBySet", true], ["OwnedBy", true], ["usedByList", true],
+    ["owns", false], ["manager", false], ["reports", false], ["by", false], ["standby", false], ["memberOf", false], ["By", false]
+  ],
+  "pairsResolved": [
+    { "property": "owns", "reverse": "ownedBy", "remoteType": "Owns", "outbound": "owns", "inbound": "ownedBy" },
+    { "property": "ownedBy", "reverse": "owns", "remoteType": "Owns", "outbound": "owns", "inbound": "ownedBy" },
+    { "property": "manages", "reverse": "managedBy", "remoteType": "Manages", "outbound": "manages", "inbound": "managedBy" },
+    { "property": "ownsSet", "reverse": "ownedBySet", "remoteType": "Owns", "outbound": "ownsSet", "inbound": "ownedBySet" },
+    { "property": "uses", "reverse": "usedBy", "remoteType": "Uses", "outbound": "uses", "inbound": "usedBy" }
+  ],
+  "pairsUnresolved": [
+    { "property": "manager", "reverse": "reports", "why": "neither passive" },
+    { "property": "ownedBy", "reverse": "managedBy", "why": "both passive" },
+    { "property": "owns", "reverse": null, "why": "no reverse" },
+    { "property": "owns", "reverse": "", "why": "blank reverse" },
+    { "property": "owns", "reverse": "owns", "why": "self pair" }
+  ]
+}

@@ -17,6 +17,9 @@ dependencies {
     }
     implementation "org.apache.httpcomponents:httpclient:${httpClientVersion}"
 
+    // WS5.07: the mapping library (../mapping-lib) is evaluated under Rhino, as IDM runs it.
+    testImplementation "org.mozilla:rhino:${rhinoVersion}"
+
     testFixturesImplementation "org.codehaus.groovy:groovy:${groovyVersion}"
     testFixturesImplementation "org.codehaus.groovy:groovy-json:${groovyVersion}"
 }

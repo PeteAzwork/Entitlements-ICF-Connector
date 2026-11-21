@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.17 — 2026-11-21** (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.18 — 2026-11-21** (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -40,8 +40,8 @@ The design document says *what* the connector is. This plan says *in what order*
 | D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/graphentity/` | API fixed, bodies are stubs. Several classes encode the old API model and change in WS0.14 |
 | D2 | Seven ICF operation scripts | §4 | `connector/src/main/scripts/*.groovy` | Written (thin delegation) |
 | D3 | Connector tests: unit, script harness, contract, scenario | §6 of this plan | `connector/src/test/groovy/…` | **29 specs, 537 executions**, red by design |
-| D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js` | API fixed, bodies are stubs |
-| D5 | Mapping library tests | §8.2 | `mapping-lib/test/` | **67 tests**, red by design |
+| D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js`, `mapping-lib/README.md` | **Implemented (WS5)** |
+| D5 | Mapping library tests | §8.2 | `mapping-lib/test/`, `fixtures/convention-cases.json`, `GraphEntityPayloadRhinoSpec` | **109 Node tests and 9 Rhino tests, all passing** |
 | D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…` | API fixed, bodies are stubs |
 | D7 | Discovery tool tests | §12 | `discovery/src/test/groovy/…` | **4 specs, 41 executions**, red by design |
 | D8 | Provisioner and mapping configuration samples | §6, §12 | `config/` | Written |
@@ -70,7 +70,8 @@ The map below is the current one. Every connector class in it is implemented (WS
 | §3 A3/A4 identity and kind | `config.EntityKind`, `payload.EntityPayloadBuilder` | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
 | §5.2/§6 per-type dynamic schema | `config.ObjectTypesParser`, `config.ObjectTypeConfig`, `config.ConnectorConfig`, `schema.SchemaFactory`, `ops.ObjectClassResolver` | `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `SchemaFactorySpec`, `ObjectClassResolverSpec` |
 | §7 convention (normative) | `convention.RelationshipConvention`, `config.Direction` | `RelationshipConventionSpec`, `DirectionSpec`, and the JavaScript `resolvePair`/`resolveRelationship` tests |
-| §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js` |
+| §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js`, `GraphEntityPayloadRhinoSpec` (Rhino) |
+| §7 shared cases | `fixtures/convention-cases.json` | `RelationshipConventionSpec` and `graphEntityPayload.test.js` both read it |
 | §8.3 ICF encoding | `codec.EdgeCodec` | `EdgeCodecSpec` |
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
 | §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` | `CreateOperationSpec`, `EdgeVerifierSpec` |
@@ -184,6 +185,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Implement:** every function in `graphEntityPayload.js`, ES5 only, emitting edges in the format WS0.14 settles (D2).
 **Acceptance:** `npm test` in `mapping-lib/` green, and the Rhino smoke test (WS5.07).
 **Estimate:** 4 days (the drift-check script moved to WS10).
+**Status:** Done 2026-11-21. `npm test` green (109) and the Rhino smoke test green (9).
 
 ### WS6 — Discovery and generation tool
 
@@ -249,7 +251,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | L3 Transport contract | The real HTTP client against WireMock: paths, methods, headers, the API key, JSON bodies, encoding, non-2xx handling | WireMock 3 | `RestClientEntityApiSpec` |
 | L4 Script harness | The seven scripts evaluated as the harness does, against WireMock | `ScriptHarness` | `OperationScriptsSpec`, `CustomizerScriptSpec` |
 | L5 Scenario | Appendix A end to end | `@Stepwise` + `FakeGraphService` | `WorkedExampleSpec` |
-| L6 Mapping library | The JavaScript library under Rhino-like isolation | Node test runner | `mapping-lib/test` |
+| L6 Mapping library | The JavaScript library under Rhino-like isolation, and under Rhino itself | Node test runner; Spock with Rhino 1.7.14 | `mapping-lib/test`, `GraphEntityPayloadRhinoSpec` |
 | L7 Discovery | Generator correctness and agreement with the connector's validation | Spock | `discovery/src/test` |
 | L7b Contract probe | The probe reports the service's semantics faithfully, never writes in read-only mode, cleans up, and never persists credentials or foreign data | Spock + `FakeGraphHttpServer` + WireMock replay | `contract-probe/src/test` |
 | L8 Integration (WS8) | The real IDM harness, Rhino and reconciliation engine | Docker; WireMock recordings or a test tenant | `integration/` |
@@ -272,7 +274,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `config/DirectionSpec` | §7 | 3 | 10 |
 | `config/ObjectTypesParserSpec` | §6 | 22 | 38 |
 | `config/ConnectorConfigSpec` | §6, §15, P13 | 21 | 45 |
-| `convention/RelationshipConventionSpec` | §7 | 24 | 54 |
+| `convention/RelationshipConventionSpec` | §7, WS5.01 | 29 | 94 |
 | `model/EdgeSpec` | §2.2 | 8 | 17 |
 | `model/EntityDocumentSpec` | §2.1 | 18 | 18 |
 | `codec/EdgeCodecSpec` | §8.3 | 9 | 21 |
@@ -298,24 +300,25 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
 | `scenario/RecordedContractSpec` | WS4.09, WS0.11 | 5 | 5 |
-| **Connector total** | | **377** | **647** |
+| `mapping/GraphEntityPayloadRhinoSpec` | WS5.07, §8.2 | 6 | 9 |
+| **Connector total** | | **388** | **696** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **45** | **45** |
-| `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **69** |
+| `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6, WS5.01 | — | **109** |
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 56 | 56 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
 | `contract-probe/ScrubberSpec` | §13 | 16 | 16 |
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **887** |
+| **Grand total** | | | **976** |
 
-Current result (2026-11-21, after WS4): **connector 647 pass / 0 fail / 0 skipped**: every connector spec is green, and the `@Stepwise` Appendix A scenario runs to the end (M3). Discovery 0 / 45 and mapping library 3 pass / 66 fail; every failure there is a `TODO WSn` stub (WS6 45, WS5 66), with no failures caused by the test harness. The contract probe's 126 tests all pass. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS5): **connector 696 pass / 0 fail / 0 skipped** (M3), **mapping library 109 pass / 0 fail**, including the Rhino smoke test in the connector suite. Discovery 0 / 45: every failure there is a WS6 `TODO` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass.
 
-Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83.
+Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83. The mapping library stood at 3 pass / 66 fail before WS5.
 
 ### 6.4 Tests still to write
 
@@ -737,17 +740,24 @@ Do these in order; later tasks reuse earlier ones.
 
 The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 
-- [ ] **WS5.01 One source for convention cases (S).** Move the normalisation, passive-detection and pair cases into `fixtures/convention-cases.json`, read by both `RelationshipConventionSpec` and the JavaScript tests.
-- [ ] **WS5.02 `normalisePropertyName`, `isPassive`, `resolvePair` (S).** Port WS1.07–WS1.09. Can start now.
-- [ ] **WS5.03 `resolveRelationship` (M).** Override first, then the convention with the entry's hint, then `config/managed`. `sync: false` returns null. Unresolvable throws, naming the property. Can start now.
-- [ ] **WS5.04 `loadTypeConfig`, `clearCache` and the cache (M).** Read the provisioner configuration, take `objectTypes` from `configurationProperties` or from `customConfiguration`, and cache with an optional TTL (default five minutes).
-- [ ] **WS5.05 `buildRelationships` (L).** Emit the complete set of relationships touching the source entity in the P17 format, `{"sourceID","targetID","type"}`. The §7 convention decides which IDM side is the source. Inbound relationships are included, per Q07.8.
+- [x] **WS5.01 One source for convention cases (S).** Move the normalisation, passive-detection and pair cases into `fixtures/convention-cases.json`, read by both `RelationshipConventionSpec` and the JavaScript tests.
+- [x] **WS5.02 `normalisePropertyName`, `isPassive`, `resolvePair` (S).** Port WS1.07–WS1.09. Can start now.
+- [x] **WS5.03 `resolveRelationship` (M).** Override first, then the convention with the entry's hint, then `config/managed`. `sync: false` returns null. Unresolvable throws, naming the property. Can start now.
+- [x] **WS5.04 `loadTypeConfig`, `clearCache` and the cache (M).** Read the provisioner configuration, take `objectTypes` from `configurationProperties` or from `customConfiguration`, and cache with an optional TTL (default five minutes).
+- [x] **WS5.05 `buildRelationships` (L).** Emit the complete set of relationships touching the source entity in the P17 format, `{"sourceID","targetID","type"}`. The §7 convention decides which IDM side is the source. Inbound relationships are included, per Q07.8.
   *Gotcha:* some IDM versions return only `_ref`; fall back to splitting it.
   *Gotcha:* one read per related object. Cache within a call; WS8.11 evaluates field expansion.
-- [ ] **WS5.06 `buildArchetypes` (S).** Static archetypes, then a single or multi-valued `archetypeProperty`, without duplicates.
+- [x] **WS5.06 `buildArchetypes` (S).** Static archetypes, then a single or multi-valued `archetypeProperty`, without duplicates.
   *Green for WS5.02–WS5.06:* `npm test` in `mapping-lib`.
-- [ ] **WS5.07 Rhino smoke test (M).** A Gradle test that evaluates the library under Mozilla Rhino 1.7.x with a fake `openidm`.
-- [ ] **WS5.08 Library README (S).** How mappings `require` it, its functions, ES5 limits, and the cache.
+- [x] **WS5.07 Rhino smoke test (M).** A Gradle test that evaluates the library under Mozilla Rhino 1.7.x with a fake `openidm`.
+- [x] **WS5.08 Library README (S).** How mappings `require` it, its functions, ES5 limits, and the cache.
+  *Done 2026-11-21 (WS5.01–08).* Notes on what was built:
+  - **WS5.01.** `fixtures/convention-cases.json` holds 40 §7 cases (normalise, rejects, passive, resolved and unresolved pairs). `RelationshipConventionSpec` and the Node suite each run all of them, so the Groovy and JavaScript conventions cannot drift apart. The existing per-language cases stay.
+  - **`buildRelationships`.** A property listed in `objectTypes` is always processed. An unlisted one is resolved by convention only when one of its references points at a configured type; others (IDM's `roles`, for example) are ignored at debug rather than failing the mapping. Related objects are read once per call.
+  - **IDM's collections.** Inside IDM, `openidm.read` returns wrapped Java lists, for which `Array.isArray` is false; the library recognises lists by `length` and reads them by index. WS8.08 confirms this against real IDM wrappers.
+  - **`loadTypeConfig`** reads `configurationProperties.objectTypes` (string or object) or the `objectTypes='…'` entry of `customConfiguration`, undoing Groovy string escapes. The cache, managed.json included, lasts five minutes unless `options.ttlMs` says otherwise.
+  - **Test harness correction.** Objects created inside Node's `vm` context carry that context's prototypes, so `node:assert`'s strict `deepEqual` called equal structures "not reference-equal". `harness.js` now hands results back through JSON into the test realm; no expectation changed.
+  - **WS5.07.** `GraphEntityPayloadRhinoSpec` evaluates the library under Rhino 1.7.14 in ES5 mode (language version 1.8, interpreted) with a JavaScript fake `openidm`. It checks the exports, configuration loading, Appendix A from both ends, archetypes and errors, and that Rhino's §7 answers match `RelationshipConvention`'s.
 
 ### WS6 — Discovery and generation tool
 

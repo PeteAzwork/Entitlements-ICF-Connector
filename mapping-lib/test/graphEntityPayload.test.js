@@ -48,6 +48,38 @@ describe('normalisePropertyName / isPassive (§7)', () => {
     }
 });
 
+describe('shared convention cases (fixtures/convention-cases.json, WS5.01): the same rules as the connector', () => {
+    const cases = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', 'fixtures', 'convention-cases.json'), 'utf8'));
+    for (const [input, expected] of cases.normalise) {
+        test(`normalisePropertyName(${JSON.stringify(input)}) === '${expected}'`, () => {
+            assert.equal(load(fakeOpenidm({})).lib.normalisePropertyName(input), expected);
+        });
+    }
+    for (const bad of cases.normaliseRejects) {
+        test(`normalisePropertyName rejects ${JSON.stringify(bad)}`, () => {
+            assert.throws(() => load(fakeOpenidm({})).lib.normalisePropertyName(bad), /blank|empty|required/i);
+        });
+    }
+    for (const [name, expected] of cases.passive) {
+        test(`isPassive('${name}') === ${expected}`, () => {
+            assert.equal(load(fakeOpenidm({})).lib.isPassive(name), expected);
+        });
+    }
+    for (const c of cases.pairsResolved) {
+        test(`resolvePair('${c.property}', '${c.reverse}') → ${c.remoteType}, ${c.outbound} outbound`, () => {
+            assert.deepEqual(load(fakeOpenidm({})).lib.resolvePair(c.property, c.reverse),
+                { resolved: true, remoteType: c.remoteType, outboundProperty: c.outbound, inboundProperty: c.inbound });
+        });
+    }
+    for (const c of cases.pairsUnresolved) {
+        test(`resolvePair('${c.property}', ${JSON.stringify(c.reverse)}) is unresolved: ${c.why}`, () => {
+            const r = load(fakeOpenidm({})).lib.resolvePair(c.property, c.reverse);
+            assert.equal(r.resolved, false);
+            assert.ok(r.reason);
+        });
+    }
+});
+
 describe('resolvePair (§7)', () => {
     test('owns/ownedBy → Owns, owns outbound', () => {
         const r = load(fakeOpenidm({})).lib.resolvePair('owns', 'ownedBy');
