@@ -9,14 +9,14 @@ Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one 
 
 ## State of this repository
 
-The build is test-first. The complete unit test suite is in place and the production code is thin stubs that throw `UnsupportedOperationException("TODO WSn: …")`. Implementation proceeds workstream by workstream (see the plan, §4) by turning specs green. WS1–WS6 are done: the connector (configuration and schema, model and payload, transport and write operations, search), the mapping-side payload library and the discovery tool. WS8 runs them inside a real IDM 7.5 container, and every suite passes. What is left is the rest of packaging (WS7), rollout (WS9) and drift detection (WS10).
+The build is test-first. The complete unit test suite is in place and the production code is thin stubs that throw `UnsupportedOperationException("TODO WSn: …")`. Implementation proceeds workstream by workstream (see the plan, §4) by turning specs green. WS1–WS6 are done: the connector (configuration and schema, model and payload, transport and write operations, search), the mapping-side payload library and the discovery tool. WS8 runs them inside a real IDM 7.5 container, and every suite passes. WS7 (packaging) is done except the ForgeRock-flavour CI job, which needs repository secrets; WS9's runbook, monitoring, schedules and ID-change guard are done, and its security review, dry run and sign-off need people and the real service. Drift detection (WS10) comes last.
 
 | Area | Code | Tests | Run |
 |---|---|---|---|
 | Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 31 Spock specs, 696 executions, all passing | `./gradlew :connector:test` |
-| Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 7 specs, 71 executions, all passing | `./gradlew :discovery:test` |
-| Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 109 tests, all passing; also run under Rhino by `GraphEntityPayloadRhinoSpec` (see `mapping-lib/README.md`) | `cd mapping-lib && npm test` |
-| Integration in IDM 7.5 (WS8) | `integration/src/test/groovy` | 3 specs, 16 tests, plus an opt-in scale spec; needs Docker | `./gradlew :integration:test -Pidm` |
+| Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 7 specs, 77 executions, all passing | `./gradlew :discovery:test` |
+| Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 116 tests, all passing; also run under Rhino by `GraphEntityPayloadRhinoSpec` (see `mapping-lib/README.md`) | `cd mapping-lib && npm test` |
+| Integration in IDM 7.5 (WS8) | `integration/src/test/groovy` | 4 specs, 18 tests, plus an opt-in scale spec; needs Docker | `./gradlew :integration:test -Pidm` |
 | Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 126 tests, all passing | `./gradlew :contract-probe:test` |
 | Configuration samples | `config/` | — | — |
 
@@ -46,6 +46,14 @@ The probe sends the service's own shapes (EntityDTO writes, `POST /admin/entitie
 To run without Gradle at run time, build the launcher once with `./gradlew :contract-probe:installDist`, then run `contract-probe/build/install/contract-probe/bin/contract-probe --base-url URL --api-key KEY`.
 
 The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-contract.md` §1.
+
+### Operating it
+
+- **Release artefact:** `./gradlew :connector:distZip` builds `connector/build/distributions/graphentity-connector-<version>.zip`, laid out like an IDM installation.
+- **Runbook:** `docs/runbook.md` covers install, onboarding, schedules, monitoring, the logs, key rotation, troubleshooting and the dry run.
+- **Health:** `ops/graphentity_health.py` summarises the monitoring signals.
+- **Before go-live:** `docs/security-review.md` and `docs/go-live-checklist.md`.
+- **Local stack:** IDM 7.5 plus a service stand-in, `dev/README.md`.
 
 ### Integration tests in IDM 7.5
 
@@ -93,6 +101,8 @@ connector/
 discovery/        ManagedSchemaReader, ObjectTypesGenerator, MappingSkeletonGenerator, DiffSummary,
                   DiscoveryTool (CLI), IdmManagedSource, MappingLint     (§12)
 fixtures/         convention-cases.json, shared by the connector and mapping-lib tests (§7)
+dev/              docker-compose IDM 7.5 for development, load-config.sh (WS7.06)
+ops/              graphentity_health.py: the monitoring summary (WS9.03)
 script_vs_jar.md  deploying the library as Groovy scripts (the default) or as a jar
 integration/      WS8: IdmStack (IDM 7.5 in Docker + the fake service), IDM specs, fixture managed.json
 contract-probe/   WS0 probe: ContractProbe, ProbeReport, Scrubber, ProbeMain

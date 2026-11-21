@@ -446,5 +446,70 @@
         return result;
     };
 
+    // ------------------------------------------------------------------ idProperty changes (plan WS9.04)
+
+    /**
+     * Guards a change of the type's idProperty, for a managed object's onUpdate hook:
+     *   require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'user');
+     *
+     * The remote ID is the idProperty and cannot change (design A3): the connector refuses an update whose __NAME__
+     * differs from the entity's ID. So when the idProperty changes, this deletes the entity under its old ID in the
+     * service and removes IDM's links for the mappings that target it; implicit sync then finds no target and creates
+     * the entity under its new ID, with its relationships. A failure to delete propagates, so the rename fails rather
+     * than leaving the service out of step; an entity already gone is fine.
+     * @param options.connector the connector name (default 'graphentity')
+     * @returns true when the idProperty changed and the old entity was handled
+     */
+    exports.onIdPropertyChange = function (newObject, oldObject, typeName, options) {
+        if (!newObject || !oldObject) {
+            return false;
+        }
+        var typeConfig = exports.loadTypeConfig(typeName, options);
+        var property = typeConfig.idProperty;
+        var oldId = oldObject[property];
+        var newId = newObject[property];
+        if (oldId === null || oldId === undefined || String(oldId) === '' || String(oldId) === String(newId)) {
+            return false;
+        }
+        var connector = (options && options.connector) || 'graphentity';
+        var target = 'system/' + connector + '/' + typeName;
+
+        try {
+            openidm['delete'](target + '/' + oldId, null);
+            log('info', typeName + ' ' + property + " changed from '" + oldId + "' to '" + newId + "': deleted " + target + '/' + oldId +
+                ', to be re-created under the new ID');
+        } catch (e) {
+            if (!isNotFound(e)) {
+                throw e;
+            }
+            log('info', typeName + ' ' + property + " changed; " + target + '/' + oldId + ' was already absent');
+        }
+
+        var sync = openidm.read('config/sync', null, null) || {};
+        var mappings = sync.mappings || [];
+        var i;
+        for (i = 0; i < mappings.length; i++) {
+            if (mappings[i].source === typeConfig.idmResource && mappings[i].target === target) {
+                removeLinks(mappings[i].name, oldObject._id || newObject._id);
+            }
+        }
+        return true;
+    };
+
+    function removeLinks(mapping, sourceId) {
+        var filter = 'linkType eq "' + mapping + '" and firstId eq "' + sourceId + '"';
+        var found = openidm.query('repo/link', { _queryFilter: filter }, null);
+        var links = (found && found.result) || [];
+        var i;
+        for (i = 0; i < links.length; i++) {
+            openidm['delete']('repo/link/' + links[i]._id, null);
+        }
+    }
+
+    function isNotFound(e) {
+        var text = String((e && (e.javaException || e.message)) || e);
+        return /404|not ?found|NotFound|UnknownUid/i.test(text);
+    }
+
     exports.CONFIG_PATH = CONFIG_PATH;
 })(typeof exports !== 'undefined' ? exports : (this.graphEntityPayload = {}));

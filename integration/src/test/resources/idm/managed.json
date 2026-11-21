@@ -1096,6 +1096,10 @@
       "lastSync": {
         "lastSyncProperty": "lastSync",
         "effectiveAssignmentsProperty": "effectiveAssignments"
+      },
+      "onUpdate": {
+        "type": "text/javascript",
+        "source": "require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'user');"
       }
     },
     {
@@ -2023,6 +2027,10 @@
             ]
           }
         }
+      },
+      "onUpdate": {
+        "type": "text/javascript",
+        "source": "require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'account');"
       }
     }
   ]

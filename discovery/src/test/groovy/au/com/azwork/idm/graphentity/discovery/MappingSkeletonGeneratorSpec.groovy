@@ -101,6 +101,7 @@ class MappingSkeletonGeneratorSpec extends Specification {
         then:
         m.enableSync == true
         !m.containsKey('queuedSync')
+        m.taskThreads == 4   // conservative: IDM's default is 10 (design §10, WS9.02)
     }
 
     def "the connector name is configurable"() {

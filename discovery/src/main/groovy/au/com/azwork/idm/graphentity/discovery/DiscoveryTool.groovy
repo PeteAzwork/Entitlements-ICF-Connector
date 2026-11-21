@@ -11,7 +11,7 @@ import groovy.json.JsonSlurper
  *
  * <pre>
  * generate: --managed managed.json | --idm-url URL --idm-user USER   (password from IDM_DISCOVERY_PASSWORD)
- *           --types user,account [--answers answers.json] [--current provisioner.json] --out DIR
+ *           --types user,account [--answers answers.json] [--current provisioner.json] [--report-only] --out DIR
  * lint:     --lint sync.json [more.json ...] [--connector graphentity]
  * </pre>
  * Exit codes: 0 success; 1 generation or lint errors; 2 usage or input errors.
@@ -28,6 +28,7 @@ Usage:
   discovery --idm-url https://idm.example.com --idm-user USER --types ... --out DIR   (password in IDM_DISCOVERY_PASSWORD)
   discovery --lint sync.json [more.json ...] [--connector graphentity]
 
+--report-only writes mappings whose every situation is REPORT, with implicit sync off: for the dry run (runbook §8).
 answers.json holds the operator's answers (GeneratorOptions): selectedTypes, entityKinds, idProperties, archetypes,
 relationshipOverrides, connectorName. --types overrides selectedTypes.'''
 
@@ -103,11 +104,18 @@ relationshipOverrides, connectorName. --types overrides selectedTypes.'''
         String custom = customConfiguration(single(opts, 'current') ? readJson(single(opts, 'current')) as Map : null, result.objectTypes)
         new File(dir, 'customConfiguration.txt').setText(custom + '\n', 'UTF-8')
         new File(dir, 'customConfiguration.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson([customConfiguration: custom])) + '\n', 'UTF-8')
+        if (single(opts, 'current')) {
+            Map provisioner = provisionerWith(readJson(single(opts, 'current')) as Map, custom)
+            new File(dir, 'provisioner.openicf-graphentity.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson(provisioner)) + '\n', 'UTF-8')
+        }
         result.objectTypes.each { String type, Map block ->
             new File(dir, "sync-${type}.json").setText(
-                JsonOutput.prettyPrint(JsonOutput.toJson(MappingSkeletonGenerator.mapping(type, block, options))) + '\n', 'UTF-8')
+                JsonOutput.prettyPrint(JsonOutput.toJson(MappingSkeletonGenerator.mapping(type, block, options, opts.containsKey('report-only')))) + '\n', 'UTF-8')
         }
-        out.println("Wrote objectTypes.json, customConfiguration.txt/.json and ${result.objectTypes.size()} mapping skeleton(s) to ${dir.path}")
+        out.println("Wrote objectTypes.json, customConfiguration.txt/.json${single(opts, 'current') ? ', provisioner.openicf-graphentity.json' : ''} and ${result.objectTypes.size()} mapping skeleton(s) to ${dir.path}")
+        if (single(opts, 'current')) {
+            out.println('Next: POST provisioner.openicf-graphentity.json to system?_action=createFullConfig, then save the result (runbook §2.3)')
+        }
         OK
     }
 
@@ -145,6 +153,17 @@ relationshipOverrides, connectorName. --types overrides selectedTypes.'''
         replaced == current && !(current =~ /objectTypes\s*=/) ? "${current.trim().replaceAll(/;\s*$/, '')}; ${entry}" : replaced
     }
 
+    /**
+     * The current provisioner with the new customConfiguration (WS7.03). Its objectTypes are cleared with a note: they
+     * must come from createFullConfig, called before the provisioner is saved (service contract H10, H11).
+     */
+    static Map provisionerWith(Map current, String customConfiguration) {
+        Map out = new LinkedHashMap(current)
+        out.configurationProperties = new LinkedHashMap(current.configurationProperties as Map ?: [:]) + [customConfiguration: customConfiguration]
+        out.objectTypes = [_comment: 'Generate with system?_action=createFullConfig, then save its result once (runbook §2.3).']
+        out
+    }
+
     // ---------------------------------------------------------------- arguments
 
     static final Set<String> VALUE_OPTIONS = ['managed', 'idm-url', 'idm-user', 'types', 'answers', 'current', 'out', 'connector'] as Set
@@ -158,6 +177,7 @@ relationshipOverrides, connectorName. --types overrides selectedTypes.'''
                 throw new IllegalArgumentException("Passwords are never taken from arguments: set ${IdmManagedSource.PASSWORD_ENV}")
             }
             if (a == '--lint') { listOption = 'lint'; opts.lint = []; continue }
+            if (a == '--report-only') { opts['report-only'] = []; continue }
             if (a.startsWith('--')) {
                 String name = a.substring(2)
                 if (!(name in VALUE_OPTIONS)) throw new IllegalArgumentException("Unknown option ${a}")

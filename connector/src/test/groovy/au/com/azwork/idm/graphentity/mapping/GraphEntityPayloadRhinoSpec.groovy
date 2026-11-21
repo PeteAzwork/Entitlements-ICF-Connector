@@ -69,7 +69,7 @@ class GraphEntityPayloadRhinoSpec extends Specification {
     def "the library parses and loads under Rhino in ES5 mode, exporting the documented functions"() {
         expect:
         run("Object.keys(exports).sort()") == ['CONFIG_PATH', 'buildArchetypes', 'buildRelationships', 'clearCache', 'isPassive',
-                                               'loadTypeConfig', 'normalisePropertyName', 'resolvePair', 'resolveRelationship']
+                                               'loadTypeConfig', 'normalisePropertyName', 'onIdPropertyChange', 'resolvePair', 'resolveRelationship']
     }
 
     def "loadTypeConfig reads objectTypes out of the provisioner's customConfiguration"() {

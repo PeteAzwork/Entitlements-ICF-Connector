@@ -38,11 +38,12 @@ class FakeGraphHttpServer implements Closeable {
     final String apiKeyHeader
     private final HttpServer server
 
-    FakeGraphHttpServer(FakeGraphService service, String apiKey = DEFAULT_API_KEY, String apiKeyHeader = DEFAULT_API_KEY_HEADER) {
+    FakeGraphHttpServer(FakeGraphService service, String apiKey = DEFAULT_API_KEY, String apiKeyHeader = DEFAULT_API_KEY_HEADER,
+                        InetSocketAddress bind = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)) {
         this.service = service
         this.apiKey = apiKey
         this.apiKeyHeader = apiKeyHeader
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        this.server = HttpServer.create(bind, 0)
         server.createContext(PREFIX) { HttpExchange ex -> handle(ex) }
         server.createContext(MANIFESTS) { HttpExchange ex -> handle(ex) }
     }
@@ -50,6 +51,8 @@ class FakeGraphHttpServer implements Closeable {
     FakeGraphHttpServer start() { server.start(); this }
 
     String getBaseUrl() { "http://127.0.0.1:${server.address.port}" }
+
+    int getPort() { server.address.port }
 
     @Override
     void close() { server.stop(0) }

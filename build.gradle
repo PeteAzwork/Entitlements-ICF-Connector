@@ -10,7 +10,16 @@ subprojects {
     repositories {
         mavenCentral()
         if (rootProject.findProperty('icfFlavour') == 'forgerock') {
-            maven { url = uri('https://maven.forgerock.org/repo/releases') }
+            maven {
+                url = uri('https://maven.forgerock.org/repo/releases')
+                // WS7.05: the ForgeRock repository needs an account; CI passes it from secrets, never from files.
+                if (System.getenv('FORGEROCK_MAVEN_USERNAME')) {
+                    credentials {
+                        username = System.getenv('FORGEROCK_MAVEN_USERNAME')
+                        password = System.getenv('FORGEROCK_MAVEN_PASSWORD')
+                    }
+                }
+            }
         }
     }
 

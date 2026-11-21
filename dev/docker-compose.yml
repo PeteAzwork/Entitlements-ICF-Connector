@@ -1,0 +1,20 @@
+# WS7.06: a local IDM 7.5 with the connector from the build, for development. See dev/README.md.
+#
+#   ./gradlew :connector:idmDist            # build what is mounted below
+#   ./gradlew :connector:runFakeService     # optional: the service stand-in on port 5276, in another terminal
+#   docker compose -f dev/docker-compose.yml up -d
+#   dev/load-config.sh                       # provisioner via createFullConfig, then the Test operation
+services:
+  idm:
+    image: gcr.io/forgerock-io/idm:7.5.0
+    container_name: graphentity-idm-dev
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_OPTS: "-Xmx2g -Xms1g"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reaches the fake service (or anything else) on your machine
+    volumes:
+      # The connector and the mapping library from build/idm-dist, read-only: rebuild, then restart IDM to pick them up.
+      - ../connector/build/idm-dist/connectors/graphentity:/opt/openidm/connectors/graphentity:ro
+      - ../connector/build/idm-dist/script/lib/graphEntityPayload.js:/opt/openidm/script/lib/graphEntityPayload.js:ro

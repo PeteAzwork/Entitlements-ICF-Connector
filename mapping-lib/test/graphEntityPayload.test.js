@@ -323,3 +323,47 @@ describe('buildArchetypes (§6, §8.2)', () => {
         assert.throws(() => lib.buildArchetypes(null, objectTypes().user), /source/i);
     });
 });
+
+describe('onIdPropertyChange (plan WS9.04: a changed idProperty becomes delete, then create)', () => {
+    const sync = { mappings: [
+        { name: 'managedUser_systemGraphentityUser', source: 'managed/user', target: 'system/graphentity/user' },
+        { name: 'other', source: 'managed/user', target: 'system/ldap/account' }] };
+    const links = [{ _id: 'l-1', linkType: 'managedUser_systemGraphentityUser', firstId: 'u-1' },
+                   { _id: 'l-2', linkType: 'other', firstId: 'u-1' }];
+
+    test('exports it', () => {
+        assert.equal(typeof load(fakeOpenidm({})).lib.onIdPropertyChange, 'function');
+    });
+    test('a changed idProperty deletes the old entity and only the links of mappings to the connector', () => {
+        const openidm = fakeOpenidm({}, { sync, links });
+        const { lib, logs } = load(openidm);
+        assert.equal(lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne2' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), true);
+        const deletes = openidm.calls.filter(c => c.op === 'delete').map(c => c.id);
+        assert.deepEqual(deletes, ['system/graphentity/user/Sanne', 'repo/link/l-1']);
+        assert.ok(logs.some(l => l[0] === 'info' && /Sanne2/.test(l[1])));
+    });
+    test('an unchanged idProperty does nothing', () => {
+        const openidm = fakeOpenidm({}, { sync, links });
+        assert.equal(load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne', sn: 'x' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), false);
+        assert.equal(openidm.calls.filter(c => c.op === 'delete').length, 0);
+    });
+    test('an object that had no idProperty before does nothing (first assignment is a create, not a rename)', () => {
+        const openidm = fakeOpenidm({}, { sync, links });
+        assert.equal(load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne' }, { _id: 'u-1' }, 'user'), false);
+    });
+    test('an old entity already gone from the service is fine; the links are still removed', () => {
+        const openidm = fakeOpenidm({}, { sync, links, deleteFails: { 'system/graphentity/user/Sanne': 'Not Found: 404' } });
+        assert.equal(load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne2' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), true);
+        assert.ok(openidm.calls.some(c => c.op === 'delete' && c.id === 'repo/link/l-1'));
+    });
+    test('any other delete failure propagates, so the rename fails rather than leaving the service out of step', () => {
+        const openidm = fakeOpenidm({}, { sync, links, deleteFails: { 'system/graphentity/user/Sanne': 'Service Unavailable: 503' } });
+        assert.throws(() => load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne2' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), /503/);
+        assert.ok(!openidm.calls.some(c => c.op === 'delete' && c.id.startsWith('repo/link')));
+    });
+    test('the connector name is configurable', () => {
+        const openidm = fakeOpenidm({}, { sync: { mappings: [] } });
+        load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'B' }, { _id: 'u-1', userName: 'A' }, 'user', { connector: 'graph' });
+        assert.ok(openidm.calls.some(c => c.op === 'delete' && c.id === 'system/graph/user/A'));
+    });
+});

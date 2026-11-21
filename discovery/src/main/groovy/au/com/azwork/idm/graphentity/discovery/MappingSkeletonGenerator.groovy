@@ -15,6 +15,11 @@ class MappingSkeletonGenerator {
 
     static final String LIBRARY_PATH = 'lib/graphEntityPayload.js'
     static final String LIBRARY_MODULE = 'lib/graphEntityPayload'
+    /**
+     * Reconciliation threads per mapping: IDM's default is 10. 4 is the setting WS8.10 showed converging under
+     * concurrent implicit sync; raise it only after measuring (WS8.11, runbook §4).
+     */
+    static final int TASK_THREADS = 4
 
     /** Every situation IDM can raise, with its policy. Nothing is left to IDM's defaults. */
     static final List<Map<String, String>> POLICIES = [
@@ -36,7 +41,11 @@ class MappingSkeletonGenerator {
         [situation: 'ALL_GONE', action: 'IGNORE']
     ].asImmutable()
 
-    static Map mapping(String typeName, Map objectType, GeneratorOptions options) {
+    /**
+     * @param reportOnly every situation's action is REPORT, so a reconciliation classifies without writing anything:
+     *        the non-production dry run of runbook §8 (WS9.06). Implicit sync is off in that mode too.
+     */
+    static Map mapping(String typeName, Map objectType, GeneratorOptions options, boolean reportOnly = false) {
         String connector = options?.connectorName ?: 'graphentity'
         String idProperty = objectType.idProperty as String
         List properties = []
@@ -50,9 +59,11 @@ class MappingSkeletonGenerator {
         m.source = objectType.idmResource ?: "managed/${typeName}".toString()
         m.target = "system/${connector}/${typeName}".toString()
         m.enableSync = true
+        m.taskThreads = TASK_THREADS
         m.correlationQuery = [type: 'text/javascript', source: correlation(idProperty)]
         m.properties = properties
-        m.policies = POLICIES.collect { new LinkedHashMap(it) }
+        m.policies = POLICIES.collect { new LinkedHashMap(it) + (reportOnly ? [action: 'REPORT'] : [:]) }
+        if (reportOnly) m.enableSync = false
         m
     }
 

@@ -64,6 +64,7 @@ function fakeOpenidm(store, opts) {
             calls.push({ op: 'read', id, fields: fields || null });
             if (id === 'config/provisioner.openicf/graphentity') return JSON.parse(JSON.stringify(provisioner));
             if (id === 'config/managed') return JSON.parse(JSON.stringify(managed));
+            if (id === 'config/sync') return JSON.parse(JSON.stringify(opts.sync || { mappings: [] }));
             const obj = store[id];
             if (!obj) return null;
             // Emulate IDM: relationship fields are returned only when requested via fields ("*_ref" or by name).
@@ -74,7 +75,16 @@ function fakeOpenidm(store, opts) {
             }
             return copy;
         },
-        query(id, params) { calls.push({ op: 'query', id, params }); return { result: [] }; }
+        query(id, params) {
+            calls.push({ op: 'query', id, params });
+            return { result: (opts.links || []).filter(l => id === 'repo/link' && params && params._queryFilter
+                === 'linkType eq "' + l.linkType + '" and firstId eq "' + l.firstId + '"') };
+        },
+        delete(id, rev) {
+            calls.push({ op: 'delete', id });
+            if (opts.deleteFails && opts.deleteFails[id]) throw new Error(opts.deleteFails[id]);
+            return {};
+        }
     };
 }
 
