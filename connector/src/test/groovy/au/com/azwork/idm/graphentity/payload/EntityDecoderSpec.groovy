@@ -56,6 +56,23 @@ class EntityDecoderSpec extends Specification {
             Fixtures.userType(), Fixtures.USER).getAttributeByName('secretScore') == null
     }
 
+    def "an attribute stored as an empty string is treated as absent: the connector clears attributes that way (P20 amended)"() {
+        when:
+        def obj = EntityDecoder.decode(EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [attributes: [name: 'Sanne Groen', mail: '']]), Fixtures.userType(), Fixtures.USER)
+
+        then:
+        obj.getAttributeByName('mail') == null
+        obj.getAttributeByName('name').value == ['Sanne Groen']
+    }
+
+    def "the same holds for the read model's attribute objects"() {
+        when:
+        def entity = Fixtures.sanneEntity() + [Attributes: [name: [name: 'name', type: 'string', value: 'Sanne Groen'], mail: [name: 'mail', type: 'string', value: '']]]
+
+        then:
+        EntityDecoder.decode(EntityDocument.fromEntity(entity), Fixtures.userType(), Fixtures.USER).getAttributeByName('mail') == null
+    }
+
     def "configured attributes absent remotely are not emitted (recon sees them as absent, not null)"() {
         expect:
         EntityDecoder.decode(EntityDocument.fromSearchItem(Fixtures.sanneSearchItem()), Fixtures.userType(), Fixtures.USER).getAttributeByName('mail') == null

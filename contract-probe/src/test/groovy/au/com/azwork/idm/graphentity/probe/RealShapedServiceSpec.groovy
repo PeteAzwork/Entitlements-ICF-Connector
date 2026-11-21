@@ -146,7 +146,7 @@ class RealShapedServiceSpec extends Specification {
         f(probe, 'baseType.create').answer.startsWith('Yes')
         f(probe, 'create.duplicate').confidence == 'observed'
         f(probe, 'create.duplicate').answer.startsWith('409')
-        f(probe, 'attributes.omission').answer.startsWith('Yes')
+        f(probe, 'attributes.omission').answer.startsWith('No')   // merged, as the real service does (C17)
         f(probe, 'archetypes.replace').answer.startsWith('Yes')
         f(probe, 'ids.space').answer.contains('a search finds it')
     }

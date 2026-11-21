@@ -36,8 +36,11 @@ import java.time.format.DateTimeFormatter
  * <ul>
  *   <li>A create silently drops a relationship whose other end does not exist (design A7).</li>
  *   <li>A relationship that does not name the entity being written as source or target is a 400.</li>
- *   <li>An update replaces every relationship touching the entity, in both directions (P15, Q07.8, design A2),
- *       and replaces {@code attributes} and {@code directArchetypes} in full (P20, P22).</li>
+ *   <li>An update replaces every relationship touching the entity, in both directions (P15, Q07.8, design A2); an
+ *       empty list purges them all, as the service owner states. (The real service did not purge on an empty list in
+ *       run 20261121-215954; the owner treats that as a bug to be fixed, C17.)</li>
+ *   <li>An update replaces {@code directArchetypes} in full (P22, observed) and <b>merges</b> {@code attributes}: an
+ *       attribute the update omits is kept, and one written as {@code ""} is stored empty (P20, observed, C17).</li>
  *   <li>A duplicate create is a 409 (Q04.1; the definition documents none, and the probe saw 200).</li>
  *   <li>Base type 4 is Subject and 2 is Resource (P18; the definition's create samples say the reverse).</li>
  *   <li>Filter operations are sent by name; EQUALS, CONTAINS, STARTSWITH, AND and OR are supported, matched on
@@ -245,9 +248,15 @@ class FakeGraphService implements EntityApi {
 
     protected static Map<String, String> json() { ['Content-Type': 'application/json; charset=utf-8'] }
 
+    /**
+     * RFC 7807 problem details. A 400 has the service's shape (recorded in run 20261121-215954): a generic title and
+     * an {@code errors} map from field to messages; other statuses carry the given title.
+     */
     protected static HttpResponse problem(int status, String title) {
-        def body = [type: "https://tools.ietf.org/html/rfc9110#section-15.5.${status == 400 ? 1 : (status == 404 ? 5 : 10)}".toString(),
-                    title: title, status: status, traceId: '00-fake-00']
+        def body = status == 400 ?
+            [type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1', title: 'One or more validation errors occurred.', status: 400,
+             errors: [entity: [title]], traceId: '00-fake-00'] :
+            [type: "https://tools.ietf.org/html/rfc9110#section-15.5.${status == 404 ? 5 : 10}".toString(), title: title, status: status, traceId: '00-fake-00']
         new HttpResponse(status: status, body: body, rawBody: groovy.json.JsonOutput.toJson(body),
             headers: ['Content-Type': 'application/problem+json; charset=utf-8'])
     }
@@ -284,7 +293,8 @@ class FakeGraphService implements EntityApi {
 
     protected void store(String id, Map<String, Object> doc) {
         def existing = entities[id]
-        entities[id] = [id: id, baseType: baseTypeOf(doc.baseType), attributes: withoutId(doc.attributes),
+        Map attrs = existing ? (existing.attributes as Map) + withoutId(doc.attributes) : withoutId(doc.attributes)   // merged (C17)
+        entities[id] = [id: id, baseType: baseTypeOf(doc.baseType), attributes: attrs,
                         directArchetypes: new ArrayList(doc.directArchetypes ?: []),
                         isArchetypes: new ArrayList(existing?.isArchetypes ?: [])]
         tick(); lastEvaluated[id] = clock

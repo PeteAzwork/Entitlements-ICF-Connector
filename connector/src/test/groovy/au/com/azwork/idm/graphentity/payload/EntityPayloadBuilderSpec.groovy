@@ -68,7 +68,7 @@ class EntityPayloadBuilderSpec extends Specification {
         e.message.contains('mail')
     }
 
-    def "an attribute that is absent, or present with no value, is omitted (P20)"() {
+    def "an attribute that is absent, or present with no value, is sent as an empty string, which is how the service clears it (P20 amended)"() {
         given:
         def attrs = Fixtures.sanneAttributes()
         attrs << AttributeBuilder.build('mail')
@@ -77,8 +77,15 @@ class EntityPayloadBuilderSpec extends Specification {
         def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), attrs)
 
         then:
-        !doc.attributes.containsKey('mail')
-        !doc.attributes.containsKey('telephoneNumber')
+        doc.attributes.mail == ''
+        doc.attributes.telephoneNumber == ''
+        doc.attributes.keySet() == ['name', 'mail', 'telephoneNumber'] as Set
+    }
+
+    def "every configured attribute is written on every update, so none is left stale (P20 amended, C17)"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes()).attributes.keySet() ==
+            Fixtures.userType().attributes as Set
     }
 
     def "an attribute outside the configured list is rejected rather than silently dropped"() {
@@ -161,7 +168,8 @@ class EntityPayloadBuilderSpec extends Specification {
         def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), attrs)
 
         then:
-        doc.attributes.keySet() == ['name'] as Set
+        doc.attributes.keySet() == ['name', 'mail', 'telephoneNumber'] as Set
+        !doc.attributes.containsKey('lastEvaluated')
     }
 
     def "a __NAME__ that disagrees with the id is rejected (A3: __UID__ == __NAME__ == id)"() {

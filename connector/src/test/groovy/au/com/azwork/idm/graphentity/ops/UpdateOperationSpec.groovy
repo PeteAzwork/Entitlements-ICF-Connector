@@ -52,7 +52,7 @@ class UpdateOperationSpec extends OperationSpecBase {
         service.edges.empty
     }
 
-    def "an attribute removed in IDM is omitted and the service drops it (P20; assumption confirmed in WS0.15)"() {
+    def "an attribute removed in IDM is sent as an empty string, because the service keeps an attribute an update omits (P20 amended, C17)"() {
         given:
         service.seed(Fixtures.sanneWire() + [attributes: [name: 'Sanne Groen', mail: 'sanne@example.com']])
 
@@ -60,8 +60,8 @@ class UpdateOperationSpec extends OperationSpecBase {
         new UpdateOperation(ctx()).execute(Fixtures.USER, new Uid('Sanne'), Fixtures.sanneAttributes(), null)
 
         then:
-        !service.requestsOf('PUT')[0].body.attributes.containsKey('mail')
-        service.entities['Sanne'].attributes == [name: 'Sanne Groen']
+        service.requestsOf('PUT')[0].body.attributes.mail == ''
+        service.entities['Sanne'].attributes.mail == ''
     }
 
     def "directArchetypes are restated in full on every update (P22; assumption confirmed in WS0.15)"() {

@@ -104,13 +104,16 @@ class Fixtures {
     static Edge owns() { Edge.of(SANNE, SANNE_ACCOUNT, 'Owns') }
 
     static EntityDocument sanneDoc() {
-        new EntityDocument(id: SANNE, baseType: 4, attributes: [name: 'Sanne Groen'],
+        new EntityDocument(id: SANNE, baseType: 4, attributes: [name: 'Sanne Groen', mail: '', telephoneNumber: ''],
             relationships: [owns()], directArchetypes: ['Customer'])
     }
 
-    /** Write model (EntityDTO) for Sanne: a Subject, base type 4 (P18), with attributes.ID by design (C8). */
+    /**
+     * Write model (EntityDTO) for Sanne: a Subject, base type 4 (P18), with attributes.ID by design (C8). Her mail and
+     * telephone number are empty in IDM, so they are sent as "" (P20 amended).
+     */
     static Map<String, Object> sanneWire() {
-        [id: SANNE, baseType: 4, attributes: [ID: SANNE, name: 'Sanne Groen'],
+        [id: SANNE, baseType: 4, attributes: [ID: SANNE, name: 'Sanne Groen', mail: '', telephoneNumber: ''],
          relationships: [[sourceID: SANNE, targetID: SANNE_ACCOUNT, type: 'Owns']], directArchetypes: ['Customer']]
     }
 

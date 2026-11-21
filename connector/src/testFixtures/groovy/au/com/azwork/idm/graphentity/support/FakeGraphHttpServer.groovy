@@ -111,7 +111,8 @@ class FakeGraphHttpServer implements Closeable {
     private static HttpResponse notAllowed(String allow) { new HttpResponse(status: 405, headers: [Allow: allow]) }
 
     private static HttpResponse badRequest(String title) {
-        new HttpResponse(status: 400, body: [type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1', title: title, status: 400, traceId: '00-fake-00'],
+        new HttpResponse(status: 400, body: [type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1', title: 'One or more validation errors occurred.', status: 400,
+                                             errors: [entity: [title]], traceId: '00-fake-00'],
             headers: ['Content-Type': 'application/problem+json; charset=utf-8'])
     }
 

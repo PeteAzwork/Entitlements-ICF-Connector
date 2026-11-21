@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.10 — 2026-11-21** (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.13 — 2026-11-21** (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -50,7 +50,7 @@ The design document says *what* the connector is. This plan says *in what order*
 | D11 | Operator runbook | §9, §10, §14 | `docs/runbook.md` | Not started (WS7, WS9) |
 | D12 | Service contract | §15 | `docs/service-contract.md` | Register written; API definition recorded; contradictions C1–C7 listed; design questions D1–D9 decided or deferred |
 | D15 | Design decision record for the real API | §2–§9 | `docs/design-decisions-2026-11-21.md` | Decisions P17–P22 recorded, with the conditions that gate implementation |
-| D13 | Contract probe | §15 | `contract-probe/` | **123 tests passing.** Writes are settled, relationships read on the written entity, and removals waited for (WS0.15g). Next: a write run |
+| D13 | Contract probe | §15 | `contract-probe/` | **126 tests passing.** Settled writes, outcomes read on the written entity, starting states checked (WS0.15h). Next: a write run once the service fixes the empty-list purge |
 | D14 | Drift detection: design, implementation, tests and operations | §11 | design §11, `mapping-lib`, `integration/`, runbook | Not started. **Scheduled last (WS10)** |
 
 ### 2.2 Scope boundaries
@@ -105,12 +105,12 @@ Each decision is pinned by a test, so changing one is deliberate. "Status" says 
 | P12 | **Package namespace `au.com.azwork.idm.graphentity`.** Renaming is a find-and-replace before WS1 starts. | Holds | everywhere |
 | P13 | **Authentication is one shared API key, sent raw in the `X-API-KEY` header.** Stored in the encrypted `password` property; `defaultAuthMethod` is `NONE`; no username. *2026-11-21.* | Confirmed by the owner and the definition | `ConnectorConfigSpec`, `CustomizerScriptSpec`, `RestClientEntityApiSpec`, `HttpErrorMapperSpec`, `ScriptSupportSpec`, `ContractProbeSpec` |
 | P14 | **Search is `POST /admin/entities/search` with a JSON body; `{}` is the unfiltered search.** *2026-11-21.* | Confirmed by the owner and the definition | `RestClientEntityApiSpec`, `OperationScriptsSpec`, `ContractProbeSpec` |
-| P15 | **Relationship writes are full-state, through the entity's `relationships` collection on create and update.** The service removes every relationship missing from the collection, so every write carries the complete set. The single-relationship endpoint (`POST /admin/entities/{id}/relationships`) also works, but the connector does not use it: one full-state write per entity keeps writes idempotent and keeps the design's §8 model. *Decided 2026-11-21 (D1).* | Confirmed by the owner. Still open: whether "missing" includes relationships where the entity is the *target* (Q07.8). **Re-confirmed by the owner 2026-11-21:** an empty `relationships` list purges all of the entity's relationships. Run `214027`'s single read did not show the removal, probably because it is applied after the attribute change; WS0.15g waits for it | `UpdateOperationSpec`, `WorkedExampleSpec` |
+| P15 | **Relationship writes are full-state, through the entity's `relationships` collection on create and update.** The service removes every relationship missing from the collection, so every write carries the complete set. The single-relationship endpoint (`POST /admin/entities/{id}/relationships`) also works, but the connector does not use it: one full-state write per entity keeps writes idempotent and keeps the design's §8 model. *Decided 2026-11-21 (D1).* | Confirmed by the owner. Still open: whether "missing" includes relationships where the entity is the *target* (Q07.8). **Re-confirmed by the owner 2026-11-21:** an empty `relationships` list purges all of the entity's relationships. Run `215954` showed the service does not yet purge (C17); the owner treats this as a service bug to be fixed (WS0.23). Rewriting with the same relationship changes nothing | `UpdateOperationSpec`, `WorkedExampleSpec` |
 | P16 | **Drift detection is built last, in WS10.** Drift detection means everything built specifically to detect and repair changes made outside IDM: the incremental drift check (design §11), comparing relationships during reconciliation, promoting orphans from `REPORT` to `DELETE`, and their tests, schedules and monitoring. Until WS10, reconciliation runs as IDM does it natively. It is used for the initial load, every target-phase situation stays on `REPORT`, and relationship drift goes undetected. *Decided 2026-11-21 (D3, D4).* | Decided by the owner | `MappingSkeletonGeneratorSpec` (REPORT policies) |
 | P17 | **Relationships are encoded in the service's write shape, `{"sourceID","targetID","type"}`** (D2). Values pass straight into the create or update body; the read model's `source`/`target` is converted to the same shape. The §7 convention decides which IDM side is the source. Each value must name the entity itself as source or target. *Decided 2026-11-21.* | Decided by the owner. Q07.8 still open | `EdgeSpec`, `EdgeCodecSpec` (revised in WS0.14c) |
 | P18 | **The base type is sent as a number, with the design's numbering: 4 = Subject, 2 = Resource** (D5). `objectClass` in searches uses the same numbers; reads accept numbers or names. *Decided 2026-11-21.* | **Confirmed 2026-11-21:** an entity created with base type 4 is a Subject (run `20261121-190350` #41, #45) | `EntityKindSpec` (unchanged) |
 | P19 | **Each type has a scope archetype, its first static archetype, stamped as a direct archetype on every write** (D6). Enumeration sends `objectClass` and keeps entities that carry the scope archetype in `isArchetypes`, where search reports directly assigned archetypes (C9). Types sharing a base type need distinct scope archetypes, and scope archetypes must be ones no policy assigns. Reads by ID check only the base type. *Decided 2026-11-21; amended the same day.* | Decided by the owner; replaces P5. **Amended 2026-11-21:** scope on `isArchetypes`, not `directArchetypes` | `TypeScoperSpec`, `ObjectTypesParserSpec`, `EntityDecoderSpec` |
-| P20 | **Domain attributes are single-valued strings** (D7). Numbers and booleans are sent as text; multi-valued IDM properties are excluded by the discovery tool. Empty values are omitted, assuming the service removes them. *Decided 2026-11-21.* | **Answered 2026-11-21 (run `214027`): no.** An update that omits an attribute keeps it; attributes are merged (C17). The connector cannot clear an attribute by omitting it; how to clear one is still to check (WS0.15g) | `SchemaFactorySpec`, `EntityPayloadBuilderSpec` |
+| P20 | **Domain attributes are single-valued strings** (D7). Numbers and booleans are sent as text; multi-valued IDM properties are excluded by the discovery tool. **Every configured attribute is sent on every write; one empty in IDM is sent as `""`, and `""` reads back as absent.** *Decided 2026-11-21; amended the same day (option a).* | Amended by the owner: the service merges attributes and stores `""` as an empty value (C17), so omission cannot clear one | `EntityPayloadBuilderSpec`, `EntityDecoderSpec`, `UpdateOperationSpec`, `SchemaFactorySpec` |
 | P21 | **Supported searches: by ID, plus equals, contains and starts-with on configured attributes, combined with and, or and not** (D8), sent by operation name. Ends-with and comparisons follow once the service names its operations. A by-ID read falls back to a search on the ID while GET by ID fails (C1). *Decided 2026-11-21.* | Decided by the owner; extends P7 | `SearchPlannerSpec` (rewritten in WS0.14d) |
 | P22 | **Archetypes are set through `directArchetypes` in the entity body, never the assignment endpoint** (D9). The Test operation reads the manifests and **warns** about any configured archetype they do not define. *Decided 2026-11-21; amended the same day.* | **Confirmed 2026-11-21:** an update replaces `directArchetypes` in full (run `20261121-211859` #200–#205). **Amended 2026-11-21 (C16):** the manifest check warns rather than fails, because the service accepts undefined names and existing data uses them | `TestAndSchemaOperationSpec` |
 | P23 | **An ID containing `/` is rejected** with `InvalidAttributeValueException` before any request, on create, update and delete. *Decided 2026-11-21.* | Decided by the owner: the service stores such IDs but cannot address them by path (Q09.1) | `EntityPayloadBuilderSpec`, `UpdateOperationSpec`, `DeleteOperationSpec` |
@@ -271,8 +271,8 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `model/EdgeSpec` | §2.2 | 8 | 17 |
 | `model/EntityDocumentSpec` | §2.1 | 18 | 18 |
 | `codec/EdgeCodecSpec` | §8.3 | 9 | 21 |
-| `payload/EntityPayloadBuilderSpec` | §8.3, §8.4, A3 | 27 | 37 |
-| `payload/EntityDecoderSpec` | §9.4 | 11 | 11 |
+| `payload/EntityPayloadBuilderSpec` | §8.3, §8.4, A3 | 28 | 38 |
+| `payload/EntityDecoderSpec` | §9.4 | 13 | 13 |
 | `payload/EdgeVerifierSpec` | §9.1 | 8 | 8 |
 | `http/HttpErrorMapperSpec` | §13, P13 | 20 | 108 |
 | `http/HttpResponseSpec` | — | 2 | 2 |
@@ -290,23 +290,24 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `ops/ScriptSupportSpec` | §4, P13 | 8 | 8 |
 | `scripts/OperationScriptsSpec` | §4 | 13 | 13 |
 | `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
+| `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **347** | **616** |
+| **Connector total** | | **360** | **629** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **45** | **45** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **69** |
-| `contract-probe/ContractProbeSpec` | WS0, §2 | 53 | 53 |
+| `contract-probe/ContractProbeSpec` | WS0, §2 | 56 | 56 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
 | `contract-probe/ScrubberSpec` | §13 | 16 | 16 |
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
-| **Contract probe total** | | **103** | **123** |
-| **Grand total** | | | **853** |
+| **Contract probe total** | | **106** | **126** |
+| **Grand total** | | | **869** |
 
-Current result (2026-11-21, after WS0.15f, WS0.20 and WS0.21): connector 11 pass / 600 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 123 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS0.11): connector 18 pass / 606 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality, and `RecordedShapesSpec`'s seven checks that the fake matches the recorded service shapes. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write
 
@@ -355,7 +356,8 @@ Current result (2026-11-21, after WS0.15f, WS0.20 and WS0.21): connector 11 pass
 | **Reconciliation can't see relationships** | Search results carry none, so every reconciliation re-sends unchanged relationships (extra writes), and relationship drift is invisible until WS10 | Certain | Accept the extra writes, which are idempotent, until WS10. Measure their cost in WS8.11 |
 | **Base-type numbering (C6, P18)** | P18 keeps 4 = Subject, which the API's create samples contradict. If the samples are right, every entity is created as the wrong type | Medium | WS0.15 creates one entity with base type 4 and checks a Subject search finds it, before WS1.02 ships and before any create against a shared service |
 | **Create body rejected (C8)** | Without `attributes.ID` every create and update gets 500 | Resolved by WS0.19 | Mirror the ID into `attributes.ID` on every write |
-| **Omitted attributes are kept (C17)** | An attribute cleared in IDM stays in the service. The connector would report success and the service would keep stale data | **Observed** | `attributes.clear` finds how to clear one; WS0.22 decides the design. Relationships are not affected: an empty list purges them (P15) |
+| **Omitted attributes are kept (C17)** | An attribute cleared in IDM would stay in the service | Resolved by P20 (amended) | Empty attributes are sent as `""` and read as absent |
+| **Relationships not removed (C17, C18)** | Until the service fixes the empty-list purge, a relationship removed in IDM may stay in the service, keeping entitlements IDM has removed | **High until fixed** | Service bug acknowledged by the owner (WS0.23). The probe checks it on every write run; drift detection (WS10) is the backstop |
 | **Lost updates on rapid writes (C13)** | A write sent while the previous write to the same entity is still being applied can be lost. IDM may create an entity and update it straight away, for example when a relationship arrives just after the create | Medium | Raise with the service team. Consider having the connector wait until a create is visible before updating the same entity, or IDM's queued sync with a short delay. Drift detection (WS10) is the backstop |
 | **Policy-assigned scope archetypes (C9, P19 amended)** | Scoping reads `isArchetypes`, which policy rules can also add to. A policy that assigns a type's scope archetype elsewhere would widen that type's scope | Low | Choose scope archetypes that no policy assigns; check them against the manifests at deployment |
 | **Drift undetected until M6** | Changes made directly in the service persist until an IDM change touches the entity | Certain before WS10 | Decide whether go-live waits for M6 (§10); full reconciliation restates IDM's view of every entity it touches |
@@ -404,7 +406,7 @@ The **project** is done at M6: WS10's acceptance run green, and orphan promotion
 
 | Workstream | Order | Tasks open | Estimate (days) |
 |---|---|---|---|
-| WS0 Service contract and design revision | 1 | 8 | 1 + elapsed |
+| WS0 Service contract and design revision | 1 | 6 | 0.5 + elapsed |
 | WS1 Configuration, convention, schema | 2 | 17 | 3.5 |
 | WS6 Discovery tool | 2 | 9 | 6 |
 | WS2 Model, codec, payload | 3 | 9 | 3 |
@@ -440,15 +442,34 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
 
 #### Part A — Contract questions still open
 
-- [ ] **WS0.01 Hold the service-team session (S).** The question pack is `docs/service-contract.md` §2, §3 and §5.5. Lead with C1 (GET by ID returns 500), C6 (base-type numbering), Q07.8 and T1 (another relationship writer). Booking it needs a person.
-- [ ] **WS0.07 Relationship semantics (M).** Confirm with the service team, then observe once WS0.15 lands:
-  - Q07.8: does a write of entity A remove relationships where A is the target and that are missing from A's collection? The answer decides whether each write must list inbound relationships too (design A2 says yes).
-  - Does a create keep, drop or reject a relationship to an entity that doesn't exist yet (design A7)?
-  - Does GET return relationships in both directions?
-  - Does DELETE remove every relationship touching the entity?
-- [ ] **WS0.09 ID constraints (S).** Allowed characters, maximum length, case sensitivity, and percent-encoding in paths. The first run could not answer this, because GET failed.
+- [ ] **WS0.01 Hold the service-team session (S).** The question pack is `docs/service-contract.md` §2, §3 and §5.5. Lead with C1 (GET by ID returns 500), C6 (base-type numbering), Q07.8 and T1 (another relationship writer). Booking it needs a person. The C1 questions, with evidence, are in [`C1-GET-BY-ID-NOTE.md`](../C1-GET-BY-ID-NOTE.md).
+- [ ] **WS0.07 Relationship semantics (M).** Mostly answered by runs `211859`–`215954`:
+  - inbound links on create and update work;
+  - a relationship to a missing entity is dropped on PUT;
+  - Q07.8 is answered;
+  - DELETE removes the relationships touching the entity (confirmed once the starting-state check holds);
+  - the DELETE endpoint signature is known;
+  - the empty-list purge is a service bug (WS0.23).
+
+  Left:
+  - **A7 on create:** is a relationship to a missing entity dropped on POST? GET of the new entity failed throughout the window in every run.
+  - **The single-relationship POST:** did not add within 10 s in run `215954`.
+
+  The next write run re-checks both.
+- [x] **WS0.09 ID constraints (S).** Done 2026-11-21 (runs `211859`, `214027`, `215954`).
+  - A space, `?`, `#`, `+`, `%`, dots and non-ASCII letters are stored verbatim and addressable when percent-encoded. Lengths up to 1,024 work.
+  - `/` is stored but cannot be addressed, so the connector rejects it (P23).
+  - IDs are case-sensitive.
+  - The service team should still state any documented maximum length.
 - [ ] **WS0.10 Rate limits (S).** The rate-limit policy, and whether 429 carries `Retry-After`. Authentication is settled (P13).
-- [ ] **WS0.11 Keep real recordings (M).** From a scrubbed probe run, keep one document of each model (create body, GET, search page) under `connector/src/test/resources/wiremock/`. These feed WS4.09 and WS8.
+- [x] **WS0.11 Keep real recordings (M).** Done 2026-11-21. Five recordings from run `20261121-215954` (scrubbed) are kept as WireMock mappings under `connector/src/test/resources/wiremock/recorded/`, with a README:
+  - the create body;
+  - the read model;
+  - a search page;
+  - a 400 with problem details;
+  - the manifests bundle.
+
+  `RecordedShapesSpec` holds the fake to those shapes: read model, search envelope and items, archetypes in `isArchetypes`, the 400's `errors` map, the create body's fields, and the bundle. It checks that no recording holds another entity's data, and runs `EntityDocument` on the real documents (WS2). The fake's 400s now carry `errors`, as the service's do.
 - [ ] **WS0.12 Fold answers in as they arrive (M, ongoing).** For each answer: change the code, fake and specs it names, add a decision to §3, and close the item in §10 and in the contract.
 
 #### Part B — Revise the design to the real API
@@ -496,7 +517,17 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
   - **Endpoints and cascade:** the single-relationship endpoints and the delete cascade run on entities of their own, with no rewrite before reading.
   - **Clearing:** `attributes.clear` writes an attribute as `""` and reports whether it is removed, stored empty or rejected.
   - **Tests:** a delayed-removal fake shows the waiting answer "Yes" where a single read answers "No", as run `214027` did. A merging-attributes fake shows omission versus clearing. 123 tests.
-- [ ] **WS0.22 Revisit P20 and the update guard (S, owner).** An update that omits an attribute keeps it (C17), so P20's "empty values are omitted" cannot clear an attribute. Once `attributes.clear` answers, decide how the connector clears one, for example by sending `""` for every configured attribute that is empty in IDM. Relationships stand as designed (P15, confirmed by the owner); P4's guard still protects them, because a missing `entityRelationships` would send an empty list and purge everything.
+- [x] **WS0.22 How to clear an attribute (S, owner).** Done 2026-11-21: option (a), P20 amended.
+  - `EntityPayloadBuilder` sends `""` for every configured attribute that is empty in IDM, and `EntityDecoder` treats `""` as absent.
+  - The fake service now merges attributes on update, as the real service does.
+  - Specs, fixtures, design §2.1, §8.3 and §8.4 updated.
+- [ ] **WS0.23 Empty-list purge: service bug to be fixed (service team).** The owner confirms that an empty `relationships` list should purge all of the entity's relationships, and that the current behaviour is a bug (C17). C18, a replaced relationship resurfacing, is probably the same defect. The connector keeps P15 as designed. Before WS3's update ships against a shared service, a probe run must show `edges.sourceOmission` and `edges.replaceNonEmpty` answering "Yes" with no resurfacing. The probe checks this on every write run.
+- [x] **WS0.15h Check each relationship test's starting state (S).** Done 2026-11-21.
+  - Each relationship check confirms its starting state first and reports "cannot tell" when it does not hold.
+  - A replacement is re-read after a pause, and the endpoint DELETE reports a replaced relationship that reappears (C18).
+  - New `edges.reassertSame` checks the owner's rule that rewriting with the same relationship changes nothing.
+  - The endpoint check uses the documented `DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}`.
+  - New fakes: no relationships stored (all checks "cannot tell") and resurfacing (C18 reported). 126 tests.
 - [ ] **WS0.17 Remove probe leftovers and unscrubbed reports (S, owner).** The service owner reports deletes work (C10). The next run's `probe.leftovers` will show whether the entities from runs `20261121-155100` and `20261121-190350` are gone. Remove any that remain: run `214027` removed 18 with `--remove-leftovers`. Four entities whose IDs contain `/` (one from each write run: `155100`, `190350`, `211859`, `214027`) cannot be addressed and need the service team. Runs `20261121-154839` and `20261121-155100` hold real entity data in `main`'s history; removing it needs a rewrite of `main` and a force-push. Commit only runs made with the fixed scrubber, using `git add -f` (`build/` is ignored).
 - [x] **WS0.18 Amend P19 (S, owner).** Done 2026-11-21. The owner approved scoping on `isArchetypes`, because by design search reports archetypes assigned through `directArchetypes` there (C9). Scope archetypes must be ones no policy assigns. Design §9.4, the decision record, `TypeScoper` and `TypeScoperSpec` are updated.
 

@@ -238,11 +238,11 @@ Also on the read side: `directArchetypes` (in search, always empty), `isArchetyp
 
 ### 5.5 Contradictions to raise with the service team
 
-Runs: `20261121-155100` (the first write run, design-shaped documents), `20261121-173141` (read-only), `20261121-173153` (write, EntityDTO) and `20261121-190350` (write, with the create-shape diagnosis) `20261121-211859` (write, with a 10 s settle window) and `20261121-214027` (write, settled writes read on the written entity, with leftover removal), all against a test instance. Evidence numbers refer to each run's `exchanges.jsonl`.
+Runs: `20261121-155100` (the first write run, design-shaped documents), `20261121-173141` (read-only), `20261121-173153` (write, EntityDTO) and `20261121-190350` (write, with the create-shape diagnosis) `20261121-211859` (write, with a 10 s settle window) `20261121-214027` (write, settled writes read on the written entity, with leftover removal) and `20261121-215954` (write, waiting for relationship outcomes), all against a test instance. Evidence numbers refer to each run's `exchanges.jsonl`.
 
 | ID | Definition says | Probe observed |
 |---|---|---|
-| C1 | GET of an entity: 200 or 404 | **Unreliable.** 500 for a long-standing real entity (`173141` #18, `190350` #29), for missing IDs, and for a probe entity just after any write that touches it (`190350` #47–#58). 200 with the documented read model once the entity has been left alone (#60–#69). A missing entity never got 404. Reads by ID need `byIdLookup: search` (`173141` #9) |
+| C1 | GET of an entity: 200 or 404 | **Unreliable.** 500 for a long-standing real entity (`173141` #18, `190350` #29), for missing IDs, and for a probe entity just after any write that touches it (`190350` #47–#58). 200 with the documented read model once the entity has been left alone (#60–#69). A missing entity never got 404. Reads by ID need `byIdLookup: search` (`173141` #9) Details and questions for the service team: [`C1-GET-BY-ID-NOTE.md`](../C1-GET-BY-ID-NOTE.md) |
 | C2 | PUT to a missing entity: 404 | **200, and the PUT creates the entity (upsert).** `155100` PUT the never-created ID `…-never-created`, and that entity is still found by search (`190350` #35) |
 | C3 | DELETE of a missing entity: 404 | 200 (`155100`; `173153` #36) |
 | C4 | Invalid create: 400 | 500 for a create without an ID (`173153` #32). Malformed JSON and a non-string attribute do get 400 (#33 #34) |
@@ -257,7 +257,8 @@ Runs: `20261121-155100` (the first write run, design-shaped documents), `2026112
 | C14 | A search lists each entity once, and `totalResults` counts them | Search listed the same entity twice in one result list (`211859` #180–#199). `totalResults` said 91 while 99 items came back (#22) |
 | C15 | GET shows every relationship touching the entity, current | **Withdrawn (run `214027`).** Relationships in GET are current at both ends: A listed A → B although only B had been written (`214027` #141). The `211859` observation, where B still listed A → B after A was written without it, was not a stale read. A's write had an empty `relationships` list, and that removes nothing (see P15 below) |
 | C16 | Archetypes are defined in manifests (P22) | The manifests define Subject archetypes Account Owner, Developer and Legal Representative, and Resource archetypes Credit Card, Current Account, Financing, Insurance, Savings Account, Third Party Application and User Access Requests (`211859` #29). The existing entities carry Customer, Account, Company, ThirdPartyApplication, Publisher and CreditCardApplication, none of which a manifest defines. The service also accepts undefined names (the probe's `Ws0Probe`). P22's Test-operation check would reject configurations that use the names on the existing data |
-| C17 | A write replaces the entity's relationships and attributes (P15, P20) | **Attributes: no.** An update that omits an attribute keeps it (`214027` #229–#234). **Relationships: disputed.** The service owner states that an empty `relationships` list purges all of the entity's relationships (2026-11-21). Run `214027` read the entity once, as soon as the write's marker showed, and still saw the relationship (#142–#145, #150–#153). The likeliest explanation is that removal is applied after the attribute change. The probe now waits for the removal itself (WS0.15g). `directArchetypes` *is* replaced in full (#235–#240) |
+| C17 | A write replaces the entity's relationships and attributes (P15, P20) | **Attributes: merged, by design.** An update that omits an attribute keeps it, and `""` is stored as an empty value (`214027` #229–#234; `215954` #182–#193). The connector sends `""` to clear and reads `""` as absent (P20 amended). **Relationships: a service bug.** An empty `relationships` list should purge all of the entity's relationships (service owner, 2026-11-21), but removed nothing within 10 s (`215954` #85–#136). The owner treats this as a bug to be fixed in the service. `directArchetypes` is replaced in full |
+| C18 | Relationships replaced or deleted stay gone | **A replaced relationship came back.** R was rewritten with only R → T2, and GET showed only R → T2 (`215954` #154). After the single-relationship DELETE removed R → T2, R → T1 was listed again (#155–#157). The single-relationship POST did not add within 10 s (#158–#179). Probably the same defect as C17: a write hides relationships it leaves out rather than deleting them. The service owner states that rewriting an entity with a relationship it already has changes nothing, and that relationships are deleted with `DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}`. The probe now checks both on every run |
 | C12 | An invalid search request: 400 | 500 for an unknown `objectClass` (`173141` #23); 400 with problem details for an unknown filter operation (#22) |
 
 ## 6. What this changes in the design
@@ -360,6 +361,20 @@ Still open (WS0.15g adds the checks):
 - whether the single-relationship endpoints work;
 - whether DELETE removes the relationships touching the entity. GET of the other end failed within the window for the last two.
 
+**Write run `20261121-215954`** (waiting for relationship outcomes), checked before being kept: no entity data.
+
+Answered:
+- **P20:** an omitted attribute is kept, and one written as `""` is stored empty rather than removed (C17).
+- **P15:** an empty `relationships` list removed nothing within 10 s, at either end (C17). This conflicts with the service owner's statement.
+- **C18, a replaced relationship resurfaced:** a non-empty list appeared to replace the old one, but the old relationship came back once the new one was deleted through the single-relationship endpoint.
+- **Endpoints:** the single-relationship POST did not add within 10 s.
+- **Leftovers:** only the four entities whose IDs contain `/` remain, plus this run's.
+
+**Next:**
+- **Relationship storage:** P15 and C18 need the service team, or a look at how the service stores relationships. The probe can only see GET's view, and that view changes in ways no simple rule explains.
+- **Probe (plan WS0.15h):** check each relationship test's starting state before acting, so a void result like the delete cascade's is reported as such.
+- **Owner (plan WS0.22):** decide how the connector clears an attribute, given that `""` is stored rather than removed.
+
 **Next:**
 - **Probe (plan WS0.15f):**
   - wait for each write to apply (its `lastEvaluated` advances, or a marker shows) before writing that entity again;
@@ -380,6 +395,9 @@ Still open (WS0.15g adds the checks):
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Added `C1-GET-BY-ID-NOTE.md` at the repository root for the service team. Every failing GET (and the C4/C8 POST 500s) looks like an unhandled exception: Kestrel, empty body, no `x-request-id`. GET fails for a missing ID, for a long-standing entity, and while an entity's relationship points at a missing entity or after the single-relationship DELETE. |
+| 2026-11-21 | Service owner: relationships are deleted with `DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}`. An empty list should purge, and the current behaviour is a bug (C17). Rewriting with the same relationship changes nothing. P20 amended (option a): `""` clears an attribute and reads as absent. Probe WS0.15h: starting-state checks, resurfacing detection, `edges.reassertSame`. |
+| 2026-11-21 | Folded in write run `20261121-215954`. An empty `relationships` list removed nothing within 10 s (C17), against the service owner's statement. Added C18: a replaced relationship resurfaced once its replacement was deleted, and the single-relationship POST did not add. An attribute written as `""` is stored empty, not removed. |
 | 2026-11-21 | Service owner: an empty `relationships` list purges all of the entity's relationships (P15). C17's relationship half is reframed as probable delayed removal. Probe WS0.15g waits for removals, and adds checks for non-empty replacement, clearing an attribute with an empty string, and the endpoints and delete cascade on entities of their own. |
 | 2026-11-21 | Folded in write run `20261121-214027`. P20 answered: omitted attributes are kept (merge). An empty `relationships` list removes nothing (C17), which challenges P15 as stated. Q07.8 answered (no). C15 withdrawn: GET's relationships are current at both ends. 18 leftovers removed; four IDs containing `/` remain for the service team. |
 | 2026-11-21 | Owner decisions: IDs containing `/` are rejected by the connector (P23, from Q09.1), and the Test operation's manifest check warns rather than fails (P22 amended, from C16). Probe WS0.15f: settled writes with revision markers (C13), relationship outcomes read on the written entity (C15), and `--remove-leftovers`. |
