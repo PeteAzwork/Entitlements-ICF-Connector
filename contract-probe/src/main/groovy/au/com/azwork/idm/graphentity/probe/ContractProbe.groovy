@@ -42,19 +42,18 @@ class ContractProbe {
     static final List<Object> OBJECT_CLASS_CANDIDATES = [SUBJECT, RESOURCE, 'Subject', 'Resource']
 
     /**
-     * Create-body variants tried one at a time (check {@code create.shape}). The first run's design-shaped creates
-     * succeeded and the documented EntityDTO got 500 for every create (run 20261121-173153), so each variant changes
-     * one thing between the two. The first accepted variant is used for every later write in the run.
+     * Create-body variants tried one at a time (check {@code create.shape}). The first is the body as designed: the
+     * EntityDTO with {@code attributes.ID} equal to {@code id}, which the service requires (C8, confirmed by the
+     * service owner). The others each change one thing, so a change in the service shows up as a changed answer.
+     * The first accepted variant is used for every later write in the run.
      */
     static final List<Map<String, Object>> CREATE_VARIANTS = [
-        [name: 'documented EntityDTO'],
-        [name: 'EntityDTO + attributes.ID', mirrorId: true],
-        [name: 'EntityDTO + a direct archetype', archetype: true],
-        [name: 'EntityDTO + attributes.ID + a direct archetype', mirrorId: true, archetype: true],
-        [name: 'EntityDTO without empty arrays', omitEmpty: true],
-        [name: 'EntityDTO, path with a trailing slash', trailingSlash: true],
-        [name: 'design casing (ID, BaseType, Relationships)', legacyKeys: true],
-        [name: 'design document as the first run sent it', legacyKeys: true, mirrorId: true, archetype: true, trailingSlash: true]
+        [name: 'EntityDTO with attributes.ID (C8)'],
+        [name: 'EntityDTO without attributes.ID', dropId: true],
+        [name: 'EntityDTO with attributes.ID and a direct archetype', archetype: true],
+        [name: 'EntityDTO with attributes.ID, without empty arrays', omitEmpty: true],
+        [name: 'EntityDTO with attributes.ID, path with a trailing slash', trailingSlash: true],
+        [name: 'design casing (ID, BaseType, Relationships)', legacyKeys: true]
     ].asImmutable() as List<Map<String, Object>>
     static final Map<String, String> LEGACY_KEYS = [id: 'ID', baseType: 'BaseType', relationships: 'Relationships']
     /** The archetype the first run stamped on its entities, which the service accepted. */
@@ -180,9 +179,9 @@ class ContractProbe {
 
     String pid(String suffix) { opts.prefix + suffix }
 
-    /** A write model (EntityDTO) for a probe entity. Attribute values are strings (P20). */
+    /** A write model (EntityDTO) for a probe entity: string attributes (P20) and attributes.ID (C8). */
     static Map probeDoc(String id, List<Map> rels = [], Map<String, String> attrs = [:], int baseType = RESOURCE, List<String> archetypes = []) {
-        [id: id, baseType: baseType, attributes: [probe: 'ws0'] + attrs, relationships: rels, directArchetypes: archetypes]
+        [id: id, baseType: baseType, attributes: [ID: id, probe: 'ws0'] + attrs, relationships: rels, directArchetypes: archetypes]
     }
 
     /** One relationship in the write shape (P17). */
@@ -212,7 +211,7 @@ class ContractProbe {
     Map shaped(Map doc, Map<String, Object> variant) {
         Map d = new LinkedHashMap(doc)
         String id = d.id as String
-        if (variant.mirrorId) d.attributes = [ID: id] + (d.attributes as Map)
+        if (variant.dropId) d.attributes = (d.attributes as Map).findAll { k, v -> k != 'ID' }
         if (variant.archetype && !d.directArchetypes) d.directArchetypes = [defaultArchetype()]
         if (relationshipForm == 'design') d.relationships = (d.relationships as List).collect { Map r -> designEdge(r, id) }
         if (variant.omitEmpty) d = d.findAll { k, v -> !(v instanceof List && (v as List).isEmpty()) }
@@ -244,6 +243,11 @@ class ContractProbe {
     static String idOf(Map m) { m == null ? null : Scrubber.identity(m) }
 
     static Object baseTypeOf(Map e) { e.containsKey('BaseType') ? e.BaseType : e.baseType }
+
+    /** A search item's archetypes: by design, search reports directly assigned ones in isArchetypes (C9). */
+    static List archetypesOf(Map item) {
+        item == null ? null : ((item.directArchetypes ?: item.isArchetypes) ?: []) as List
+    }
 
     /**
      * Adds a finding whose answer depends on reads. If any of those reads failed, the answer would be a guess
@@ -613,13 +617,13 @@ class ContractProbe {
         Map<String, Set> archetypeBaseTypes = [:].withDefault { [] as Set }
         found.each { e -> (direct(e) + policy(e)).unique().each { a -> archetypeBaseTypes[a] << baseTypeOf(e) } }
         def ambiguous = archetypeBaseTypes.findAll { k, v -> v.size() > 1 }.keySet().sort()
-        int noDirect = found.count { !direct(it) } as int
+        int none = found.count { !(direct(it) + policy(it)) } as int
         Map<String, Integer> sets = found.countBy { (direct(it) + policy(it)).unique().sort().join('+') ?: '(none)' }
         add('WS0.08', 'types.baseTypes', 'Which base types occur?', baseTypes.sort { a, b -> (a.key as String) <=> (b.key as String) }.collect { k, v -> "${k}: ${v}" }.join(', '),
             'observed', "Sample of ${found.size()} entities over at most ${opts.maxPages} pages.")
         add('WS0.08', 'types.archetypes', 'Do archetypes discriminate types?',
             ambiguous ? "Not on their own: ${ambiguous.join(', ')} appear with more than one base type." : 'In this sample every archetype appears with a single base type.',
-            'observed', "Archetypes read from directArchetypes and isArchetypes together. ${noDirect} of ${found.size()} entities have no direct archetype, so P19's scope archetype will only appear once the connector writes them. ${sets.size()} distinct archetype sets: " + sets.collect { k, v -> "${k} ×${v}" }.join(', '))
+            'observed', "Archetypes read from directArchetypes and isArchetypes together; search reports directly assigned ones in isArchetypes (C9). ${none} of ${found.size()} entities have no archetype. ${sets.size()} distinct archetype sets: " + sets.collect { k, v -> "${k} ×${v}" }.join(', '))
         contract.ambiguousArchetypes = ambiguous
     }
 
@@ -658,7 +662,8 @@ class ContractProbe {
     void checkErrorsWrite() {
         def noId = http.post(CREATE_PATH, [baseType: RESOURCE, attributes: [probe: 'ws0']])
         def junk = http.post(CREATE_PATH, null, [rawBody: '{not json'])
-        def nonString = createProbe(probeDoc(pid('non-string')) + [attributes: [probe: 'ws0', number: 42]])
+        String ns = pid('non-string')
+        def nonString = createProbe(probeDoc(ns) + [attributes: [ID: ns, probe: 'ws0', number: 42]])
         String ghost = pid('never-created')
         def putMissing = putProbe(probeDoc(ghost))
         def delMissing = http.delete(entityPath(pid('never-created-either')))
@@ -699,10 +704,10 @@ class ContractProbe {
             return false
         }
         createShape = adopted
-        String answer = adopted.is(CREATE_VARIANTS[0]) ? 'The documented EntityDTO is accepted.' :
-            "The documented EntityDTO is not accepted; the first variant that is: ${adopted.name}. The rest of this run writes that way, and the connector's payload builder must too."
+        String answer = adopted.is(CREATE_VARIANTS[0]) ? 'The EntityDTO with attributes.ID is accepted, as designed (C8).' :
+            "The EntityDTO with attributes.ID (C8) is not accepted; the first variant that is: ${adopted.name}. The rest of this run writes that way. This is a change in the service: tell the service team."
         add('WS0.15', 'create.shape', 'Which create body does the service accept?', answer, 'observed',
-            "Each variant changes one thing between the documented EntityDTO and the design document the first run sent. Archetype used: ${defaultArchetype()}. " + lines.join('; '), ev)
+            "Each variant changes one thing in the designed body. Archetype used: ${defaultArchetype()}. " + lines.join('; '), ev)
         true
     }
 
@@ -936,7 +941,7 @@ class ContractProbe {
                 'Cannot tell: the entity is not found by search after its create or update (C5).', 'inconclusive', null, ev)
             return
         }
-        List stored = before.item?.directArchetypes as List, now = after.item?.directArchetypes as List
+        List stored = archetypesOf(before.item), now = archetypesOf(after.item)
         addFromReads('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?',
             [before.item ? before.exchange : null, after.item ? after.exchange : null], {
             String created = stored == [a1, a2] ? 'Created with both' : "Created with ${stored}"

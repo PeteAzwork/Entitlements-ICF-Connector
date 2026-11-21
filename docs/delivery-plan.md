@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.4 — 2026-11-21** (write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.5 — 2026-11-21** (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -50,7 +50,7 @@ The design document says *what* the connector is. This plan says *in what order*
 | D11 | Operator runbook | §9, §10, §14 | `docs/runbook.md` | Not started (WS7, WS9) |
 | D12 | Service contract | §15 | `docs/service-contract.md` | Register written; API definition recorded; contradictions C1–C7 listed; design questions D1–D9 decided or deferred |
 | D15 | Design decision record for the real API | §2–§9 | `docs/design-decisions-2026-11-21.md` | Decisions P17–P22 recorded, with the conditions that gate implementation |
-| D13 | Contract probe | §15 | `contract-probe/` | **108 tests passing.** Write run `190350` answered C8, P18, Q07.8 and C2. Next: wait for writes to settle before reading back (WS0.15e) |
+| D13 | Contract probe | §15 | `contract-probe/` | **109 tests passing.** Write run `190350` answered C8, P18, Q07.8 and C2. Next: wait for writes to settle before reading back (WS0.15e) |
 | D14 | Drift detection: design, implementation, tests and operations | §11 | design §11, `mapping-lib`, `integration/`, runbook | Not started. **Scheduled last (WS10)** |
 
 ### 2.2 Scope boundaries
@@ -109,7 +109,7 @@ Each decision is pinned by a test, so changing one is deliberate. "Status" says 
 | P16 | **Drift detection is built last, in WS10.** Drift detection means everything built specifically to detect and repair changes made outside IDM: the incremental drift check (design §11), comparing relationships during reconciliation, promoting orphans from `REPORT` to `DELETE`, and their tests, schedules and monitoring. Until WS10, reconciliation runs as IDM does it natively. It is used for the initial load, every target-phase situation stays on `REPORT`, and relationship drift goes undetected. *Decided 2026-11-21 (D3, D4).* | Decided by the owner | `MappingSkeletonGeneratorSpec` (REPORT policies) |
 | P17 | **Relationships are encoded in the service's write shape, `{"sourceID","targetID","type"}`** (D2). Values pass straight into the create or update body; the read model's `source`/`target` is converted to the same shape. The §7 convention decides which IDM side is the source. Each value must name the entity itself as source or target. *Decided 2026-11-21.* | Decided by the owner. Q07.8 still open | `EdgeSpec`, `EdgeCodecSpec` (revised in WS0.14c) |
 | P18 | **The base type is sent as a number, with the design's numbering: 4 = Subject, 2 = Resource** (D5). `objectClass` in searches uses the same numbers; reads accept numbers or names. *Decided 2026-11-21.* | **Confirmed 2026-11-21:** an entity created with base type 4 is a Subject (run `20261121-190350` #41, #45) | `EntityKindSpec` (unchanged) |
-| P19 | **Each type has a scope archetype, its first static archetype, stamped as a direct archetype on every write** (D6). Enumeration sends `objectClass` and filters on the scope archetype. Types sharing a base type need distinct scope archetypes. Reads by ID check only the base type. `isArchetypes` is never used. *Decided 2026-11-21.* | Decided by the owner; replaces P5. **Amendment pending (WS0.18):** by design, search reports directly assigned archetypes in `isArchetypes` (C9), so scoping must match the scope archetype there | `TypeScoperSpec`, `ObjectTypesParserSpec` (revised in WS0.14c–d) |
+| P19 | **Each type has a scope archetype, its first static archetype, stamped as a direct archetype on every write** (D6). Enumeration sends `objectClass` and keeps entities that carry the scope archetype in `isArchetypes`, where search reports directly assigned archetypes (C9). Types sharing a base type need distinct scope archetypes, and scope archetypes must be ones no policy assigns. Reads by ID check only the base type. *Decided 2026-11-21; amended the same day.* | Decided by the owner; replaces P5. **Amended 2026-11-21:** scope on `isArchetypes`, not `directArchetypes` | `TypeScoperSpec`, `ObjectTypesParserSpec`, `EntityDecoderSpec` |
 | P20 | **Domain attributes are single-valued strings** (D7). Numbers and booleans are sent as text; multi-valued IDM properties are excluded by the discovery tool. Empty values are omitted, assuming the service removes them. *Decided 2026-11-21.* | Decided by the owner. Still unobserved: the run read back too soon (C5). **C8, by design:** every write must carry `attributes.ID` equal to `id` (design §2.1; code in WS0.19) | `SchemaFactorySpec`, `EntityPayloadBuilderSpec` |
 | P21 | **Supported searches: by ID, plus equals, contains and starts-with on configured attributes, combined with and, or and not** (D8), sent by operation name. Ends-with and comparisons follow once the service names its operations. A by-ID read falls back to a search on the ID while GET by ID fails (C1). *Decided 2026-11-21.* | Decided by the owner; extends P7 | `SearchPlannerSpec` (rewritten in WS0.14d) |
 | P22 | **Archetypes are set through `directArchetypes` in the entity body, never the assignment endpoint** (D9). The Test operation reads the manifests and fails if a configured archetype is undefined. *Decided 2026-11-21.* | Decided by the owner. WS0.15 confirms `directArchetypes` is replaced in full | `TestAndSchemaOperationSpec` (new cases in WS0.14c) |
@@ -268,10 +268,10 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `config/ConnectorConfigSpec` | §6, §15, P13 | 20 | 44 |
 | `convention/RelationshipConventionSpec` | §7 | 24 | 54 |
 | `model/EdgeSpec` | §2.2 | 8 | 17 |
-| `model/EntityDocumentSpec` | §2.1 | 14 | 14 |
+| `model/EntityDocumentSpec` | §2.1 | 18 | 18 |
 | `codec/EdgeCodecSpec` | §8.3 | 9 | 21 |
 | `payload/EntityPayloadBuilderSpec` | §8.3, §8.4, A3 | 24 | 26 |
-| `payload/EntityDecoderSpec` | §9.4 | 10 | 10 |
+| `payload/EntityDecoderSpec` | §9.4 | 11 | 11 |
 | `payload/EdgeVerifierSpec` | §9.1 | 8 | 8 |
 | `http/HttpErrorMapperSpec` | §13, P13 | 20 | 108 |
 | `http/HttpResponseSpec` | — | 2 | 2 |
@@ -279,7 +279,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `schema/SchemaFactorySpec` | §5.2, §6, §9.5 | 10 | 13 |
 | `search/SearchPlannerSpec` | §9.4, P21 (timestamp searches refused, P16) | 12 | 25 |
 | `search/PageCursorSpec` | §9.4, §15 | 8 | 14 |
-| `search/TypeScoperSpec` | §9.4 | 5 | 16 |
+| `search/TypeScoperSpec` | §9.4 | 5 | 20 |
 | `ops/ObjectClassResolverSpec` | §5.2 | 4 | 4 |
 | `ops/CreateOperationSpec` | §9.1, §13 | 20 | 20 |
 | `ops/UpdateOperationSpec` | §8.4, §9.2 | 16 | 16 |
@@ -290,22 +290,22 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `scripts/OperationScriptsSpec` | §4 | 13 | 13 |
 | `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **335** | **592** |
+| **Connector total** | | **340** | **601** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **45** | **45** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **69** |
-| `contract-probe/ContractProbeSpec` | WS0, §2 | 40 | 40 |
+| `contract-probe/ContractProbeSpec` | WS0, §2 | 41 | 41 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
 | `contract-probe/ScrubberSpec` | §13 | 16 | 16 |
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 29 |
-| **Contract probe total** | | **90** | **108** |
-| **Grand total** | | | **814** |
+| **Contract probe total** | | **91** | **109** |
+| **Grand total** | | | **824** |
 
-Current result (2026-11-21, after WS0.14 and WS0.15): connector 11 pass / 576 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 108 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS0.18 and WS0.19): connector 11 pass / 585 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 109 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write
 
@@ -355,7 +355,7 @@ Current result (2026-11-21, after WS0.14 and WS0.15): connector 11 pass / 576 fa
 | **Base-type numbering (C6, P18)** | P18 keeps 4 = Subject, which the API's create samples contradict. If the samples are right, every entity is created as the wrong type | Medium | WS0.15 creates one entity with base type 4 and checks a Subject search finds it, before WS1.02 ships and before any create against a shared service |
 | **Create body rejected (C8)** | Without `attributes.ID` every create and update gets 500 | Resolved by WS0.19 | Mirror the ID into `attributes.ID` on every write |
 | **Delayed deletion (C10)** | The service owner reports deletes work, but the probe saw a deleted entity still readable straight afterwards. If deletion is delayed, a read straight after a delete can still see the entity | Low | WS0.15e re-checks with a settle window. The connector does not read back after a delete (§9.3), so it is unaffected |
-| **Archetypes reported in `isArchetypes` (C9, by design)** | Until P19 is amended, scoping on `directArchetypes` would enumerate nothing. After it, a policy that assigns a type's scope archetype elsewhere would widen that type's scope | Medium | WS0.18 before WS4 |
+| **Policy-assigned scope archetypes (C9, P19 amended)** | Scoping reads `isArchetypes`, which policy rules can also add to. A policy that assigns a type's scope archetype elsewhere would widen that type's scope | Low | Choose scope archetypes that no policy assigns; check them against the manifests at deployment |
 | **Drift undetected until M6** | Changes made directly in the service persist until an IDM change touches the entity | Certain before WS10 | Decide whether go-live waits for M6 (§10); full reconciliation restates IDM's view of every entity it touches |
 | A1 erosion (another writer) | The connector deletes relationships another writer created | Low now; the shared key raises it | Runbook watch item; confirm T1 before go-live |
 | Mutable `idProperty` | Orphans on rename | Medium | Natural keys from discovery; orphans reported, not deleted, until WS10 |
@@ -402,7 +402,7 @@ The **project** is done at M6: WS10's acceptance run green, and orphan promotion
 
 | Workstream | Order | Tasks open | Estimate (days) |
 |---|---|---|---|
-| WS0 Service contract and design revision | 1 | 10 | 2 + elapsed |
+| WS0 Service contract and design revision | 1 | 8 | 1.5 + elapsed |
 | WS1 Configuration, convention, schema | 2 | 17 | 3.5 |
 | WS6 Discovery tool | 2 | 9 | 6 |
 | WS2 Model, codec, payload | 3 | 9 | 3 |
@@ -468,9 +468,9 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
   - Paging stays stable while an entity is updated.
   It also showed that search reports directly assigned archetypes in `isArchetypes` (C9). The service owner confirmed this, and C8, as by design. The probe's readings that DELETE removes nothing (C10) conflict with the owner's experience that deletes work, and are being re-checked. P15 (removing a relationship by writing its source without it), P20 and P22 are still unobserved, because the probe read back before the service had caught up.
 - [ ] **WS0.15e Let writes settle before reading back (M).** Read-backs poll search until the write is visible, or until a settle timeout. GET is retried within the same window. The attribute and archetype checks wait for a marker value from the update before comparing. Archetypes are read from `directArchetypes` or `isArchetypes` (C9). Archetype names are found anywhere inside the manifests bundle (C11), and probe archetypes are used when there are none. The delete check uses GET as well as search, and allows for delayed deletion (C10).
-- [ ] **WS0.19 Fold C8 and C9 into the connector (S).** C8, by design: every create and update carries `attributes.ID` equal to `id`. Change `EntityPayloadBuilder` and its spec, the fake's validation and `Fixtures`; reads ignore `ID` in attributes. C9, by design: `EntityDecoder` fills `directArchetypes` from the search item's `isArchetypes`, and the fake reports archetypes the same way. Design §2.1, §8.3 and §8.4 are already updated.
+- [x] **WS0.19 Fold C8 and C9 into the specs and fakes (S).** Done 2026-11-21. C8: `EntityDocument.toWire` adds `attributes.ID` equal to `id`, and reads drop it. `Fixtures` write models carry it, and the fake refuses a write without it with a bodyless 500, as the service does. C9: search items report archetypes in `isArchetypes`, which `TypeScoper` matches and `EntityDecoder` surfaces as `directArchetypes`; the fake renders search items that way. The probe's designed write body carries `attributes.ID`, and it reads archetypes from either field. The production code is still placeholders; WS2 and WS4 implement it against these specs.
 - [ ] **WS0.17 Remove probe leftovers and unscrubbed reports (S, owner).** The service owner reports deletes work (C10). The next run's `probe.leftovers` will show whether the entities from runs `20261121-155100` and `20261121-190350` are gone. Remove any that remain. Runs `20261121-154839` and `20261121-155100` hold real entity data in `main`'s history; removing it needs a rewrite of `main` and a force-push. Commit only runs made with the fixed scrubber, using `git add -f` (`build/` is ignored).
-- [ ] **WS0.18 Amend P19 (S, owner).** By design, search reports archetypes assigned through `directArchetypes` in `isArchetypes`, and leaves `directArchetypes` empty (C9). Proposed amendment: match each type's scope archetype in `isArchetypes`. Accept the residual risk that a policy could assign it elsewhere, and mitigate it by choosing scope archetypes that no policy assigns. Once confirmed, update `TypeScoper`, `TypeScoperSpec`, design §9.4 and the decision record.
+- [x] **WS0.18 Amend P19 (S, owner).** Done 2026-11-21. The owner approved scoping on `isArchetypes`, because by design search reports archetypes assigned through `directArchetypes` there (C9). Scope archetypes must be ones no policy assigns. Design §9.4, the decision record, `TypeScoper` and `TypeScoperSpec` are updated.
 
 ### WS1 — Configuration, convention and schema
 

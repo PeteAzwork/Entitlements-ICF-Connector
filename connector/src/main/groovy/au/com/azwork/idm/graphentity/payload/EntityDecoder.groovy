@@ -8,7 +8,9 @@ import org.identityconnectors.framework.common.objects.ObjectClass
 /**
  * Decomposes a canonical document (from the read model or a search item) into an ICF {@link ConnectorObject}
  * (design §9.4): __UID__ and __NAME__ from the ID; configured attributes the service returned, as strings
- * (unknown remote attributes are ignored); {@code directArchetypes} when the model carried them;
+ * (unknown remote attributes are ignored; so is {@code ID}, which only exists for C8); {@code directArchetypes}
+ * when the model carried archetypes: a search item's {@code isArchetypes}, which by design include the archetypes
+ * assigned through {@code directArchetypes} (C9);
  * {@code entityRelationships} (re-serialised via EdgeCodec) only when the model carried relationships, which
  * search items never do (D4, deferred to WS10); and the read-only {@code lastEvaluated}.
  */

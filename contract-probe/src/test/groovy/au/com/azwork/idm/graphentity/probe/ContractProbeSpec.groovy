@@ -98,12 +98,12 @@ class ContractProbeSpec extends Specification {
          'edges', 'attributes.omission', 'archetypes.replace', 'ids', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
     }
 
-    def "the probe writes the service's write model: lowercase id, numeric base type, string attributes, sourceID/targetID (P17, P18, P20)"() {
+    def "the probe writes the service's write model: lowercase id, attributes.ID, numeric base type, string attributes, sourceID/targetID (C8, P17, P18, P20)"() {
         given:
         def probeDoc = ContractProbe.probeDoc('x', [ContractProbe.edge('x', 'y')], [a: 'b'], 4, ['Card'])
 
         expect:
-        probeDoc == [id: 'x', baseType: 4, attributes: [probe: 'ws0', a: 'b'],
+        probeDoc == [id: 'x', baseType: 4, attributes: [ID: 'x', probe: 'ws0', a: 'b'],
                      relationships: [[sourceID: 'x', targetID: 'y', type: 'Ws0ProbeEdge']], directArchetypes: ['Card']]
     }
 
@@ -268,38 +268,48 @@ class ContractProbeSpec extends Specification {
         p.contract.baseTypeOnCreate == 'confirmed: 4 = Subject'
     }
 
-    def "WS0.15: each create variant is tried once, and the documented EntityDTO is adopted when it is accepted"() {
+    def "WS0.15: each create variant is tried once, and the designed body (EntityDTO with attributes.ID) is adopted"() {
         when:
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'create.shape').answer == 'The documented EntityDTO is accepted.'
-        f(p, 'create.shape').detail.contains('1. documented EntityDTO → 200')
-        f(p, 'create.shape').detail.contains('7. design casing (ID, BaseType, Relationships) → 400')
-        p.contract.createShape == 'documented EntityDTO'
+        f(p, 'create.shape').answer == 'The EntityDTO with attributes.ID is accepted, as designed (C8).'
+        f(p, 'create.shape').detail.contains('1. EntityDTO with attributes.ID (C8) → 200')
+        f(p, 'create.shape').detail.contains('2. EntityDTO without attributes.ID → 500')
+        f(p, 'create.shape').detail.contains('6. design casing (ID, BaseType, Relationships) → 400')
+        p.contract.createShape == 'EntityDTO with attributes.ID (C8)'
         service.requests.findAll { it.op == 'POST' && (it.body?.id ?: it.body?.ID)?.contains('-shape-') }.size() == ContractProbe.CREATE_VARIANTS.size()
     }
 
-    def "WS0.15: when the service needs attributes.ID, that variant is adopted and every later write carries it"() {
+    def "WS0.15: if the service stops accepting the designed body, the next accepted variant is adopted and the change reported"() {
         given:
         server.close()
-        def picky = new FakeGraphService() {
-            @Override HttpResponse create(Map<String, Object> d) { (d.attributes as Map)?.ID == d.id ? super.create(d) : new HttpResponse(status: 500) }
-            @Override HttpResponse replace(String id, Map<String, Object> d) { (d.attributes as Map)?.ID == d.id ? super.replace(id, d) : new HttpResponse(status: 500) }
+        def changed = new FakeGraphService() {
+            @Override HttpResponse create(Map<String, Object> d) { d.directArchetypes ? super.create(d) : new HttpResponse(status: 500) }
+            @Override HttpResponse replace(String id, Map<String, Object> d) { d.directArchetypes ? super.replace(id, d) : new HttpResponse(status: 500) }
         }
-        seedForeign(picky)
-        server = new FakeGraphHttpServer(picky).start()
+        seedForeign(changed)
+        server = new FakeGraphHttpServer(changed).start()
 
         when:
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'create.shape').answer.contains('the first variant that is: EntityDTO + attributes.ID')
+        f(p, 'create.shape').answer.contains('the first variant that is: EntityDTO with attributes.ID and a direct archetype')
+        f(p, 'create.shape').answer.contains('tell the service team')
         f(p, 'baseType.create').answer.startsWith('Yes')
         f(p, 'attributes.omission').answer.startsWith('Yes')
-        picky.requests.findAll { it.op in ['POST', 'PUT'] && !(it.body?.id as String)?.contains('-shape-') && it.body?.id }
-            .every { (it.body.attributes as Map).ID == it.body.id || (it.body.id as String).contains('non-string') }
         p.cleanupProblems == []
+    }
+
+    def "every write the probe sends carries attributes.ID equal to the id, apart from the variant that tests its absence (C8)"() {
+        when:
+        probe(allowWrites: true)
+
+        then:
+        def writes = service.requests.findAll { it.op in ['POST', 'PUT'] && it.body?.id }
+        writes
+        writes.every { (it.body.attributes as Map).ID == it.body.id || (it.body.id as String).endsWith('shape-2') }
     }
 
     def "WS0.15: when no create variant is accepted, the other write checks are skipped with the reason, and cleanup asks for no proof"() {

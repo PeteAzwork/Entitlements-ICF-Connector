@@ -13,7 +13,8 @@ import java.time.format.DateTimeFormatter
  * <ul>
  *   <li>Create ({@code POST /admin/entities}) takes the write model, EntityDTO: {@code id}, {@code baseType},
  *       {@code attributes} as string → string, {@code relationships} as {@code {sourceID, targetID, type}},
- *       {@code directArchetypes}. 200 with no body; 400 for an invalid body.</li>
+ *       {@code directArchetypes}. 200 with no body; 400 for an invalid body. By design, {@code attributes.ID} must
+ *       equal {@code id}, or the write gets a 500 with no body (C8); reads never return {@code ID}.</li>
  *   <li>Read ({@code GET /admin/entities/{id}}) returns the read model, Entity: {@code id}, {@code baseType},
  *       {@code Attributes} as name → {@code {name, type, value}}, {@code compoundAttributes}, {@code relationships}
  *       as {@code {source, target, type, sourceType}}, {@code lastEvaluated}, {@code reconciliationStarted}. 404 when
@@ -23,7 +24,8 @@ import java.time.format.DateTimeFormatter
  *   <li>Search ({@code POST /admin/entities/search}) takes {@code objectClass}, a {@code filter} tree,
  *       {@code pageSize} (default 100) and {@code pagedResultsCookie}; returns {@code results} (search items:
  *       {@code uid}, {@code name}, {@code baseType} as a name, {@code attributes}, {@code isArchetypes},
- *       {@code directArchetypes}, {@code lastEvaluated}; no relationships), {@code pagedResultsCookie} (null when
+ *       {@code directArchetypes}, {@code lastEvaluated}; no relationships. By design, {@code isArchetypes} lists the
+ *       directly assigned archetypes plus any assigned by policy, and {@code directArchetypes} is empty (C9)), {@code pagedResultsCookie} (null when
  *       there are no more), {@code totalResults} and {@code hasMore}. Sorted by ID.</li>
  *   <li>Manifests ({@code GET /admin/manifests}) list the archetype definitions; 404 when there are none.</li>
  *   <li>Errors are RFC 7807 problem details, {@code application/problem+json}.</li>
@@ -82,7 +84,7 @@ class FakeGraphService implements EntityApi {
     /** Seeds an entity directly from a write-model map (bypasses validation and drop semantics). */
     void seed(Map<String, Object> doc) {
         String id = doc.id as String
-        entities[id] = [id: id, baseType: doc.baseType as Integer, attributes: new LinkedHashMap(doc.attributes ?: [:]),
+        entities[id] = [id: id, baseType: doc.baseType as Integer, attributes: withoutId(doc.attributes),
                         directArchetypes: new ArrayList(doc.directArchetypes ?: []), isArchetypes: new ArrayList(doc.isArchetypes ?: [])]
         tick(); lastEvaluated[id] = clock
     }
@@ -106,6 +108,7 @@ class FakeGraphService implements EntityApi {
     @Override
     HttpResponse create(Map<String, Object> document) {
         def r = injectedOrNull('POST', [body: document]); if (r) return r
+        if (!idMirrored(document)) return new HttpResponse(status: 500)   // by design (C8)
         def invalid = validate(document, null)
         if (invalid) return problem(400, invalid)
         String id = document.id
@@ -117,6 +120,7 @@ class FakeGraphService implements EntityApi {
     @Override
     HttpResponse replace(String id, Map<String, Object> document) {
         def r = injectedOrNull('PUT', [id: id, body: document]); if (r) return r
+        if (!idMirrored(document)) return new HttpResponse(status: 500)   // by design (C8)
         def invalid = validate(document, id)
         if (invalid) return problem(400, invalid)
         if (!entities.containsKey(id)) return problem(404, 'Not Found')
@@ -215,8 +219,8 @@ class FakeGraphService implements EntityApi {
          name            : id,
          baseType        : baseTypeName(e.baseType),
          attributes      : new LinkedHashMap(e.attributes as Map),
-         isArchetypes    : new ArrayList(e.isArchetypes as List),
-         directArchetypes: new ArrayList(e.directArchetypes as List),
+         isArchetypes    : ((e.directArchetypes as List) + (e.isArchetypes as List)).unique(),   // C9, by design
+         directArchetypes: [],
          lastEvaluated   : DateTimeFormatter.ISO_INSTANT.format(lastEvaluated[id])]
     }
 
@@ -234,6 +238,11 @@ class FakeGraphService implements EntityApi {
         BASE_TYPE_NAMES.find { k, name -> name.equalsIgnoreCase(s) }?.key
     }
 
+    /** The stored attributes: attributes.ID only exists for C8 and is never returned. */
+    protected static Map withoutId(Object attrs) {
+        new LinkedHashMap((attrs ?: [:]) as Map).findAll { k, v -> k != 'ID' } as LinkedHashMap
+    }
+
     protected static Map<String, String> json() { ['Content-Type': 'application/json; charset=utf-8'] }
 
     protected static HttpResponse problem(int status, String title) {
@@ -241,6 +250,11 @@ class FakeGraphService implements EntityApi {
                     title: title, status: status, traceId: '00-fake-00']
         new HttpResponse(status: status, body: body, rawBody: groovy.json.JsonOutput.toJson(body),
             headers: ['Content-Type': 'application/problem+json; charset=utf-8'])
+    }
+
+    /** C8: the service requires attributes.ID equal to id. Checked only when there is an id to compare. */
+    protected static boolean idMirrored(Map<String, Object> doc) {
+        !(doc.id instanceof String) || (doc.attributes instanceof Map && (doc.attributes as Map).ID == doc.id)
     }
 
     /** Returns an error message for an invalid write-model document, or null. */
@@ -270,7 +284,7 @@ class FakeGraphService implements EntityApi {
 
     protected void store(String id, Map<String, Object> doc) {
         def existing = entities[id]
-        entities[id] = [id: id, baseType: baseTypeOf(doc.baseType), attributes: new LinkedHashMap(doc.attributes ?: [:]),
+        entities[id] = [id: id, baseType: baseTypeOf(doc.baseType), attributes: withoutId(doc.attributes),
                         directArchetypes: new ArrayList(doc.directArchetypes ?: []),
                         isArchetypes: new ArrayList(existing?.isArchetypes ?: [])]
         tick(); lastEvaluated[id] = clock

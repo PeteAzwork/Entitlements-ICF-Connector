@@ -60,7 +60,7 @@ class ProbeOutputSpec extends Specification {
         given:
         def exchanges = new File(dir, 'exchanges.jsonl').readLines().collect { new JsonSlurper().parseText(it) }
         def item = exchanges.collectMany { (it.body instanceof Map && it.body.results) ? it.body.results : [] }
-            .find { it.uid?.startsWith('scrubbed-') && it.directArchetypes == ['Customer'] }
+            .find { it.uid?.startsWith('scrubbed-') && it.isArchetypes == ['Customer'] }
         def entity = exchanges.find { it.method == 'GET' && it.status == 200 && it.body instanceof Map && it.body.id?.startsWith('scrubbed-') }.body
 
         expect:
@@ -85,7 +85,7 @@ class ProbeOutputSpec extends Specification {
         md.contains('| Manifest archetypes | Subject: Customer; Resource: Account, Card |')
         md.contains('| Search request | `POST /admin/entities/search` with a JSON body |')
         md.contains('probe entities that were written were deleted and confirmed gone')
-        md.contains('| Create body accepted | documented EntityDTO |')
+        md.contains('| Create body accepted | EntityDTO with attributes.ID (C8) |')
         md.contains('| Search drops deleted entities | yes |')
         !md.contains('Timestamp')
     }

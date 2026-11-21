@@ -130,7 +130,7 @@ class RealShapedServiceSpec extends Specification {
         expect:
         f(probe, 'types.baseTypes').answer == 'Resource: 2, Subject: 1'
         f(probe, 'types.archetypes').detail.contains('Customer')
-        f(probe, 'types.archetypes').detail.contains('3 of 3 entities have no direct archetype')
+        f(probe, 'types.archetypes').detail.contains('0 of 3 entities have no archetype')
     }
 
     def "relationship answers need the read model, so they are inconclusive, never observed"() {
@@ -160,10 +160,10 @@ class RealShapedServiceSpec extends Specification {
         f(probe, 'errors.postWithoutId').answer.startsWith('500')
     }
 
-    def "the create shape the service accepts is found and adopted (C8)"() {
+    def "the designed body, with attributes.ID, is accepted, and the body without it is refused (C8)"() {
         expect:
-        probe.contract.createShape == 'EntityDTO + attributes.ID'
-        f(probe, 'create.shape').detail.contains('1. documented EntityDTO → 500')
+        probe.contract.createShape == 'EntityDTO with attributes.ID (C8)'
+        f(probe, 'create.shape').detail.contains('2. EntityDTO without attributes.ID → 500')
     }
 
     def "a DELETE that leaves the entity in search is reported, and cleanup lists what it could not remove"() {

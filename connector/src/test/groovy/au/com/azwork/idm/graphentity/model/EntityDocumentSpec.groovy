@@ -24,7 +24,18 @@ class EntityDocumentSpec extends Specification {
         then:
         wire.relationships == []
         wire.directArchetypes == []
-        wire.attributes == [:]
+        wire.attributes == [ID: 'x']
+    }
+
+    def "toWire adds attributes.ID equal to the id, which the service requires by design (C8)"() {
+        expect:
+        Fixtures.sanneDoc().toWire().attributes == [ID: 'Sanne', name: 'Sanne Groen']
+        !Fixtures.sanneDoc().attributes.containsKey('ID')
+    }
+
+    def "toWire overwrites a stray attributes.ID with the real id"() {
+        expect:
+        new EntityDocument(id: 'x', baseType: 2, attributes: [ID: 'other']).toWire().attributes == [ID: 'x']
     }
 
     def "toWire never emits read-only fields"() {
@@ -38,9 +49,10 @@ class EntityDocumentSpec extends Specification {
         !doc.toWire().containsKey('isArchetypes')
     }
 
-    def "fromWire round-trips the write model"() {
+    def "fromWire round-trips the write model, dropping attributes.ID"() {
         expect:
         EntityDocument.fromWire(Fixtures.sanneDoc().toWire()) == Fixtures.sanneDoc()
+        !EntityDocument.fromWire(Fixtures.sanneWire()).attributes.containsKey('ID')
     }
 
     // ---------------------------------------------------------------- read model
@@ -85,7 +97,7 @@ class EntityDocumentSpec extends Specification {
 
     // ---------------------------------------------------------------- search item
 
-    def "fromSearchItem reads uid, a named base type, plain attributes and both archetype lists"() {
+    def "fromSearchItem reads uid, a named base type, plain attributes and the reported archetypes"() {
         when:
         def doc = EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [isArchetypes: ['Customer', 'Retail']])
 
@@ -93,9 +105,19 @@ class EntityDocumentSpec extends Specification {
         doc.id == 'Sanne'
         doc.baseType == 4
         doc.attributes == [name: 'Sanne Groen']
-        doc.directArchetypes == ['Customer']
         doc.isArchetypes == ['Customer', 'Retail']
         doc.lastEvaluated == Fixtures.EVALUATED
+    }
+
+    def "search reports direct archetypes in isArchetypes and leaves directArchetypes empty, so directArchetypes is unknown (C9)"() {
+        expect:
+        EntityDocument.fromSearchItem(Fixtures.sanneSearchItem()).directArchetypes == null
+        EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [directArchetypes: ['Customer']]).directArchetypes == ['Customer']
+    }
+
+    def "an attributes.ID in a read is dropped: it exists only for C8"() {
+        expect:
+        EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [attributes: [ID: 'Sanne', name: 'Sanne Groen']]).attributes == [name: 'Sanne Groen']
     }
 
     def "search items carry no relationships, so relationships is unknown (null), not empty (D4)"() {

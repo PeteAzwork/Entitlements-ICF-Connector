@@ -111,7 +111,7 @@ Most questions can be answered by observation with the contract probe in `contra
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
 | Q08.1 | Is BaseType only ever 2 or 4? | Yes. Anything else decodes to null (`EntityKind.fromBaseType`) | `types.baseTypes` | `EntityKind` | **Confirmed on this instance:** 77 Resources and 14 Subjects, nothing else (run `20261121-173141` #19) |
-| Q08.2 | Do archetypes, with BaseType, discriminate IDM types? | A scope archetype per type (P19) | `types.archetypes` | `TypeScoper`, P19 | **Partly:** search reports directly assigned archetypes in `isArchetypes`, by design (C9), so scoping must read it (P19 amendment pending, WS0.18). `ThirdPartyApplication` occurs with both base types (`173141` #19) |
+| Q08.2 | Do archetypes, with BaseType, discriminate IDM types? | A scope archetype per type (P19) | `types.archetypes` | `TypeScoper`, P19 | **Partly:** search reports directly assigned archetypes in `isArchetypes`, by design (C9), so scoping reads it (P19, amended). `ThirdPartyApplication` occurs with both base types (`173141` #19) |
 
 ### WS0.09 — ID constraints
 
@@ -248,7 +248,7 @@ Runs: `20261121-155100` (the first write run, design-shaped documents), `2026112
 | C6 | Create samples: 2 = Subject, 4 = Resource | **The design's numbering holds:** an entity created with base type 4 is returned by a Subject search (`objectClass: 4`) as a `Subject` (`190350` #41, #45). `objectClass` reads agree (`173141` #5–#8) |
 | C7 | DELETE's summary reads "Retrieves an entity by ID" | Probably a copy-paste slip; DELETE returns the deleted entity |
 | C8 | Create takes EntityDTO: `id`, `baseType`, `attributes`, `relationships`, `directArchetypes`; 200 | **By design** (confirmed by the service owner 2026-11-21): every create and update must carry `attributes.ID` equal to `id`. Without it the write gets 500. Of 8 body variants, only the 3 carrying it were accepted (`190350` #4–#11). Reads do not return it (#35, #60). Design §2.1 and §8.3–§8.4 updated; connector change is plan WS0.19 |
-| C9 | Search items carry `directArchetypes` (assigned) and `isArchetypes` (from policy) | **By design** (confirmed by the service owner 2026-11-21): a search item reports archetypes assigned through `directArchetypes` in `isArchetypes`, and its own `directArchetypes` field is empty. Seen with `shape-4` (`190350` #7, #35). Scoping must read `isArchetypes` (design §9.4; P19 amendment pending, plan WS0.18) |
+| C9 | Search items carry `directArchetypes` (assigned) and `isArchetypes` (from policy) | **By design** (confirmed by the service owner 2026-11-21): a search item reports archetypes assigned through `directArchetypes` in `isArchetypes`, and its own `directArchetypes` field is empty. Seen with `shape-4` (`190350` #7, #35). P19 is amended to scope on `isArchetypes` (design §9.4) |
 | C10 | DELETE removes the entity | **The service owner reports deletes work** (2026-11-21). The probe saw otherwise: straight after `DELETE edge-B` (`190350` #67), GET still returned it (#68, #69), the single-relationship DELETE showed no effect (#63, #64), and `155100`'s deleted entities were still found by search at #35. The likeliest explanation is that deletion is applied after a delay, like the search lag (C5) and GET's failures during re-evaluation (C1). WS0.15e re-checks with a settle window; the next run's `probe.leftovers` will show whether earlier runs' entities are gone |
 | C11 | `GET /admin/manifests` returns a list of manifests | 200 with `{paths: [{entities: {}, entityRelationships: [], policies: {}, manifests: {4 fields}}]}` (`190350` #31): an export bundle, with the manifests nested inside. Where the archetype names sit inside `manifests` is not yet known |
 | C12 | An invalid search request: 400 | 500 for an unknown `objectClass` (`173141` #23); 400 with problem details for an unknown filter operation (#22) |
@@ -318,7 +318,7 @@ It also showed that search reports directly assigned archetypes under `isArchety
 
 **Next:**
 - **Probe (plan WS0.15e):** wait for a write to show up before reading it back. Poll search, retry GET within a short settle window, and read archetypes from either field. Find the archetype names inside the manifests bundle (C11). When the manifests give none, use probe archetypes for the P22 check, since the service does not validate archetype names.
-- **Connector (plan WS0.19):** send `attributes.ID` on every write (C8, by design). Read archetypes from `isArchetypes` (C9, by design; P19 amendment pending, WS0.18).
+- **Connector (plan WS0.19):** send `attributes.ID` on every write (C8, by design). Read archetypes from `isArchetypes` (C9, by design; P19 amended). Done in the specs, fakes and probe; the implementation follows in WS2 and WS4.
 - **Leftovers:** the next run's `probe.leftovers` will show whether the entities from `155100` and `190350` have been deleted (C10).
 - **Service team:** raise C1 first. C8 and C9 are by design. C10 is reported as working.
 
@@ -326,6 +326,7 @@ It also showed that search reports directly assigned archetypes under `isArchety
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | P19 amended by the owner: enumeration scopes on `isArchetypes` (C9). The specs, fake, fixtures and probe now send `attributes.ID` (C8) and read archetypes from `isArchetypes` (plan WS0.18, WS0.19). |
 | 2026-11-21 | Service owner's clarifications: C8 (`attributes.ID` required) and C9 (directly assigned archetypes reported in `isArchetypes`) are by design. Deletes work, so C10 is re-framed as delayed deletion, to be re-checked. Design §2.1, §8.3, §8.4, §9.4, §13 and Appendix A updated. |
 | 2026-11-21 | Folded in write run `20261121-190350`. C8 answered (`attributes.ID` required); C6/P18 confirmed on create; C2 is an upsert; C10 is a DELETE that removes nothing; C9 confirmed (direct archetypes reported in `isArchetypes`); C5 is search lag; C1 refined (GET fails during re-evaluation and for some long-standing entities); C11 is a wrapped export bundle. Answered Q03.6, Q05.3, Q07.6 and Q07.8, and partly answered Q04.1, Q09.1 and Q09.2. |
 | 2026-11-21 | Folded in runs `20261121-173141` and `20261121-173153`. Answered Q03.5 and Q08.1, and partly answered Q03.4, Q05.1 and Q08.2. Updated C1–C6 and added C8–C12 (section 5.5). The probe gained `create.shape`, `create.relationshipShape`, `search.reflectsDelete` and `probe.leftovers`, and no longer treats a search miss as proof of deletion. Runs `20261121-154839` and `20261121-155100` were made before the scrubber fix and contain real entity data. They were committed to `main` and are removed from the branch tip; removing them from history needs a rewrite of `main`. |
