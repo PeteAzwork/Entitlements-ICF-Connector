@@ -1,5 +1,9 @@
 description = 'Groovy Scripted REST connector scripts and supporting library for the Graph Entity Service'
 
+// Test fixtures (FakeGraphService, FakeGraphHttpServer) are shared with other subprojects' tests,
+// e.g. the contract probe, via testImplementation(testFixtures(project(':connector'))).
+apply plugin: 'java-test-fixtures'
+
 dependencies {
     // The Scripted REST connector binds `connection` as a groovyx.net.http.RESTClient (HTTP Builder).
     implementation("org.codehaus.groovy.modules.http-builder:http-builder:${httpBuilderVersion}") {
@@ -12,6 +16,9 @@ dependencies {
         exclude group: 'org.codehaus.groovy'
     }
     implementation "org.apache.httpcomponents:httpclient:${httpClientVersion}"
+
+    testFixturesImplementation "org.codehaus.groovy:groovy:${groovyVersion}"
+    testFixturesImplementation "org.codehaus.groovy:groovy-json:${groovyVersion}"
 }
 
 sourceSets {
