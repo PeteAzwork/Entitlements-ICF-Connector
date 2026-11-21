@@ -9,6 +9,7 @@ import org.identityconnectors.framework.common.objects.Uid
  * Update (design §8.4, §9.2): PUT the total document built purely from the delivered attribute set.
  * Never reads the remote entity first. Refuses (InvalidAttributeValueException) an update that omits
  * {@code entityRelationships} or {@code directArchetypes}, because a PUT without them would delete edges.
+ * A Uid containing {@code /} is rejected before any request, because the service cannot address it by path (P23).
  */
 class UpdateOperation {
     private final OperationContext ctx

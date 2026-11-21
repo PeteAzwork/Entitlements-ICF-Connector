@@ -183,6 +183,41 @@ class EntityPayloadBuilderSpec extends Specification {
         EntityPayloadBuilder.idForCreate([new Uid('U')] as Set<Attribute>) == 'U'
     }
 
+    @Unroll
+    def "an id containing a slash ('#id') is rejected: the service cannot address it by path (P23)"() {
+        when:
+        EntityPayloadBuilder.build(id, Fixtures.userType(), Fixtures.sanneAttributes(__NAME__: id))
+
+        then:
+        def e = thrown(InvalidAttributeValueException)
+        e.message.contains('/')
+
+        where:
+        id << ['a/b', '/lead', 'trail/']
+    }
+
+    def "idForCreate rejects a slash too, whether it comes from __NAME__ or __UID__ (P23)"() {
+        when:
+        EntityPayloadBuilder.idForCreate([new Name('a/b')] as Set<Attribute>)
+
+        then:
+        thrown(InvalidAttributeValueException)
+
+        when:
+        EntityPayloadBuilder.idForCreate([new Uid('a/b')] as Set<Attribute>)
+
+        then:
+        thrown(InvalidAttributeValueException)
+    }
+
+    def "other characters the service addresses fine are accepted (Q09.1)"() {
+        expect:
+        EntityPayloadBuilder.build(id, Fixtures.userType(), Fixtures.sanneAttributes(__NAME__: id, entityRelationships: [])).id == id
+
+        where:
+        id << ['id with space', 'id?q=1', 'id#hash', 'id+plus', 'id%25', 'idü-ñ-漢', 'id.with.dots']
+    }
+
     def "idForCreate with neither is an InvalidAttributeValueException"() {
         when:
         EntityPayloadBuilder.idForCreate([AttributeBuilder.build('name', 'x')] as Set<Attribute>)

@@ -14,7 +14,8 @@ Each decision below gives the context, the decision, its consequences, what must
 | P19 | D6 — how IDM types are told apart | A scope archetype per type, stamped as a direct archetype |
 | P20 | D7 — attributes | Single-valued strings |
 | P21 | D8 — which searches are supported | By ID, plus equals, contains and starts-with combined with and, or and not |
-| P22 | D9 — how archetypes are assigned | `directArchetypes` in the entity body; Test checks manifests |
+| P22 | D9 — how archetypes are assigned | `directArchetypes` in the entity body; Test warns about archetypes the manifests do not define (amended) |
+| P23 | Q09.1 — IDs containing `/` | Rejected by the connector before any request |
 
 ---
 
@@ -118,14 +119,27 @@ Each decision below gives the context, the decision, its consequences, what must
 **Decision.**
 - The connector sets archetypes through `directArchetypes` in the same create or update body: one idempotent write per entity. It never uses the assignment endpoint.
 - The connector does not create or change manifests.
-- The **Test** operation reads the manifests (`GET /admin/manifests`) and fails with a clear message naming any configured archetype that is not defined.
+- The **Test** operation reads the manifests (`GET /admin/manifests`) and ~~fails with a clear message naming~~ **logs a `WARN` naming** any configured archetype that is not defined. *Amended 2026-11-21 by the owner: the service accepts archetype names no manifest defines, and existing entities use such names (C16), so a missing archetype is a warning, not a failure. Archetype names are read from anywhere in the response, which is an export bundle (C11).*
 
 **Consequences.**
 - `TestOperation` gains a manifest check, and `TestAndSchemaOperationSpec` gains cases for a missing archetype and a missing manifest list.
 - `EntityApi` gains a manifest read.
 - The runbook documents that manifests must define every configured archetype before the connector is enabled.
 
-**Still to confirm.** Whether an update replaces `directArchetypes` in full. WS0.15 checks it together with P20.
+**Still to confirm.** ~~Whether an update replaces `directArchetypes` in full.~~ Confirmed by run `20261121-211859`: it does.
+
+---
+
+## P23 — IDs containing `/` (decided 2026-11-21)
+
+**Context.** Run `20261121-211859` showed that the service stores an ID containing `/`, but cannot address it by path. DELETE of its percent-encoded path answers 200 and leaves the entity in place (Q09.1). Every other character tried, and lengths up to 1,024, work.
+
+**Decision.** The connector rejects an ID containing `/` with `InvalidAttributeValueException`, before any request, on create, update and delete.
+
+**Consequences.**
+- `EntityPayloadBuilder.build` and `idForCreate` reject such an ID; `UpdateOperation` and `DeleteOperation` reject such a Uid.
+- The runbook asks that every `idProperty` hold values without `/`.
+- An entity created with such an ID outside the connector cannot be managed by it, and has to be removed by the service team.
 
 ---
 
@@ -153,3 +167,5 @@ The first realigned probe runs (`20261121-173141`, `20261121-173153`) bear on th
 | §9.3 delete | The service owner reports deletes work. The probe saw deleted entities still readable straight afterwards (C10) | No design change. Probably a delayed deletion; the probe re-checks with a settle window (plan WS0.15e) |
 | P22 | An update replaces `directArchetypes` in full (run `211859`). The manifests' archetype names differ from those on existing entities, and the service accepts undefined names (C16) | Replacement **confirmed**. Whether the Test operation's manifest check should fail or warn is open (plan WS0.21) |
 | P20 | The attribute check's PUT, sent straight after its POST, was lost (C13) | Still unobserved; the probe will wait for each write to apply (plan WS0.15f) |
+| P22 (amended) | The owner decided the Test operation only warns about archetypes missing from the manifests (C16) | `TestOperation` and `TestAndSchemaOperationSpec` updated; design §9.5 |
+| P23 (new) | An ID containing `/` cannot be addressed by path (Q09.1) | The connector rejects such IDs (see P23 above) |

@@ -145,7 +145,7 @@ class RealShapedServiceSpec extends Specification {
         expect:
         f(probe, 'baseType.create').answer.startsWith('Yes')
         f(probe, 'create.duplicate').confidence == 'observed'
-        f(probe, 'create.duplicate').detail.contains('Read back by search')
+        f(probe, 'create.duplicate').answer.startsWith('409')
         f(probe, 'attributes.omission').answer.startsWith('Yes')
         f(probe, 'archetypes.replace').answer.startsWith('Yes')
         f(probe, 'ids.space').answer.contains('a search finds it')

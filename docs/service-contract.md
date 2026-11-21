@@ -24,7 +24,7 @@ Most questions can be answered by observation with the contract probe in `contra
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
 ```
 
-**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: the ones given with `--archetypes A,B`, else the first two the manifests define, else two probe archetypes (`Ws0ProbeA`, `Ws0ProbeB`). The service accepts archetype names no manifest defines.
+**Step 2. Write run, against a test instance only.** Add `--remove-leftovers` to also delete the entities earlier probe runs left behind (IDs starting `ws0-probe-`; IDs containing `/` cannot be addressed and are listed instead). It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: the ones given with `--archetypes A,B`, else the first two the manifests define, else two probe archetypes (`Ws0ProbeA`, `Ws0ProbeB`). The service accepts archetype names no manifest defines.
 
 **Settle window.** The service applies writes with a short delay: search lags (C5), and GET fails while an entity is re-evaluated (C1). So every read-back after a write waits, polling, for up to `--settle-seconds` (default 10) until the write is visible. A "No" answer then means "not within the window". Raise the window if answers look like timing rather than behaviour; `--settle-seconds 0` reads once, as the first runs did.
 
@@ -362,6 +362,7 @@ New: C13–C16.
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Owner decisions: IDs containing `/` are rejected by the connector (P23, from Q09.1), and the Test operation's manifest check warns rather than fails (P22 amended, from C16). Probe WS0.15f: settled writes with revision markers (C13), relationship outcomes read on the written entity (C15), and `--remove-leftovers`. |
 | 2026-11-21 | Folded in write run `20261121-211859`. Answered P22 (replaced in full), C10 (deletes work after about 0.5 s), Q04.1 (duplicate POST replaces), Q09.1 (`/` not addressable) and Q09.3 (case-sensitive). Added C13 (rapid writes can be lost), C14 (duplicate search items), C15 (relationship changes refresh only the written entity) and C16 (manifest archetype names differ from those on existing entities). P15 and P20 still open. |
 | 2026-11-21 | Probe WS0.15e: read-backs wait within a settle window (`--settle-seconds`, default 10) for writes to show. Archetypes are read from either field, probe archetypes are used when none are given, and manifest archetype names are found inside the export bundle. |
 | 2026-11-21 | P19 amended by the owner: enumeration scopes on `isArchetypes` (C9). The specs, fake, fixtures and probe now send `attributes.ID` (C8) and read archetypes from `isArchetypes` (plan WS0.18, WS0.19). |

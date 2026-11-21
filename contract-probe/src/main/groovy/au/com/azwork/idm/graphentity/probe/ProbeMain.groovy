@@ -27,6 +27,8 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
   --api-key-header NAME  Header the key is sent in, raw (default X-API-KEY)
   --allow-writes         Also create, change and delete probe entities (ID prefix ws0-probe-<run>-).
                          Use only against a test instance. Without it, only GET requests are made.
+  --remove-leftovers     With --allow-writes: delete entities earlier probe runs left behind
+                         (IDs starting ws0-probe-; none of this run's, nothing else)
   --out DIR              Output directory (default build/contract-probe/<run>)
   --max-pages N          Pages to read when sampling entities (default 5)
   --timeout-seconds N    Per-request timeout (default 15)
@@ -63,6 +65,7 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
                     if (!(o.apiKeyHeader ==~ /[A-Za-z0-9-]{1,64}/)) throw new UsageException('--api-key-header must be a header name: letters, digits and dashes')
                     break
                 case '--allow-writes': o.allowWrites = true; break
+                case '--remove-leftovers': o.removeLeftovers = true; break
                 case '--out': o.outDir = new File(next(a)); break
                 case '--max-pages': o.maxPages = positive(a, next(a)); break
                 case '--timeout-seconds': o.timeoutSeconds = positive(a, next(a)); break
@@ -85,6 +88,7 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
             }
         }
         if (!o.baseUrl) throw new UsageException('--base-url is required')
+        if (o.removeLeftovers && !o.allowWrites) throw new UsageException('--remove-leftovers needs --allow-writes')
         if (!(o.baseUrl ==~ /https?:\/\/[^\/\s]+.*/)) throw new UsageException('--base-url must be an http or https URL')
         String key = keyArg != null ? keyArg : env[keyEnv]
         String source = keyArg != null ? '--api-key' : "the ${keyEnv} environment variable"

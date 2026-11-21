@@ -73,6 +73,15 @@ class UpdateOperationSpec extends OperationSpecBase {
         service.entities['Sanne'].directArchetypes == ['Customer', 'VIP']
     }
 
+    def "a Uid containing a slash is rejected before any request (P23)"() {
+        when:
+        new UpdateOperation(ctx()).execute(Fixtures.USER, new Uid('a/b'), Fixtures.sanneAttributes(__NAME__: 'a/b', entityRelationships: []), null)
+
+        then:
+        thrown(InvalidAttributeValueException)
+        service.requests.empty
+    }
+
     def "replaying the same update converges to the same remote state (idempotent)"() {
         given:
         def op = new UpdateOperation(ctx())

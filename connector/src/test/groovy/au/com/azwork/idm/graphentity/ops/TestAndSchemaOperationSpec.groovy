@@ -20,7 +20,7 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
         service.requestsOf('SEARCH')[0].query.pageSize == 1
     }
 
-    def "test fails when a configured archetype is not defined in any manifest, naming it (P22)"() {
+    def "a configured archetype no manifest defines is a WARN naming it, not a failure (P22 as amended; C16)"() {
         given:
         service.manifests.clear()
         service.seedManifest('test', ['Customer'], [])
@@ -29,11 +29,12 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
         new TestOperation(ctx()).execute()
 
         then:
-        def e = thrown(ConfigurationException)
-        e.message.contains('Account')
+        noExceptionThrown()
+        log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).any { it.contains('Account') }
+        !log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).any { it.contains('Customer') }
     }
 
-    def "an archetype defined for the other base type does not count: Account must be a resource archetype"() {
+    def "an archetype defined only for the other base type is warned about too: Account must be a resource archetype"() {
         given:
         service.manifests.clear()
         service.seedManifest('test', ['Customer', 'Account'], [])
@@ -42,11 +43,11 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
         new TestOperation(ctx()).execute()
 
         then:
-        def e = thrown(ConfigurationException)
-        e.message.contains('Account')
+        noExceptionThrown()
+        log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).any { it.contains('Account') }
     }
 
-    def "test fails clearly when the service has no manifests at all (404)"() {
+    def "a service with no manifests (404) is a WARN, not a failure"() {
         given:
         service.manifests.clear()
 
@@ -54,8 +55,30 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
         new TestOperation(ctx()).execute()
 
         then:
-        def e = thrown(ConfigurationException)
-        e.message.toLowerCase().contains('manifest')
+        noExceptionThrown()
+        log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).any { it.toLowerCase().contains('manifest') }
+    }
+
+    def "when every configured archetype is defined, nothing is logged at WARN"() {
+        when:
+        new TestOperation(ctx()).execute()
+
+        then:
+        log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).empty
+    }
+
+    def "archetypes are found inside the export bundle the service actually returns (C11)"() {
+        given:
+        service.failNextWith(200, [results: [], pagedResultsCookie: null, totalResults: 0, hasMore: false])
+        service.failNextWith(200, [paths: [[entities: [:], entityRelationships: [], policies: [:],
+                                            manifests: [banking: [name: 'banking', subjectArchetypes: [[name: 'Customer']], resourceArchetypes: [[name: 'Account']]]]]]])
+
+        when:
+        new TestOperation(ctx()).execute()
+
+        then:
+        noExceptionThrown()
+        log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).empty
     }
 
     def "archetypes in later manifests count too"() {

@@ -47,7 +47,7 @@ class ProbeMainSpec extends Specification {
     def "parses every option"() {
         when:
         def o = ProbeMain.parse(['--base-url', 'http://h:1', '--api-key-env', 'X', '--api-key-header', 'X-Other-Key', '--allow-writes', '--out', dir.path,
-                                 '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--archetypes', 'Card, Account', '--settle-seconds', '0', '--run-id', 'abc-1'], [X: 'p'])
+                                 '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--archetypes', 'Card, Account', '--settle-seconds', '0', '--remove-leftovers', '--run-id', 'abc-1'], [X: 'p'])
 
         then:
         String.valueOf(o.apiKey) == 'p'
@@ -59,6 +59,7 @@ class ProbeMainSpec extends Specification {
         o.searchPath == '/x'
         o.archetypes == ['Card', 'Account']
         o.settleSeconds == 0
+        o.removeLeftovers
         o.prefix == 'ws0-probe-abc-1-'
     }
 
@@ -92,6 +93,7 @@ class ProbeMainSpec extends Specification {
         'a relative search path'     | ['--base-url', 'http://h', '--search-path', 'search']         | ENV                                 | 'must start with /'
         'one archetype only'         | ['--base-url', 'http://h', '--archetypes', 'Card']            | ENV                                 | '--archetypes'
         'a negative settle window'   | ['--base-url', 'http://h', '--settle-seconds', '-1']          | ENV                                 | 'from 0 to 600'
+        'leftovers without writes'   | ['--base-url', 'http://h', '--remove-leftovers']              | ENV                                 | 'needs --allow-writes'
         'the removed timestamp flag' | ['--base-url', 'http://h', '--timestamp-field', 'x']          | ENV                                 | 'Unknown argument'
     }
 

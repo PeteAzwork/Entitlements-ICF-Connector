@@ -82,6 +82,15 @@ class DeleteOperationSpec extends OperationSpecBase {
         service.requests.empty
     }
 
+    def "a Uid containing a slash is rejected before any request: DELETE by path would answer 200 and remove nothing (P23)"() {
+        when:
+        new DeleteOperation(ctx()).execute(Fixtures.USER, new Uid('a/b'), null)
+
+        then:
+        thrown(org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException)
+        service.requests.empty
+    }
+
     def "a 200 for a missing entity, as the probe observed (C3), is success too: the outcome is 'gone' either way"() {
         given:
         service.failNextWith(200)
