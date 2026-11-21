@@ -13,6 +13,8 @@ import groovy.json.JsonSlurper
 
 import java.nio.file.Files
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * WS8.01: one real IDM 7.5 container per test run, with the connector deployed the way the runbook deploys it,
@@ -45,6 +47,8 @@ class IdmStack {
 
     final FakeGraphService service = new FakeGraphService()
     final FakeGraphHttpServer server = new FakeGraphHttpServer(service, API_KEY).start()
+    /** The private CA imported into IDM's trust store, and the certificates it issued (NetworkInIdmSpec). */
+    final TestPki pki = new TestPki()
     final IdmClient idm = new IdmClient('http://localhost:8080/openidm')
     final Map provisioner
     /** The provisioner as saved: {@link #provisioner} plus the object types from createFullConfig. */
@@ -110,7 +114,7 @@ class IdmStack {
             Instant sent = Instant.now()
             idm.put('config/provisioner.openicf/graphentity', config + [_itSave: marker])
             idm.awaitTrue(180, 'the provisioner save to be applied') {
-                provisionerEvents(sent.minusSeconds(1)).any { it[1] == 'activated' && it[0] >= sent } && provisionerSettled(sent)
+                provisionerEvents(sent.minusSeconds(1)).any { it[1] == 'activated' } && provisionerSettled(sent)
             }
             if (idm.get('config/provisioner.openicf/graphentity')._itSave == marker) return
             System.err.println("IdmStack: IDM discarded provisioner save ${attempt} (H21); saving again")
@@ -131,17 +135,26 @@ class IdmStack {
         last[1] == 'activated' && (last[0] as Instant) < Instant.now().minusSeconds(3)
     }
 
+    /** IDM's log timestamps (java.util.logging, the image's UTC zone), as in {@code [191] Nov 21, 2026 9:07:49.055 PM}. */
+    private static final DateTimeFormatter IDM_LOG_TIME =
+        DateTimeFormatter.ofPattern('MMM d, yyyy h:mm:ss.SSS a', Locale.ENGLISH).withZone(ZoneOffset.UTC)
+
     /**
-     * The provisioner's lifecycle in IDM's console log since {@code since}, as [instant, 'updated' | 'deactivated' |
-     * 'activated'], with Docker's timestamps.
+     * The provisioner's lifecycle since {@code since}, as [instant, 'updated' | 'deactivated' | 'activated'], from the
+     * end of IDM's log file. The console carries WARNING and above only, so these INFO lines are only in the file.
      */
     private static List<List> provisionerEvents(Instant since) {
-        docker('logs', '--timestamps', '--since', since.toString(), CONTAINER).readLines()
-            .findAll { it =~ /component graphentity is (de)?activated|Updating configuration file: .*provisioner\.openicf-graphentity/ }
-            .collect { String line ->
-                [Instant.parse(line.substring(0, line.indexOf(' '))),
-                 line.contains('is activated') ? 'activated' : line.contains('is deactivated') ? 'deactivated' : 'updated']
-            }
+        List<List> events = []
+        Instant stamp = null
+        docker('exec', CONTAINER, 'tail', '-n', '5000', '/opt/openidm/logs/openidm0.log.0').eachLine { String line ->
+            def m = line =~ /^\[\d+\] (\w{3} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2}\.\d{3} [AP]M) /
+            if (m.find()) { stamp = Instant.from(IDM_LOG_TIME.parse(m.group(1))); return }
+            if (stamp == null || stamp < since) return
+            if (line.contains('component graphentity is activated')) events << [stamp, 'activated']
+            else if (line.contains('component graphentity is deactivated')) events << [stamp, 'deactivated']
+            else if (line =~ /Updating configuration file: .*provisioner\.openicf-graphentity/) events << [stamp, 'updated']
+        }
+        events
     }
 
     /**
@@ -217,6 +230,7 @@ class IdmStack {
                                '-e', "JAVA_OPTS=${System.getProperty('idm.javaOpts', '-Xmx2g -Xms1g')}".toString()]
         if (cpus) create += ['--cpus', cpus]
         dockerChecked(*(create + [IMAGE]))
+        pki.trustIn(CONTAINER)   // the private CA the TLS specs' service certificates are signed by (guide §5)
         dockerChecked('cp', connector.path, "${CONTAINER}:/opt/openidm/connectors/graphentity")
         dockerChecked('cp', lib.path + '/.', "${CONTAINER}:/opt/openidm/script/lib/")
         dockerChecked('start', CONTAINER)
@@ -240,7 +254,7 @@ class IdmStack {
         out
     }
 
-    private static String dockerChecked(String... args) {
+    static String dockerChecked(String... args) {
         Process p = new ProcessBuilder(['docker'] + (args as List)).redirectErrorStream(true).start()
         String out = p.inputStream.getText('UTF-8')
         if (p.waitFor() != 0) throw new IllegalStateException("docker ${args.join(' ')} failed: ${out}")

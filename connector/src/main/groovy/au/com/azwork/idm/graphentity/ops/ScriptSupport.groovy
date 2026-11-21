@@ -109,6 +109,11 @@ class ScriptSupport {
         configuration == null ? null : secret(property(configuration, 'password'))
     }
 
+    /** The Scripted REST {@code proxyPassword}, which IDM encrypts like {@code password}; never logged. */
+    static String proxyPasswordFrom(Object configuration) {
+        configuration == null ? null : secret(property(configuration, 'proxyPassword'))
+    }
+
     /** The connector-specific settings from customConfiguration, as the scripts see them. */
     static Map propertyBagOf(Object configuration) {
         configuration == null ? [:] : (property(configuration, 'propertyBag') as Map ?: [:])

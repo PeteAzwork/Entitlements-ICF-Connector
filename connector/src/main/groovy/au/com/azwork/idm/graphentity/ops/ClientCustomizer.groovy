@@ -2,10 +2,14 @@ package au.com.azwork.idm.graphentity.ops
 
 import au.com.azwork.idm.graphentity.config.ConnectorConfig
 import groovyx.net.http.RESTClient
+import org.apache.http.HttpHost
 import org.apache.http.HttpRequest
+import org.apache.http.auth.AuthScope
+import org.apache.http.auth.UsernamePasswordCredentials
 import org.apache.http.HttpRequestInterceptor
 import org.apache.http.client.HttpClient
 import org.apache.http.client.config.RequestConfig
+import org.apache.http.impl.client.BasicCredentialsProvider
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.protocol.HttpContext
 import org.apache.http.ssl.SSLContexts
@@ -15,7 +19,7 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
 /**
  * The body of {@code CustomizerScript.groovy} (design §4, §14; WS3.13). The single place that knows about
  * authentication (P13): the API key from the encrypted {@code password} property is sent raw in {@code X-API-KEY}
- * (or the {@code apiKeyHeader} override). No Authorization header is ever added.
+ * (or the {@code apiKeyHeader} override). No Authorization header is ever added; a proxy's credentials, if configured, go to the proxy alone (Proxy-Authorization).
  *
  * <p>Harness contract (WS3.01): {@code init} receives the Apache {@code HttpClientBuilder} with the configuration
  * as its delegate; the client built from it is bound to the operation scripts as {@code connection}.
@@ -54,6 +58,7 @@ class ClientCustomizer {
         builder.setDefaultRequestConfig(RequestConfig.custom()
             .setConnectTimeout(connect).setConnectionRequestTimeout(connect).setSocketTimeout(socket).build())
         builder.setSSLContext(SSLContexts.createSystemDefault())
+        proxy(builder, configuration)
 
         URI address = serviceAddress(configuration)
         if (address?.scheme?.equalsIgnoreCase('http') && !(address.host in ['localhost', '127.0.0.1', '::1', '[::1]'])) {
@@ -76,6 +81,38 @@ class ClientCustomizer {
         }
         client.handler.failure = client.handler.success
         client
+    }
+
+    /**
+     * The Scripted REST {@code proxyAddress}, {@code proxyUsername} and {@code proxyPassword} (deployment guide §5.2).
+     * The harness hands init a bare builder and applies none of them itself, so this does: the proxy carries every
+     * request, and the credentials, if any, answer the proxy's 407 challenge only (they are scoped to the proxy's
+     * host and port, so they never reach the service). The password is read from IDM's encrypted property and never
+     * logged; an address carrying credentials is rejected without being repeated.
+     */
+    static void proxy(HttpClientBuilder builder, Object configuration) {
+        Object raw = ScriptSupport.hasProperty(configuration, 'proxyAddress') ? configuration.proxyAddress : null
+        if (raw == null || !raw.toString().trim()) return
+        URI uri
+        try {
+            uri = raw instanceof URI ? raw as URI : new URI(raw.toString().trim())
+        } catch (URISyntaxException ignored) {
+            throw new ConfigurationException(raw.toString().contains('@') ? 'proxyAddress is not a valid URL' : "proxyAddress '${raw}' is not a valid URL".toString())
+        }
+        if (uri.rawUserInfo != null) {
+            throw new ConfigurationException('proxyAddress must not contain credentials: use proxyUsername and proxyPassword')
+        }
+        if (!(uri.scheme?.toLowerCase() in ['http', 'https']) || !uri.host) {
+            throw new ConfigurationException("proxyAddress '${uri}' must be an http or https URL with a host, such as http://proxy.example.com:3128".toString())
+        }
+        HttpHost host = new HttpHost(uri.host, uri.port, uri.scheme.toLowerCase())
+        builder.setProxy(host)
+        String user = ScriptSupport.hasProperty(configuration, 'proxyUsername') ? configuration.proxyUsername?.toString()?.trim() : null
+        if (user) {
+            BasicCredentialsProvider credentials = new BasicCredentialsProvider()
+            credentials.setCredentials(new AuthScope(host), new UsernamePasswordCredentials(user, ScriptSupport.proxyPasswordFrom(configuration) ?: ''))
+            builder.setDefaultCredentialsProvider(credentials)
+        }
     }
 
     private static URI serviceAddress(Object configuration) {

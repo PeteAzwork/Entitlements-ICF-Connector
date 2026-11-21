@@ -111,11 +111,12 @@ config/           provisioner.openicf-graphentity.json, sync-mapping-user.sample
 docs/             delivery-plan.md
 ```
 
-## Packaging for IDM
+## Packaging and deploying to IDM
 
 ```bash
-./gradlew :connector:connectorScripts
-# -> connector/build/connector-scripts/{scripts,lib,provisioner.openicf-graphentity.json}
+./gradlew :connector:distZip :discovery:distZip
+# connector/build/distributions/graphentity-connector-<version>.zip   for the IDM servers
+# discovery/build/distributions/graphentity-discovery-<version>.zip   for an operator's workstation
 ```
 
-Copy `scripts/` and `lib/` under `&{idm.instance.dir}/connectors/graphentity/` (they are referenced by `scriptRoots` and `classpath` in the provisioner) and `mapping-lib/src/lib/graphEntityPayload.js` to `&{idm.instance.dir}/script/lib/`.
+**`docs/deployment-guide.md`** is the installation guide. It goes from an IDM that has never seen the connector to a configured one, then covers upgrades, rollback and removal. Its worked example is `dev/deploy-walkthrough.sh`, which deploys the two zips into a brand-new IDM 7.5. `docs/runbook.md` covers operation from there.

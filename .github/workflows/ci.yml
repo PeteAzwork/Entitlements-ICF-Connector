@@ -21,6 +21,20 @@ jobs:
         run: ./gradlew --no-daemon :discovery:lintMappings
       - name: Compile with IDM 7.5's Groovy 3.0.9 (scripts deployment, script_vs_jar.md)
         run: ./gradlew --no-daemon :connector:compileWithIdmGroovy
+      - name: Build the release zips (docs/deployment-guide.md §3)
+        run: |
+          ./gradlew --no-daemon :connector:distZip :discovery:distZip
+          (cd connector/build/distributions && sha256sum *.zip) > SHA256SUMS
+          (cd discovery/build/distributions && sha256sum *.zip) >> SHA256SUMS
+          cat SHA256SUMS
+      - name: Publish the release zips
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zips
+          path: |
+            connector/build/distributions/*.zip
+            discovery/build/distributions/*.zip
+            SHA256SUMS
       - name: Publish test reports
         if: always()
         uses: actions/upload-artifact@v4

@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.22 — 2026-11-21** (WS7 and WS9 work: the IDM-layout distribution, a development stack, the ID-change guard and schedules proven in IDM, the runbook, the security review pack and the go-live checklist; what needs people or a real environment is marked). v2.21: (P9 restored: the library deploys as scripts after all, the earlier compile failure being the `createFullConfig` race; the jar stays an option; `script_vs_jar.md`). v2.20: (WS8: the connector runs inside a real IDM 7.5 container; Appendix A, updates, relationship removal, delete, orphans, error paths and a first scale run pass; IDM showed defects the unit suites could not, all fixed: `createFullConfig` before saving, `"source": ""`, and the `SOURCE_MISSING` policy). v2.19: (WS6 done: the discovery tool, its command line, a read-only IDM source and the mapping lint; every unit suite green, M4 reached; the natural-key signal is a proposal for the platform team). v2.18: (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.23 — 2026-11-21** (the deployment guide, `docs/deployment-guide.md`, with a walkthrough on a brand-new IDM; the discovery tool as a release artefact; proxy settings honoured, which they were not; TLS with a private CA proven in IDM; WS8.11 at 50,000 users; H21, a provisioner save discarded by IDM, found by the first GitHub run). v2.22: (WS7 and WS9 work: the IDM-layout distribution, a development stack, the ID-change guard and schedules proven in IDM, the runbook, the security review pack and the go-live checklist; what needs people or a real environment is marked). v2.21: (P9 restored: the library deploys as scripts after all, the earlier compile failure being the `createFullConfig` race; the jar stays an option; `script_vs_jar.md`). v2.20: (WS8: the connector runs inside a real IDM 7.5 container; Appendix A, updates, relationship removal, delete, orphans, error paths and a first scale run pass; IDM showed defects the unit suites could not, all fixed: `createFullConfig` before saving, `"source": ""`, and the `SOURCE_MISSING` policy). v2.19: (WS6 done: the discovery tool, its command line, a read-only IDM source and the mapping lint; every unit suite green, M4 reached; the natural-key signal is a proposal for the platform team). v2.18: (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -200,14 +200,14 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Goal:** one command produces what is copied into IDM.
 **Acceptance:** a fresh IDM 7.5 container plus the artefact passes `system/graphentity?_action=test`, and the schema exposes `user` and `account`.
 **Estimate:** 2.5 days.
-**Status:** 2026-11-21: done except WS7.05, which waits for ForgeRock repository secrets. The acceptance check (a fresh IDM 7.5 plus the artefact passes Test, with `user` and `account` in the schema) passes with the development stack.
+**Status:** 2026-11-21: done except WS7.05, which waits for ForgeRock repository secrets. WS7.09 (the deployment guide) and WS7.10 (proxy settings) added and done. The acceptance check (a fresh IDM 7.5 plus the artefact passes Test, with `user` and `account` in the schema) passes with the development stack.
 
 ### WS8 — Integration tests against IDM 7.5
 
 **Goal:** prove the scripts run inside the real Scripted REST harness and the mappings drive the connector as designed: create, update, relationship changes, delete, initial-load reconciliation, and orphans reported but never deleted.
 **Acceptance:** a scripted, repeatable run, archived in CI. Drift-repair scenarios are WS10's.
 **Estimate:** 5.5 days.
-**Status:** 2026-11-21: WS8.01–8.09 and 8.12 done, 8.10 done at small scale, 8.11 measured at 300 users (50,000 still to run). Four defects found and fixed, recorded in `docs/service-contract.md` §4.1.
+**Status:** 2026-11-21: WS8.01–8.12 done; 8.10 and 8.11 at 50,000 users. The first GitHub run found H21, fixed in the harness; a green GitHub run on the fix is still to come. Defects found and fixed are recorded in `docs/service-contract.md` §4.1.
 
 ### WS9 — Operational readiness and rollout
 
@@ -300,12 +300,12 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `ops/TestAndSchemaOperationSpec` | §9.5 | 15 | 15 |
 | `ops/ScriptSupportSpec` | §4, P13 | 8 | 8 |
 | `scripts/OperationScriptsSpec` | §4, WS3.01, WS3.10 | 18 | 19 |
-| `scripts/CustomizerScriptSpec` | §4, §14, P13, WS3.01 | 8 | 8 |
+| `scripts/CustomizerScriptSpec` | §4, §14, P13, WS3.01, WS7.10 | 8 | 13 |
 | `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
 | `scenario/RecordedContractSpec` | WS4.09, WS0.11 | 5 | 5 |
 | `mapping/GraphEntityPayloadRhinoSpec` | WS5.07, §8.2 | 6 | 9 |
-| **Connector total** | | **388** | **696** |
+| **Connector total** | | **388** | **701** |
 | `discovery/ManagedSchemaReaderSpec` | §12, WS6.01 | 11 | 11 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 20 | 20 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2, H12, H13 | 11 | 11 |
@@ -326,9 +326,10 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `integration/ErrorPathsInIdmSpec` | WS8.09 | 3 | 3 |
 | `integration/OperationsInIdmSpec` | WS9.02, WS9.04 | 2 | 2 |
 | `integration/RuntimeInIdmSpec` | WS8.08, WS8.09 | 3 | 3 |
+| `integration/NetworkInIdmSpec` | WS7.09, WS7.10 (TLS with a private CA, proxy) | 4 | 4 |
 | `integration/ScaleInIdmSpec` (opt-in, `-PidmScale=N`) | WS8.10, WS8.11 | 3 | 3 |
-| **Integration total** (needs Docker; `./gradlew :integration:test -Pidm`) | | **21 (+3)** | **21 (+3)** |
-| **Grand total** | | | **1037 (+3 opt-in)** |
+| **Integration total** (needs Docker; `./gradlew :integration:test -Pidm`) | | **25 (+3)** | **25 (+3)** |
+| **Grand total** | | | **1046 (+3 opt-in)** |
 
 Current result (2026-11-21, after WS7/WS9 work): **every suite is green**: connector 696 / 696, discovery 77 / 77, mapping library 116 / 116, contract probe 126 / 126, `:discovery:lintMappings`, `:connector:compileWithIdmGroovy`, and **integration 18 / 18 inside IDM 7.5** (library as sources; the jar mode passes too), plus the opt-in scale spec. No `TODO WSn` stub remains in the code.
 
@@ -837,6 +838,14 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
   *Done 2026-11-21:* `ConnectorInIdmSpec`. The provisioner's object types must come from `createFullConfig`, called before the provisioner is saved (H10, H11).
 - [x] **WS7.08 Install section of the runbook (S).** §8.1 steps 1–3.
   *Done 2026-11-21:* `docs/runbook.md` §2, including what IDM showed (H9–H13).
+- [x] **WS7.09 Deployment guide (M).** One guide from an IDM that has never seen the connector to a configured one, with upgrades, rollback and removal, and a worked example.
+  *Done 2026-11-21:* `docs/deployment-guide.md`. Each section says whether it was tested.
+  - **Worked example:** `dev/deploy-walkthrough.sh` deploys the release zips into a brand-new IDM 7.5, reconciles, restarts IDM and uninstalls. Its output is the guide's appendix A.
+  - **The discovery tool is now a release artefact:** `./gradlew :discovery:distZip`, `graphentity-discovery-<version>.zip`. Operators no longer need a source checkout.
+  - **TLS with a private CA, proven in IDM 7.5** (`NetworkInIdmSpec`): a CA imported into IDM's trust store is trusted; an unknown CA and a wrong host name both fail before anything reaches the service. The trust store must stay owned by IDM's user, or IDM does not start.
+  - **Clustered and hosted IDM** are written up as untested, with the questions to settle.
+- [x] **WS7.10 Outbound proxy (S).** Found by WS7.09: the Scripted REST harness leaves `proxyAddress`, `proxyUsername` and `proxyPassword` to the customizer script, and ours ignored them, so a configured proxy was bypassed.
+  *Done 2026-11-21:* `ClientCustomizer.proxy` applies them. The credentials are scoped to the proxy, so they never reach the service. An address carrying credentials is refused without being echoed. Tested by `CustomizerScriptSpec` (+5) and in IDM (`NetworkInIdmSpec`, http). https through a proxy (`CONNECT`) is not tested.
 
 ### WS8 — Integration tests against IDM 7.5
 
@@ -866,6 +875,10 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
   *WS4.08 decision, from these numbers:* keep option (a). Restating every linked entity costs about as much as the initial load (163 s against 169 s here), is idempotent and repairs drift as a side effect. Revisit with the dry run's per-PUT latency if the reconciliation window is tight; WS10 removes the cost.
 - [x] **WS8.12 Nightly job (S).** Run nightly, archive results, alert on failure.
   *Done 2026-11-21:* `.github/workflows/integration.yml`, nightly and on demand (with a scale input), uploading reports; failures notify through GitHub's workflow notifications.
+  *First GitHub run (run 1, on `main`):* the jar job passed. The sources job failed in `ErrorPathsInIdmSpec`.
+  - **Cause:** IDM discards a provisioner save that arrives while it is still applying the previous one (H21), and in scripts mode, on a small runner, applying takes long enough to hit it.
+  - **Reproduced** with IDM limited to 1 CPU (`-PidmCpus=1`).
+  - **Fixed in the harness:** `IdmStack.putProvisioner` waits for IDM to settle, marks each save, waits for reactivation, checks the save landed and retries. The runbook and the deployment guide tell operators the same.
 
 ### WS9 — Operational readiness and rollout (core)
 

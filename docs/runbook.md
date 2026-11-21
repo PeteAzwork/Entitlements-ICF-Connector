@@ -17,10 +17,14 @@ At this stage (milestone M5) it does **not**:
 
 ## 2. Installation (WS7.08)
 
+**The full procedure is `docs/deployment-guide.md`.** It also covers TLS with a private CA, proxies, every setting, container images, clusters, upgrades, rollback and removal, with a worked example. This section is the short form.
+
 ### 2.1 Prerequisites
 - **IDM 7.5.** The image `gcr.io/forgerock-io/idm:7.5.0` was used for testing. It ships the Scripted REST connector 1.5.20.21, Groovy 3.0.9, Rhino 1.7.14 and runs on JDK 17.
 - **The service's API key, and its URL over https.** Plain http is accepted only for localhost (section 7).
-- **The release artefact:** `./gradlew :connector:distZip` produces `connector/build/distributions/graphentity-connector-<version>.zip`. Its `VERSION` file records the commit and the library mode.
+- **The release artefacts:** `./gradlew :connector:distZip :discovery:distZip` produces:
+  - `graphentity-connector-<version>.zip`, for the IDM servers. Its `VERSION` file records the commit and the library mode.
+  - `graphentity-discovery-<version>.zip`, the discovery tool, for a workstation with Java 17 or later.
 
 ### 2.2 Copy the artefact
 Unpack the zip over the IDM installation directory (`<idm>`):
@@ -41,9 +45,12 @@ VERSION
 1. **Generate** `objectTypes`, the provisioner and the mapping skeletons with the discovery tool, from the live `managed.json`. Write your answers to the tool's prompts (entity kinds, ID properties, archetypes, relationship overrides) in `answers.json`. Use the read-only IDM account, with its password in the environment:
 
    ```bash
-   IDM_DISCOVERY_PASSWORD=… ./gradlew :discovery:run --args="--idm-url https://idm.example.com --idm-user discovery-reader \
-       --types user,account --answers answers.json --current samples/provisioner.openicf-graphentity.json --out generated"
+   IDM_DISCOVERY_PASSWORD=… graphentity-discovery-<version>/bin/discovery --idm-url https://idm.example.com \
+       --idm-user discovery-reader --types user,account --answers answers.json \
+       --current samples/provisioner.openicf-graphentity.json --out generated
    ```
+
+   Or offline, from an export of `managed.json`: `--managed managed.json` in place of `--idm-url` and `--idm-user` (deployment guide §6.1).
 
    Review the printed warnings, errors and diff. Nothing is written if there are errors.
 2. **Edit `generated/provisioner.openicf-graphentity.json`:**
@@ -68,7 +75,7 @@ VERSION
 
    If the type already has an `onUpdate` script, call the guard from inside that script.
 6. **Mappings.**
-   - Lint the generated `sync-<type>.json`: `./gradlew :discovery:run --args="--lint generated/sync-user.json …"`.
+   - Lint the generated `sync-<type>.json`: `bin/discovery --lint generated/sync-user.json …`.
    - Merge them into `conf/sync.json` with implicit sync **off** for onboarding (section 3).
    - The lint enforces two rules on the `entityRelationships` and `directArchetypes` mappings: they carry `"source": ""` and no `condition` (H12, §8.4).
 7. **Schedules:** see section 4.
