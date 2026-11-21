@@ -57,6 +57,57 @@ class ScrubberSpec extends Specification {
         s.scrubPath('/admin/entities/') == '/admin/entities/'
     }
 
+    def "real search results (uid, name, baseType, isArchetypes) are scrubbed"() {
+        when:
+        def out = s.scrub([results: [[uid: 'Cor', name: 'Cor', baseType: 'Subject', attributes: [Name: 'Cor Jette'],
+                                      isArchetypes: ['Customer'], directArchetypes: [], lastEvaluated: '2025-12-22T00:48:10Z']],
+                           pagedResultsCookie: null, totalResults: 1, hasMore: false])
+
+        then:
+        out.results[0] == [uid: 'scrubbed-1', name: 'scrubbed-1', baseType: 'Subject', attributes: [Name: Scrubber.REDACTED],
+                           isArchetypes: ['Customer'], directArchetypes: [], lastEvaluated: '2025-12-22T00:48:10Z']
+        out.totalResults == 1
+    }
+
+    def "the GET read model (id, Attributes objects, compound attributes, source/target relationships) is scrubbed"() {
+        when:
+        def out = s.scrub([id: 'Cor', baseType: 2, lastEvaluated: '2025-12-22T00:48:10Z', reconciliationStarted: null,
+                           Attributes: [Name: [name: 'Name', type: 'string', value: 'Cor Jette']],
+                           compoundAttributes: [Phones: [[name: 'Phone', type: 'string', value: '+61 400 000 000']]],
+                           relationships: [[source: 'Cor', target: 'Acct-1', type: 'OWNS', sourceType: 'Subject']]])
+
+        then:
+        out.id == 'scrubbed-1'
+        out.Attributes == [Name: [name: 'Name', type: 'string', value: Scrubber.REDACTED]]
+        out.compoundAttributes == [Phones: [[name: 'Phone', type: 'string', value: Scrubber.REDACTED]]]
+        out.relationships == [[source: 'scrubbed-1', target: 'scrubbed-2', type: 'OWNS', sourceType: 'Subject']]
+        !out.toString().contains('Cor')
+    }
+
+    def "the write model (id, attributes, sourceID/targetID relationships) is scrubbed"() {
+        expect:
+        s.scrub([id: 'Cor', baseType: 2, attributes: [Name: 'Cor Jette'], relationships: [[sourceID: 'Cor', targetID: 'Acct-1', type: 'OWNS']]]) ==
+            [id: 'scrubbed-1', baseType: 2, attributes: [Name: Scrubber.REDACTED], relationships: [[sourceID: 'scrubbed-1', targetID: 'scrubbed-2', type: 'OWNS']]]
+    }
+
+    def "fails closed: a result-list element with no recognisable ID is still scrubbed"() {
+        expect:
+        s.scrub([results: [[key: 'Cor', label: 'Cor Jette', baseType: 'Subject']]]).results[0] ==
+            [key: Scrubber.REDACTED, label: Scrubber.REDACTED, baseType: 'Subject']
+    }
+
+    def "a probe entity in a result list is kept"() {
+        expect:
+        s.scrub([results: [[uid: 'ws0-probe-r1-A', attributes: [probe: 'ws0']]]]).results[0] == [uid: 'ws0-probe-r1-A', attributes: [probe: 'ws0']]
+    }
+
+    def "every ID segment of a relationship path is aliased; endpoint keywords and probe IDs are kept"() {
+        expect:
+        s.scrubPath('/admin/entities/Cor/relationships/Acct-1/OWNS') == '/admin/entities/scrubbed-1/relationships/scrubbed-2/scrubbed-3'
+        s.scrubPath('/admin/entities/ws0-probe-r1-A/relationships/Cor') == '/admin/entities/ws0-probe-r1-A/relationships/scrubbed-1'
+        s.scrubPath('/admin/entities/bulk') == '/admin/entities/bulk'
+    }
+
     def "the search endpoint is not mistaken for an entity ID"() {
         expect:
         s.scrubPath('/admin/entities/search') == '/admin/entities/search'

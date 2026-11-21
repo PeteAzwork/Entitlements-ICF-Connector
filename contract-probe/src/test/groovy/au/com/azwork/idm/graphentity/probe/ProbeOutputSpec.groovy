@@ -81,6 +81,13 @@ class ProbeOutputSpec extends Specification {
         md.contains('probe entity IDs were deleted and confirmed gone')
     }
 
+    def "a non-JSON body is only written for error responses, truncated"() {
+        expect:
+        ProbeReport.persistedRawBody(new Exchange(status: 200, rawBody: 'Cor Jette')) == null
+        ProbeReport.persistedRawBody(new Exchange(status: 502, rawBody: 'Bad Gateway')) == 'Bad Gateway'
+        ProbeReport.persistedRawBody(new Exchange(status: 500, rawBody: 'x' * 600)).length() == 501
+    }
+
     def "evidence numbers are compressed into ranges"() {
         expect:
         ProbeReport.evidence([1, 2, 3, 7]) == '#1–#3 #7'

@@ -4,7 +4,7 @@ Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one 
 
 - **Design:** [`idm-graph-entity-connector-design.md`](idm-graph-entity-connector-design.md)
 - **Delivery plan and test strategy:** [`docs/delivery-plan.md`](docs/delivery-plan.md)
-- **Service contract (WS0 questions, answers and how to run the probe):** [`docs/service-contract.md`](docs/service-contract.md)
+- **Service contract (WS0 questions, answers, the real API's shape and how to run the probe):** [`docs/service-contract.md`](docs/service-contract.md)
 
 ## State of this repository
 
@@ -15,7 +15,7 @@ The build is test-first. The complete unit test suite is in place and the produc
 | Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 29 Spock specs, 537 executions | `./gradlew :connector:test` |
 | Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 4 specs, 41 executions | `./gradlew :discovery:test` |
 | Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 67 tests | `cd mapping-lib && npm test` |
-| Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 4 specs, 66 tests, all passing | `./gradlew :contract-probe:test` |
+| Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 81 tests, all passing | `./gradlew :contract-probe:test` |
 | Configuration samples | `config/` | — | — |
 
 ## Prerequisites
