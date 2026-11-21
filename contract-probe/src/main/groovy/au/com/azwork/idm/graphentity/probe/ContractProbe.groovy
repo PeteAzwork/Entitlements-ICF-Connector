@@ -347,45 +347,80 @@ class ContractProbe {
     }
 
     /**
-     * Finds one entity by search: an EQUALS filter on the ID when the ID filter field is known (P21), or else
-     * a scan of at most maxPages pages. Returns [exchange, item, searched]; searched is false when the search
-     * failed, or when a scan stopped before the last page without finding the entity.
+     * Repeats {@code attempt} until {@code done} accepts its result or the settle window closes (WS0.15e). The
+     * service applies writes with a short delay: search lags (C5), and GET fails while an entity is re-evaluated
+     * (C1). Returns [result, done, waitedMs, attempts]; with a zero window it makes exactly one attempt.
      */
-    Map findInSearch(String id, Integer objectClass = null) {
+    Map poll(Closure attempt, Closure<Boolean> done) {
+        long start = System.nanoTime()
+        long deadline = start + opts.settleSeconds * 1_000_000_000L
+        def r = attempt()
+        int n = 1
+        while (!done(r) && System.nanoTime() < deadline) {
+            sleep(opts.pollMillis)
+            r = attempt()
+            n++
+        }
+        [result: r, done: done(r), waitedMs: (long) ((System.nanoTime() - start) / 1_000_000L), attempts: n]
+    }
+
+    private static Map itemFor(Exchange ex, String id) { ex?.success ? items(ex).find { idOf(it) == id } : null }
+
+    /**
+     * Finds one entity by search: an EQUALS filter on the ID when the ID filter field is known (P21), or else
+     * a scan of at most maxPages pages. With a filter, it polls until {@code want} accepts the item found (or the
+     * null for none), so a write has time to show (C5). Returns [exchange, item, searched, settled, waitedMs];
+     * searched is false when the search failed, or when a scan stopped before the last page without finding the
+     * entity; settled is false when the window closed before {@code want} was satisfied.
+     */
+    Map findInSearch(String id, Integer objectClass = null, Closure<Boolean> want = { it != null }) {
         Map<String, Object> body = objectClass == null ? [:] : [objectClass: objectClass] as Map<String, Object>
         if (contract.idFilterField) {
-            def ex = search(body + [filter: idFilter(id), pageSize: 10])
-            return [exchange: ex, item: ex.success ? items(ex).find { idOf(it) == id } : null, searched: ex.success]
+            Map p = poll({ search(body + [filter: idFilter(id), pageSize: 10]) }, { Exchange ex -> !ex.success || want(itemFor(ex, id)) })
+            Exchange ex = p.result as Exchange
+            Map item = itemFor(ex, id)
+            return [exchange: ex, item: item, searched: ex.success, settled: ex.success && want(item), waitedMs: p.waitedMs]
         }
-        // No ID filter: scan pages. Absence only counts once the scan has reached the last page.
+        // No ID filter: scan pages once. Absence only counts once the scan has reached the last page.
         Map<String, Object> q = new LinkedHashMap<>(body)
         q.pageSize = 200
         Exchange ex = null
         for (int page = 0; page < opts.maxPages; page++) {
             ex = search(q)
-            if (!ex.success) return [exchange: ex, item: null, searched: false]
+            if (!ex.success) return [exchange: ex, item: null, searched: false, settled: false, waitedMs: 0L]
             Map hit = items(ex).find { idOf(it) == id }
-            if (hit) return [exchange: ex, item: hit, searched: true]
+            if (hit) return [exchange: ex, item: hit, searched: true, settled: want(hit), waitedMs: 0L]
             def env = envelope(ex.body)
-            if (items(ex).empty || env.cursor == null || env.hasMore == false) return [exchange: ex, item: null, searched: true]
+            if (items(ex).empty || env.cursor == null || env.hasMore == false) return [exchange: ex, item: null, searched: true, settled: want(null), waitedMs: 0L]
             q.pagedResultsCookie = env.cursor
         }
-        [exchange: ex, item: null, searched: false]
+        [exchange: ex, item: null, searched: false, settled: false, waitedMs: 0L]
     }
 
     /**
      * Reads one entity back: GET (the read model, with relationships), falling back to a search (a search item,
-     * with archetypes but no relationships) when GET fails (C1). Returns [via, doc, get, search, found].
-     * found is true or false when either read answered, null when neither could.
+     * with archetypes but no relationships) when GET fails (C1) or does not yet show what {@code want} asks for.
+     * Pass {@code { it == null }} to wait for an entity to disappear. Returns [via, doc, get, search, found,
+     * settled, waitedMs]. found is true or false when either read answered, null when neither could.
      */
-    Map readBack(String id) {
+    Map readBack(String id, Closure<Boolean> want = { it != null }) {
         def g = http.get(entityPath(id))
-        if (g.success && g.body instanceof Map) return [via: 'GET', doc: g.body as Map, get: g, found: true]
-        if (g.status == 404) return [via: 'GET', doc: null, get: g, found: false]
-        def s = findInSearch(id)
-        if (s.searched) return [via: 'search', doc: s.item, get: g, search: s.exchange, found: s.item != null]
-        [via: null, doc: null, get: g, search: s.exchange, found: null]
+        if (g.success && g.body instanceof Map && want(g.body)) return [via: 'GET', doc: g.body as Map, get: g, found: true, settled: true, waitedMs: 0L]
+        if (g.status == 404) return [via: 'GET', doc: null, get: g, found: false, settled: want(null), waitedMs: 0L]
+        def s = findInSearch(id, null, want)
+        if (s.searched) return [via: 'search', doc: s.item, get: g, search: s.exchange, found: s.item != null, settled: s.settled, waitedMs: s.waitedMs]
+        [via: null, doc: null, get: g, search: s.exchange, found: null, settled: false, waitedMs: s.waitedMs]
     }
+
+    /**
+     * GET, retried within the settle window until it answers 200 and, if given, {@code want} accepts the body, or
+     * it answers 404. GET fails with 500 while an entity is re-evaluated after a write that touches it (C1).
+     */
+    Exchange getSettled(String id, Closure<Boolean> want = null) {
+        poll({ http.get(entityPath(id)) }, { Exchange g -> g.status == 404 || (g.success && g.body instanceof Map && (want == null || want(g.body as Map))) }).result as Exchange
+    }
+
+    private String window() { opts.settleSeconds > 0 ? "within the ${opts.settleSeconds}s settle window" : 'with a single read (no settle window)' }
 
     // ------------------------------------------------------------------ WS0.10 auth
 
@@ -629,22 +664,46 @@ class ContractProbe {
 
     // ------------------------------------------------------------------ P22 manifests
 
-    /** Archetype names per base type from GET /admin/manifests. Only names are recorded; the rest may hold data. */
+    /**
+     * Archetype names per base type from GET /admin/manifests. The definition documents a list of manifests; the
+     * service returns an export bundle with the manifests nested inside (C11). Names are collected from every list
+     * under a {@code subjectArchetypes} or {@code resourceArchetypes} key, wherever it sits. Only names are recorded.
+     */
     void checkManifests() {
         def ex = http.get(MANIFESTS_PATH)
-        if (!(ex.success && ex.body instanceof List)) {
+        if (!ex.success) {
             add('WS0.15', 'manifests.archetypes', 'Which archetypes do the manifests define (P22)?',
-                ex.status == 404 ? '404: the service has no manifests, so no archetype is defined.' :
-                    (ex.success ? "Cannot tell: 200, but not the documented list of manifests. Outline: ${outline(ex.body)}." : "Cannot tell: ${ex.status}, ${shape(ex)}."),
-                ex.status == 404 ? 'observed' : 'inconclusive', 'The outline gives field names and types only, never values.', [ex])
+                ex.status == 404 ? '404: the service has no manifests, so no archetype is defined.' : "Cannot tell: ${ex.status}, ${shape(ex)}.",
+                ex.status == 404 ? 'observed' : 'inconclusive', null, [ex])
             return
         }
-        List<Map> ms = (ex.body as List).findAll { it instanceof Map } as List<Map>
-        Closure<List<String>> names = { String key -> ms.collectMany { m -> ((m[key] ?: []) as List).findAll { it instanceof Map }.collect { it.name as String } }.findAll().unique().sort() }
-        contract.subjectArchetypes = names('subjectArchetypes')
-        contract.resourceArchetypes = names('resourceArchetypes')
+        Map<String, Set<String>> found = [subjectArchetypes: [] as Set<String>, resourceArchetypes: [] as Set<String>]
+        int statements = 0
+        Closure walk
+        walk = { Object n ->
+            if (n instanceof Map) {
+                Map m = n as Map
+                if (found.keySet().any { m[it] instanceof List }) statements++
+                m.each { k, v ->
+                    if (found.containsKey(k) && v instanceof List) (v as List).findAll { it instanceof Map && (it as Map).name instanceof String }.each { found[k] << ((it as Map).name as String) }
+                    else walk(v)
+                }
+            } else if (n instanceof List) {
+                (n as List).each { walk(it) }
+            }
+        }
+        walk(ex.body)
+        contract.subjectArchetypes = found.subjectArchetypes.sort()
+        contract.resourceArchetypes = found.resourceArchetypes.sort()
+        boolean documented = ex.body instanceof List
+        if (!statements) {
+            add('WS0.15', 'manifests.archetypes', 'Which archetypes do the manifests define (P22)?',
+                "Cannot tell: 200, but no archetype lists were found. Outline: ${outline(ex.body)}.", 'inconclusive',
+                'The outline gives field names and types only, never values.', [ex])
+            return
+        }
         add('WS0.15', 'manifests.archetypes', 'Which archetypes do the manifests define (P22)?',
-            "${ms.size()} manifest(s). Subject archetypes: ${contract.subjectArchetypes ? (contract.subjectArchetypes as List).join(', ') : 'none'}. Resource archetypes: ${contract.resourceArchetypes ? (contract.resourceArchetypes as List).join(', ') : 'none'}.",
+            "${statements} manifest(s)${documented ? '' : ', nested in an export bundle rather than the documented list (C11)'}. Subject archetypes: ${contract.subjectArchetypes ? (contract.subjectArchetypes as List).join(', ') : 'none'}. Resource archetypes: ${contract.resourceArchetypes ? (contract.resourceArchetypes as List).join(', ') : 'none'}.",
             'observed', 'Every archetype the connector is configured with must be listed here for its base type. Only archetype names are recorded.', [ex])
     }
 
@@ -672,8 +731,8 @@ class ContractProbe {
         add('WS0.05', 'errors.nonStringAttribute', 'What does a POST with a non-string attribute value return (P20)?', "${nonString.status}: ${shape(nonString)}", 'observed', null, [nonString])
         Map rb = putMissing.success ? readBack(ghost) : null
         String upsert = rb == null ? '' :
-            (rb.found == true ? ". A read-back finds the entity, so PUT creates missing entities (upsert), which the design does not expect." :
-             (rb.found == false ? ". A read-back ${rb.via == 'GET' ? '(GET 404)' : 'by search'} does not find it, so the 2xx did not create anything." :
+            (rb.found == true ? ". A read-back finds the entity, so PUT creates missing entities (upsert, C2)." :
+             (rb.found == false ? ". A read-back ${rb.via == 'GET' ? '(GET 404)' : "by search, ${window()}"} does not find it, so the 2xx did not create anything." :
               ". Whether it created the entity cannot be told: GET returned ${rb.get.status} and no search was possible."))
         add('WS0.05', 'errors.putMissing', 'What does a PUT to a missing entity return (C2)?',
             "${putMissing.status}: ${shape(putMissing)}${upsert}", 'observed', null, [putMissing, rb?.get, rb?.search])
@@ -730,35 +789,33 @@ class ContractProbe {
     }
 
     /**
-     * Does search stop returning an entity once it is deleted? The 19 entities the first write run left behind
-     * suggest not: either DELETE does nothing, or search keeps deleted entities. Until this answers yes, a search
+     * Does a deleted entity disappear? The owner reports deletes work (C10); the first runs read straight after
+     * the DELETE and still saw the entity, so this waits within the settle window. Until it answers yes, a search
      * miss cannot prove a deletion (see {@link #cleanup}).
      */
     void checkSearchReflectsDelete() {
         String Z = pid('delete-check')
+        String q = 'Does a deleted entity disappear from search?'
         def c = createProbe(probeDoc(Z))
         Map before = c.success ? findInSearch(Z) : null
         if (!c.success || !before.searched || !before.item) {
-            add('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?',
-                !c.success ? "Cannot tell: the create failed (${c.status})." : 'Cannot tell: the created entity is not found by search, so its removal cannot be seen there (C5).',
+            add('WS0.02', 'search.reflectsDelete', q,
+                !c.success ? "Cannot tell: the create failed (${c.status})." : "Cannot tell: the created entity never appeared in search ${window()} (C5).",
                 'inconclusive', null, [c, before?.exchange])
             return
         }
         def d = http.delete(entityPath(Z))
-        Map after = findInSearch(Z)
-        if (after.item && opts.settleSeconds > 0) {
-            sleep(opts.settleSeconds * 1000L)
-            after = findInSearch(Z)
-        }
+        Map after = findInSearch(Z, null, { it == null })
+        def g = http.get(entityPath(Z))
         if (!after.searched) {
-            add('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?', "Cannot tell: the search after DELETE failed (${after.exchange?.status}).", 'inconclusive', null, [c, before.exchange, d, after.exchange])
+            add('WS0.02', 'search.reflectsDelete', q, "Cannot tell: the search after DELETE failed (${after.exchange?.status}).", 'inconclusive', null, [c, before.exchange, d, after.exchange, g])
             return
         }
         contract.searchReflectsDelete = after.item == null
-        add('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?',
-            after.item == null ? "Yes: after DELETE (${d.status}) a search no longer finds it." :
-                "No: after DELETE (${d.status}) a search still finds it${opts.settleSeconds > 0 ? " ${opts.settleSeconds}s later" : ''}. Either DELETE does nothing or search keeps deleted entities. GET fails (C1), so the probe cannot tell which; a search miss is not proof of deletion in this run.",
-            'observed', null, [c, before.exchange, d, after.exchange])
+        add('WS0.02', 'search.reflectsDelete', q,
+            after.item == null ? "Yes: after DELETE (${d.status}) it was gone from search in ${after.waitedMs} ms. GET then returns ${g.status}." :
+                "No: after DELETE (${d.status}) search still finds it ${window()}, and GET returns ${g.status}${g.success ? ' with the entity' : ''}. Deletion is slower than the window, or did not happen (C10).",
+            'observed', null, [c, before.exchange, d, after.exchange, g])
     }
 
     /** Read-only: entities left by earlier probe runs (any ID under the probe namespace but not this run's prefix). */
@@ -791,14 +848,16 @@ class ContractProbe {
         Map fsSubject = findInSearch(S, SUBJECT)
         List<Exchange> ev = [cs, cr, fs.exchange, fr.exchange, fsSubject.exchange]
         boolean visible = fs.item != null && fr.item != null
-        add('WS0.02', 'search.createdVisible', 'Is a newly created entity found by search (C5)?',
+        long lag = Math.max(fs.waitedMs as long, fr.waitedMs as long)
+        if (visible) contract.searchLagMs = lag
+        add('WS0.02', 'search.createdVisible', 'Is a newly created entity found by search, and how soon (C5)?',
             !fs.searched ? 'Cannot tell: no search was possible.' :
-                (visible ? 'Yes: both created entities are found by a search on their ID.' :
-                    "No: ${[fs.item ? null : 'the base-type-4 entity', fr.item ? null : 'the base-type-2 entity'].findAll().join(' and ')} not found by a search on the ID. Creates may not be committed, or search may lag (C5)."),
+                (visible ? "Yes: both created entities were found by a search on their ID within ${lag} ms." :
+                    "No: ${[fs.item ? null : 'the base-type-4 entity', fr.item ? null : 'the base-type-2 entity'].findAll().join(' and ')} not found by a search on the ID ${window()}."),
             fs.searched ? 'observed' : 'inconclusive', null, ev)
         if (!fs.item) {
             add('WS0.15', 'baseType.create', 'Is an entity created with base type 4 a Subject (P18)?',
-                'Cannot tell: the created entity is not found by search.', 'inconclusive', null, ev)
+                "Cannot tell: the created entity is not found by search ${window()}.", 'inconclusive', null, ev)
             return
         }
         Object named4 = baseTypeOf(fs.item), named2 = fr.item ? baseTypeOf(fr.item) : null
@@ -810,144 +869,158 @@ class ContractProbe {
         contract.baseTypeOnCreate = holds ? 'confirmed: 4 = Subject' : "refuted: 4 = ${named4}"
     }
 
-    /** P17, A7, Q07.8 and the relationship endpoints. Relationships are only in the read model, so every answer needs GET. */
+    /**
+     * P15, P17, A7, Q07.8 and the relationship endpoints. Relationships are only in the read model, so every answer
+     * needs GET. Each read is retried within the settle window, until it shows the outcome being tested for or the
+     * window closes; "No" answers therefore mean "not within the window".
+     */
     void checkEdgeSemantics() {
         String A = pid('edge-A'), B = pid('edge-B'), C = pid('edge-C')
         Map ab = edge(A, B)
+        Closure<Boolean> linked = { Map d -> hasEdge(d, A, B) }
+        Closure<Boolean> unlinked = { Map d -> !hasEdge(d, A, B) }
+        String w = "Read ${window()}."
 
         def postA = createProbe(probeDoc(A, [ab]))
         if (!postA.success) {
             add('WS0.07', 'edges.postToMissing', 'What happens to a relationship to a missing entity on POST (A7)?', "The POST itself failed: ${postA.status}, ${shape(postA)}.", 'error', null, [postA])
             return
         }
-        def getA1 = http.get(entityPath(A))
+        def getA1 = getSettled(A)
         addFromReads('WS0.07', 'edges.postToMissing', 'What happens to a relationship to a missing entity on POST (A7)?', [getA1], {
             hasEdge(getA1.body as Map, A, B) ? 'Kept: the relationship is stored although the other entity does not exist.' : 'Dropped silently: POST succeeded and the relationship is absent.'
-        }, "POST ${postA.status}.", [postA, getA1])
+        }, "POST ${postA.status}. ${w}", [postA, getA1])
 
         def dup = createProbe(probeDoc(A, [ab], [probe: 'second']))
-        Map rbDup = readBack(A)
+        Map rbDup = readBack(A, { Map d -> d != null && attributesOf(d).probe == 'second' })
         addFromReads('WS0.04', 'create.duplicate', 'What does a duplicate POST return?', [rbDup.found == null ? null : (rbDup.search ?: rbDup.get)], {
-            boolean replaced = attributesOf(rbDup.doc).probe == 'second'
-            dup.status == 409 ? '409, and the entity is unchanged.' : "${dup.status}${dup.success ? '' : ": ${shape(dup)}"}, and the entity was ${replaced ? 'replaced (upsert)' : 'left unchanged'}."
+            boolean replaced = rbDup.settled && attributesOf(rbDup.doc).probe == 'second'
+            dup.status == 409 ? '409, and the entity is unchanged.' :
+                "${dup.status}${dup.success ? '' : ": ${shape(dup)}"}, and the entity was ${replaced ? "replaced (upsert), visible after ${rbDup.waitedMs} ms" : "left unchanged ${window()}"}."
         }, "Duplicate POST returned ${dup.status}. Read back by ${rbDup.via ?: 'nothing'}.", [dup, rbDup.get, rbDup.search])
         if (dup.success) putProbe(probeDoc(A, [ab]))   // restore the original attributes either way
 
         def postB = createProbe(probeDoc(B, [ab]))
-        def getA2 = http.get(entityPath(A))
-        def getB1 = http.get(entityPath(B))
+        def getA2 = getSettled(A, linked)
+        def getB1 = getSettled(B, linked)
         addFromReads('WS0.07', 'edges.inboundOnCreate', 'Does a relationship in the target\'s POST link it to an existing source?', [getA2], {
             hasEdge(getA2.body as Map, A, B) ? 'Yes: A now shows A → B.' : 'No: A does not show A → B.'
-        }, "POST B ${postB.status}, carrying the same relationship as A's.", [postB, getA2])
+        }, "POST B ${postB.status}, carrying the same relationship as A's. ${w}", [postB, getA2])
         addFromReads('WS0.07', 'edges.getShowsInbound', 'Does GET of the target show the relationship, with the other entity as source?', [getB1], {
             hasEdge(getB1.body as Map, A, B) ? 'Yes: B lists A → B.' : "No: B's relationships are ${scrubber.scrub(relationshipsOf(getB1.body as Map))}."
-        }, null, [getB1])
+        }, w, [getB1])
         if (getB1.success && relationshipsOf(getB1.body as Map)) {
             Set<String> keys = relationshipsOf(getB1.body as Map).collectMany { it.keySet() as List } as Set<String>
             add('WS0.07', 'edges.readShape', 'Which keys does the read model use for a relationship (P17)?', keys.sort().join(', '), 'observed', null, [getB1])
         }
 
         def putA = putProbe(probeDoc(A, []))
-        def getB2 = http.get(entityPath(B))
+        def getB2 = getSettled(B, unlinked)
         addFromReads('WS0.07', 'edges.sourceOmission', 'Does writing the source without the relationship delete it (P15)?', [getB2], {
-            hasEdge(getB2.body as Map, A, B) ? 'No: B still lists A → B.' : 'Yes: B no longer lists A → B.'
+            hasEdge(getB2.body as Map, A, B) ? "No: B still lists A → B ${window()}." : 'Yes: B no longer lists A → B.'
         }, "PUT A ${putA.status}.", [putA, getB2])
 
         def putB = putProbe(probeDoc(B, [ab]))
-        def getA3 = http.get(entityPath(A))
+        def getA3 = getSettled(A, linked)
         addFromReads('WS0.07', 'edges.inboundOnPut', 'Does a relationship in the target\'s PUT link the entities?', [getA3], {
-            hasEdge(getA3.body as Map, A, B) ? 'Yes: A shows A → B again.' : 'No.'
+            hasEdge(getA3.body as Map, A, B) ? 'Yes: A shows A → B again.' : "No, not ${window()}."
         }, "PUT B ${putB.status}.", [putB, getA3])
 
         def putB2 = putProbe(probeDoc(B, []))
-        def getA4 = http.get(entityPath(A))
+        def getA4 = getSettled(A, unlinked)
         addFromReads('WS0.07', 'edges.targetOmission', 'Does writing the target without the relationship delete it (Q07.8)?', [getA4], {
             hasEdge(getA4.body as Map, A, B) ?
-                'No: A still lists A → B. A write only removes relationships where the entity is the source.' :
+                "No: A still lists A → B ${window()}. A write only removes relationships where the entity is the source." :
                 'Yes: A no longer lists A → B. Every write must list the relationships where the entity is the target, as design A2 provides.'
         }, "PUT B without the relationship: ${putB2.status}.", [putB2, getA4])
 
         def putAC = putProbe(probeDoc(A, [ab, edge(A, C)]))
-        def getA5 = http.get(entityPath(A))
+        def getA5 = getSettled(A, linked)
         if (!putAC.success) {
             add('WS0.07', 'edges.putToMissing', 'What happens to a relationship to a missing entity on PUT?', "Rejected: ${putAC.status}, ${shape(putAC)}.", 'observed', null, [putAC])
         } else {
             addFromReads('WS0.07', 'edges.putToMissing', 'What happens to a relationship to a missing entity on PUT?', [getA5], {
                 hasEdge(getA5.body as Map, A, C) ? 'Kept dangling: the relationship to the missing entity is stored.' :
                     (hasEdge(getA5.body as Map, A, B) ? 'Dropped silently: PUT succeeded and only the relationship to the existing entity remains.' : 'Both relationships are absent.')
-            }, null, [putAC, getA5])
+            }, w, [putAC, getA5])
         }
 
         String relPath = entityPath(A) + '/relationships'
         def del = http.delete(relPath + '/' + ProbeHttp.encodeSegment(B) + '/' + EDGE_TYPE)
-        def getA6 = http.get(entityPath(A))
+        def getA6 = getSettled(A, unlinked)
         def addRel = http.post(relPath, ab)
-        def getA7 = http.get(entityPath(A))
+        def getA7 = getSettled(A, linked)
         addFromReads('WS0.07', 'edges.relationshipEndpoints', 'Do the relationship endpoints remove and add one relationship?', [getA6, getA7], {
-            "DELETE ${del.status}: ${hasEdge(getA6.body as Map, A, B) ? 'A still lists A → B' : 'removed'}. POST ${addRel.status}: ${hasEdge(getA7.body as Map, A, B) ? 'added back' : 'not added'}. The connector does not use them (P15)."
+            "DELETE ${del.status}: ${hasEdge(getA6.body as Map, A, B) ? "A still lists A → B ${window()}" : 'removed'}. POST ${addRel.status}: ${hasEdge(getA7.body as Map, A, B) ? 'added back' : 'not added'}. The connector does not use them (P15)."
         }, null, [del, getA6, addRel, getA7])
 
         def delB = http.delete(entityPath(B))
-        def getA8 = http.get(entityPath(A))
+        def getA8 = getSettled(A, unlinked)
         def getB3 = http.get(entityPath(B))
         addFromReads('WS0.07', 'edges.deleteCascades', 'Does DELETE remove the relationships touching the entity?', [getA8], {
-            hasEdge(getA8.body as Map, A, B) ? 'No: A still lists a relationship to the deleted entity.' : 'Yes: A no longer lists it.'
+            hasEdge(getA8.body as Map, A, B) ? "No: A still lists a relationship to the deleted entity ${window()}." : 'Yes: A no longer lists it.'
         }, "DELETE ${delB.status} (${shape(delB)}); GET of the deleted entity then returns ${getB3.status}.", [delB, getA8, getB3])
     }
 
-    /** P20: does an update that omits an attribute remove it? Reads back by GET, or by search while GET fails. */
+    /**
+     * P20: does an update that omits an attribute remove it? Waits until the update's own change ({@code keep}
+     * becoming {@code k2}) is visible before judging the omitted attribute.
+     */
     void checkAttributeOmission() {
         String X = pid('attrs')
+        String q = 'Does an update that omits an attribute remove it (P20)?'
         def c = createProbe(probeDoc(X, [], [keep: 'k1', drop: 'd1']))
         def p = putProbe(probeDoc(X, [], [keep: 'k2']))
         if (!c.success || !p.success) {
-            add('WS0.15', 'attributes.omission', 'Does an update that omits an attribute remove it (P20)?', "A write failed: POST ${c.status}, PUT ${p.status}.", 'error', null, [c, p])
+            add('WS0.15', 'attributes.omission', q, "A write failed: POST ${c.status}, PUT ${p.status}.", 'error', null, [c, p])
             return
         }
-        Map rb = readBack(X)
-        if (rb.found == false) {
-            add('WS0.15', 'attributes.omission', 'Does an update that omits an attribute remove it (P20)?',
-                "Cannot tell: the entity is not found after its create and update (by ${rb.via}; C5).", 'inconclusive', null, [c, p, rb.get, rb.search])
+        Map rb = readBack(X, { Map d -> d != null && attributesOf(d).keep == 'k2' })
+        if (!rb.found || !rb.settled) {
+            add('WS0.15', 'attributes.omission', q,
+                rb.found == null ? "Cannot tell: GET returned ${rb.get.status} and no search was possible." :
+                    "Cannot tell: the update never became visible ${window()} (read by ${rb.via}).", 'inconclusive', null, [c, p, rb.get, rb.search])
             return
         }
         Map attrs = attributesOf(rb.doc)
-        addFromReads('WS0.15', 'attributes.omission', 'Does an update that omits an attribute remove it (P20)?', [rb.found ? (rb.search ?: rb.get) : null], {
-            String updated = attrs.keep == 'k2' ? '`keep` was updated' : "`keep` reads ${attrs.keep == null ? 'absent' : 'unchanged'}"
-            attrs.containsKey('drop') ? "No: the omitted attribute is still there (${updated}). The connector must send empty values explicitly instead of omitting them." :
-                "Yes: the omitted attribute is gone, and ${updated}."
-        }, "Read back by ${rb.via ?: 'nothing'}.", [c, p, rb.get, rb.search])
+        add('WS0.15', 'attributes.omission', q,
+            attrs.containsKey('drop') ? 'No: once the update was visible, the omitted attribute was still there. The connector must send empty values explicitly instead of omitting them.' :
+                "Yes: once the update was visible (after ${rb.waitedMs} ms), the omitted attribute was gone.",
+            'observed', "Read back by ${rb.via}.", [c, p, rb.get, rb.search])
     }
 
-    /** P22: does an update replace directArchetypes in full? Archetypes are only in search items. */
+    /**
+     * P22: does an update replace directArchetypes in full? Archetypes are only in search items, reported in
+     * isArchetypes (C9). Each write carries a {@code rev} marker, and the check waits for it before comparing. The
+     * archetypes come from --archetypes, else the manifests, else two probe archetypes: the service accepts
+     * archetype names that no manifest defines.
+     */
     void checkArchetypeReplacement() {
+        String q = 'Does an update replace directArchetypes in full (P22)?'
         List<String> pool = (opts.archetypes ?: contract.resourceArchetypes ?: []) as List<String>
-        if (pool.size() < 2) {
-            add('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?',
-                'Not tested: it needs two Resource archetypes, from the manifests or --archetypes.', 'not-tested')
-            return
-        }
+        String source = opts.archetypes ? '--archetypes' : (pool.size() >= 2 ? 'the manifests' : 'probe archetypes')
+        if (pool.size() < 2) pool = [PROBE_ARCHETYPE + 'A', PROBE_ARCHETYPE + 'B']
         String a1 = pool[0], a2 = pool[1], Y = pid('archetypes')
-        def c = createProbe(probeDoc(Y, [], [:], RESOURCE, [a1, a2]))
-        Map before = findInSearch(Y)
-        def p = putProbe(probeDoc(Y, [], [:], RESOURCE, [a2]))
-        Map after = findInSearch(Y)
-        List<Exchange> ev = [c, before.exchange, p, after.exchange]
+        def c = createProbe(probeDoc(Y, [], [rev: '1'], RESOURCE, [a1, a2]))
+        Map before = c.success ? findInSearch(Y, null, { Map i -> i != null && attributesOf(i).rev == '1' }) : null
+        def p = putProbe(probeDoc(Y, [], [rev: '2'], RESOURCE, [a2]))
+        Map after = p.success ? findInSearch(Y, null, { Map i -> i != null && attributesOf(i).rev == '2' }) : null
+        List<Exchange> ev = [c, before?.exchange, p, after?.exchange]
         if (!c.success || !p.success) {
-            add('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?', "A write failed: POST ${c.status}, PUT ${p.status}. ${shape(c.success ? p : c)}.", 'error', null, ev)
+            add('WS0.15', 'archetypes.replace', q, "A write failed: POST ${c.status}, PUT ${p.status}. ${shape(c.success ? p : c)}.", 'error', null, ev)
             return
         }
-        if (before.searched && after.searched && !(before.item && after.item)) {
-            add('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?',
-                'Cannot tell: the entity is not found by search after its create or update (C5).', 'inconclusive', null, ev)
+        if (!before.settled || !after.settled) {
+            add('WS0.15', 'archetypes.replace', q,
+                "Cannot tell: the ${!before.settled ? 'create' : 'update'} never became visible in search ${window()} (C5).", 'inconclusive', null, ev)
             return
         }
         List stored = archetypesOf(before.item), now = archetypesOf(after.item)
-        addFromReads('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?',
-            [before.item ? before.exchange : null, after.item ? after.exchange : null], {
-            String created = stored == [a1, a2] ? 'Created with both' : "Created with ${stored}"
+        String created = stored as Set == [a1, a2] as Set ? 'Created with both' : "Created with ${stored}"
+        add('WS0.15', 'archetypes.replace', q,
             now == [a2] ? "Yes: ${created}; after an update listing only `${a2}`, only `${a2}` remains." :
-                "No: ${created}; after an update listing only `${a2}`, the entity lists ${now}. The service merges archetypes, so removing one needs the assignment endpoint."
-        }, "Archetypes used: ${a1}, ${a2}.", ev)
+                "No: ${created}; after an update listing only `${a2}`, the entity lists ${now}. The service merges archetypes, so removing one needs the assignment endpoint.",
+            'observed', "Archetypes ${a1}, ${a2}, from ${source}. Read from isArchetypes, where search reports them (C9).", ev)
     }
 
     // ------------------------------------------------------------------ WS0.09 IDs
@@ -970,12 +1043,15 @@ class ContractProbe {
         String mixed = pid('CaseTest')
         def c = createProbe(probeDoc(mixed))
         touched << mixed.toLowerCase()
-        Map lower = readBack(mixed.toLowerCase())
+        // Wait until the entity itself is visible; only then does a miss on the lower-cased ID mean something.
+        Map self = c.success ? findInSearch(mixed) : null
+        Map lower = self?.item ? findInSearch(mixed.toLowerCase(), null, { true }) : null
         add('WS0.09', 'ids.caseSensitivity', 'Are IDs case-sensitive?',
             !c.success ? "Could not create the test entity: ${c.status}." :
-                (lower.found == false ? "Yes: the lower-cased ID is not found (by ${lower.via})." :
-                    (lower.found ? "No: the lower-cased ID finds the entity (by ${lower.via})." : "Unclear: GET returned ${lower.get.status} and no search was possible.")),
-            c.success ? 'observed' : 'error', null, [c, lower.get, lower.search])
+                (!self.item ? "Cannot tell: the entity itself never appeared in search ${window()}." :
+                    (!lower.searched ? "Cannot tell: the search for the lower-cased ID failed (${lower.exchange?.status})." :
+                        (lower.item ? 'No: a search for the lower-cased ID finds the entity.' : 'Yes: the entity is in search, and a search for the lower-cased ID does not find it.'))),
+            !c.success ? 'error' : (self.item && lower.searched ? 'observed' : 'inconclusive'), null, [c, self?.exchange, lower?.exchange])
     }
 
     private void idRoundTrip(String label, String id) {
@@ -990,12 +1066,12 @@ class ContractProbe {
         if (g.success && g.body instanceof Map) back = idOf(g.body as Map)
         else { s = findInSearch(id); back = idOf(s.item) }
         def d = http.delete(entityPath(id))
-        Map gone = readBack(id)
+        Map gone = readBack(id, { it == null })
         String via = g.success ? 'read back by GET' : "GET by the encoded ID returned ${g.status}, but a search finds it"
         String answer = back == id ?
             (d.success && gone.found == false ? "Yes: created, ${via} unchanged, and deleted${gone.via == 'search' ? ' (no longer found by search)' : ''}." : "Created and ${via}, but delete returned ${d.status} and removal was ${gone.found == null ? 'not confirmed' : (gone.found ? "not visible: ${gone.via == 'search' ? 'search' : 'GET'} still finds it" : 'confirmed')}.") :
             (back ? "Created, but read back as a different ID (${scrubber.isProbeId(back) ? back : 'other'})." :
-                "Created, but neither GET by the encoded ID (${g.status}) nor a search finds it.")
+                "Created, but neither GET by the encoded ID (${g.status}) nor a search ${window()} finds it.")
         add('WS0.09', "ids.${label}", "Is an ID with ${label} accepted and addressable when percent-encoded?", answer,
             'observed', "Path used: ${entityPath(id).take(120)}", [c, g, s?.exchange, d, gone.get, gone.search])
     }
@@ -1014,6 +1090,8 @@ class ContractProbe {
             add('WS0.03', 'paging.updateDuringEnumeration', 'Can an entity updated mid-enumeration be skipped or returned twice?', 'Could not create the four test entities.', 'error')
             return
         }
+        // Wait until all four are visible, or a lagging index would look like skipped entities (C5).
+        poll({ search([filter: idFilter(pid('stab-'), 'STARTSWITH'), pageSize: 10]) }, { Exchange ex -> !ex.success || ids(ex).size() >= 4 })
         Map<String, Integer> seen = stab.collectEntries { [(it): 0] }
         boolean touchedOne = false
         enumerate([filter: idFilter(pid('stab-'), 'STARTSWITH')], 1, 50) { List<Map> page ->
@@ -1058,7 +1136,7 @@ class ContractProbe {
         }
         boolean searchProves = contract.searchReflectsDelete == true
         touched.each { id ->
-            Map rb = readBack(id)
+            Map rb = readBack(id, { it == null })
             boolean wasWritten = id in written
             if (rb.found == true) cleanupProblems << "${id} still ${rb.via == 'search' ? 'found by search' : 'exists'} after cleanup".toString()
             else if (rb.found == false && rb.via == 'GET') cleanupConfirmedBy[id] = 'GET 404'

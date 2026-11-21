@@ -16,7 +16,7 @@ The build is test-first. The complete unit test suite is in place and the produc
 | Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 29 Spock specs, 601 executions | `./gradlew :connector:test` |
 | Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 4 specs, 45 executions | `./gradlew :discovery:test` |
 | Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 69 tests | `cd mapping-lib && npm test` |
-| Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 109 tests, all passing | `./gradlew :contract-probe:test` |
+| Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 114 tests, all passing | `./gradlew :contract-probe:test` |
 | Configuration samples | `config/` | — | — |
 
 ## Prerequisites
@@ -40,7 +40,7 @@ cd mapping-lib && npm test
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY --allow-writes"  # test instance only
 ```
 
-The probe sends the service's own shapes (EntityDTO writes, `POST /admin/entities/search` with a JSON body) and reads back by search where GET by ID fails. The write run is the one that confirms the base-type numbering (P18) before anything else creates entities; it stamps two Resource archetypes from the manifests on a probe entity, or the ones given with `--archetypes A,B`. The key is sent raw in the `X-API-KEY` header. `--api-key` keeps it in your shell history and shows it in the process list. To avoid that, leave the option out and set `GRAPH_PROBE_API_KEY` in the same terminal instead.
+The probe sends the service's own shapes (EntityDTO writes, `POST /admin/entities/search` with a JSON body) and reads back by search where GET by ID fails. The write run is the one that confirms the base-type numbering (P18) before anything else creates entities; it stamps two Resource archetypes on a probe entity (from `--archetypes A,B`, the manifests, or its own). Read-backs wait up to `--settle-seconds` (default 10) for each write to show, because the service applies writes with a short delay. The key is sent raw in the `X-API-KEY` header. `--api-key` keeps it in your shell history and shows it in the process list. To avoid that, leave the option out and set `GRAPH_PROBE_API_KEY` in the same terminal instead.
 
 To run without Gradle at run time, build the launcher once with `./gradlew :contract-probe:installDist`, then run `contract-probe/build/install/contract-probe/bin/contract-probe --base-url URL --api-key KEY`.
 

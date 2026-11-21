@@ -24,7 +24,9 @@ Most questions can be answered by observation with the contract probe in `contra
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
 ```
 
-**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: by default the first two the manifests define, or the ones given with `--archetypes A,B`.
+**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: the ones given with `--archetypes A,B`, else the first two the manifests define, else two probe archetypes (`Ws0ProbeA`, `Ws0ProbeB`). The service accepts archetype names no manifest defines.
+
+**Settle window.** The service applies writes with a short delay: search lags (C5), and GET fails while an entity is re-evaluated (C1). So every read-back after a write waits, polling, for up to `--settle-seconds` (default 10) until the write is visible. A "No" answer then means "not within the window". Raise the window if answers look like timing rather than behaviour; `--settle-seconds 0` reads once, as the first runs did.
 
 ```bash
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY --allow-writes"
@@ -316,8 +318,12 @@ The timestamp checks are gone: the service has no timestamp search (P16). Cleanu
 
 It also showed that search reports directly assigned archetypes under `isArchetypes`, which the service owner confirms is by design (C9). C8 is also by design. The probe's readings suggested DELETE removes nothing, but the service owner reports deletes work (C10). The readings were probably taken before a delayed deletion applied. Several answers came back "cannot tell" because the probe read once, straight after a write: search lags slightly (C5), and GET fails while an entity is being re-evaluated after a write (C1).
 
-**Next:**
-- **Probe (plan WS0.15e):** wait for a write to show up before reading it back. Poll search, retry GET within a short settle window, and read archetypes from either field. Find the archetype names inside the manifests bundle (C11). When the manifests give none, use probe archetypes for the P22 check, since the service does not validate archetype names.
+**Done since (plan WS0.15e):** read-backs wait within the settle window, archetypes are read from either field, and archetype names are found anywhere in the manifests bundle.
+
+**Next:** a write run with the settle window, to answer P15, P20, P22, Q09.3 and C10.
+
+**Earlier next steps:**
+- **Probe (plan WS0.15e, now done):** wait for a write to show up before reading it back. Poll search, retry GET within a short settle window, and read archetypes from either field. Find the archetype names inside the manifests bundle (C11). When the manifests give none, use probe archetypes for the P22 check, since the service does not validate archetype names.
 - **Connector (plan WS0.19):** send `attributes.ID` on every write (C8, by design). Read archetypes from `isArchetypes` (C9, by design; P19 amended). Done in the specs, fakes and probe; the implementation follows in WS2 and WS4.
 - **Leftovers:** the next run's `probe.leftovers` will show whether the entities from `155100` and `190350` have been deleted (C10).
 - **Service team:** raise C1 first. C8 and C9 are by design. C10 is reported as working.
@@ -326,6 +332,7 @@ It also showed that search reports directly assigned archetypes under `isArchety
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Probe WS0.15e: read-backs wait within a settle window (`--settle-seconds`, default 10) for writes to show. Archetypes are read from either field, probe archetypes are used when none are given, and manifest archetype names are found inside the export bundle. |
 | 2026-11-21 | P19 amended by the owner: enumeration scopes on `isArchetypes` (C9). The specs, fake, fixtures and probe now send `attributes.ID` (C8) and read archetypes from `isArchetypes` (plan WS0.18, WS0.19). |
 | 2026-11-21 | Service owner's clarifications: C8 (`attributes.ID` required) and C9 (directly assigned archetypes reported in `isArchetypes`) are by design. Deletes work, so C10 is re-framed as delayed deletion, to be re-checked. Design §2.1, §8.3, §8.4, §9.4, §13 and Appendix A updated. |
 | 2026-11-21 | Folded in write run `20261121-190350`. C8 answered (`attributes.ID` required); C6/P18 confirmed on create; C2 is an upsert; C10 is a DELETE that removes nothing; C9 confirmed (direct archetypes reported in `isArchetypes`); C5 is search lag; C1 refined (GET fails during re-evaluation and for some long-standing entities); C11 is a wrapped export bundle. Answered Q03.6, Q05.3, Q07.6 and Q07.8, and partly answered Q04.1, Q09.1 and Q09.2. |

@@ -29,7 +29,7 @@ class ProbeOutputSpec extends Specification {
         def server = new FakeGraphHttpServer(service).start()
         try {
             probe = new ContractProbe(new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
-                runId: 'out1', outDir: dir, allowWrites: true, timeoutSeconds: 5)).run()
+                runId: 'out1', outDir: dir, allowWrites: true, timeoutSeconds: 5, settleSeconds: 0)).run()
             ProbeReport.write(probe, dir)
         } finally {
             server.close()

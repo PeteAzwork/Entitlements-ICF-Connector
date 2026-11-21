@@ -154,7 +154,8 @@ class RealShapedServiceSpec extends Specification {
     def "C2, C3 and C4 are recorded as the real service answers them"() {
         expect:
         f(probe, 'errors.putMissing').answer.startsWith('200')
-        f(probe, 'errors.putMissing').answer.contains('by search does not find it')
+        f(probe, 'errors.putMissing').answer.contains('by search')
+        f(probe, 'errors.putMissing').answer.contains('does not find it')
         !f(probe, 'errors.putMissing').answer.contains('creates missing entities')
         f(probe, 'errors.deleteMissing').answer.startsWith('200')
         f(probe, 'errors.postWithoutId').answer.startsWith('500')
