@@ -34,12 +34,27 @@ sourceSets {
     }
 }
 
+// The connector library as a jar, without the operation scripts (WS7.02). IDM 7.5's Groovy fails to compile the
+// library from sources on the provisioner classpath the first time the customizer refers to it ("BUG! exception in
+// phase 'semantic analysis' … caused a failed compilation"), so the library is deployed compiled.
+tasks.register('libraryJar', Jar) {
+    group = 'distribution'
+    description = 'Packages the compiled connector library, without the scripts, for the provisioner classpath'
+    archiveBaseName = 'graphentity-connector-lib'
+    from(sourceSets.main.output) {
+        exclude '*Script.class', '*Script$*.class'   // the scripts compile to the default package; the harness loads them from scriptRoots
+    }
+}
+
 // Assemble the artefact that is copied into IDM's connector script directory.
-tasks.register('connectorScripts', Copy) {
+tasks.register('connectorScripts', Sync) {   // Sync, not Copy: nothing stale is left behind
     group = 'distribution'
     description = 'Copies the ICF operation scripts and provisioner sample into build/connector-scripts'
     from('src/main/scripts') { into 'scripts' }
-    from('src/main/groovy') { into 'lib' }
+    from(tasks.named('libraryJar')) {
+        into 'lib'
+        rename { 'graphentity-connector-lib.jar' }   // the name the provisioner's classpath names
+    }
     from('../config') { include 'provisioner.openicf-graphentity.json' }
     into layout.buildDirectory.dir('connector-scripts')
 }

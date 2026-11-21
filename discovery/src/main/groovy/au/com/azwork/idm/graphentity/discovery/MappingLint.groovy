@@ -5,7 +5,8 @@ package au.com.azwork.idm.graphentity.discovery
  * {@code entityRelationships} and {@code directArchetypes}, and neither may carry a {@code condition}. The service
  * replaces both in full on every write (P15), so a mapping that skips either, or sends it only sometimes, deletes
  * relationships or archetypes; the connector refuses such an update (P4), and this lint catches it before
- * deployment. Accepts a whole sync.json ({@code {mappings: [...]}}) or a single mapping.
+ * deployment. A transform on either needs {@code "source": ""}, or IDM hands it an undefined source (found in IDM 7.5,
+ * WS8). Accepts a whole sync.json ({@code {mappings: [...]}}) or a single mapping.
  */
 class MappingLint {
 
@@ -26,6 +27,9 @@ class MappingLint {
                 }
                 found.findAll { it.containsKey('condition') }.each {
                     violations << "${name}: the ${target} mapping has a condition; it must be sent on every update, or the service deletes what it omits (§8.4)".toString()
+                }
+                found.findAll { it.transform && it.source != '' }.each {
+                    violations << "${name}: the ${target} mapping needs \"source\": \"\" so its transform receives the whole source object; without it IDM passes an undefined source".toString()
                 }
             }
         }

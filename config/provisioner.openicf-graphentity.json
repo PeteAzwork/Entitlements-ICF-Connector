@@ -1,5 +1,5 @@
 {
-  "_comment": "Sample Scripted REST provisioner for the Graph Entity Service connector (design §6). The connector-specific settings (objectTypes, pageSizeDefault, byIdLookup, deleteMissingTolerated, apiKeyHeader, connectTimeoutMs, socketTimeoutMs) travel in customConfiguration as a Groovy ConfigSlurper script and surface to the scripts via configuration.propertyBag. objectTypes is a JSON string. byIdLookup is 'get' (GET /admin/entities/{id}) or 'search' (an EQUALS filter on the ID, decision P21) while GET by ID is unreliable (C1). Authentication (decision P13): the service takes one shared API key, sent raw in the X-API-KEY header. Put the key in 'password', which IDM encrypts on write; leave 'username' empty and 'defaultAuthMethod' NONE so IDM adds no Basic header. connectTimeoutMs (default 10000) and socketTimeoutMs (default 60000) bound every request, so a stalled service cannot hang reconciliation.",
+  "_comment": "Sample Scripted REST provisioner for the Graph Entity Service connector (design §6). The connector-specific settings (objectTypes, pageSizeDefault, byIdLookup, deleteMissingTolerated, apiKeyHeader, connectTimeoutMs, socketTimeoutMs) travel in customConfiguration as a Groovy ConfigSlurper script and surface to the scripts via configuration.propertyBag. objectTypes is a JSON string. byIdLookup is 'get' (GET /admin/entities/{id}) or 'search' (an EQUALS filter on the ID, decision P21) while GET by ID is unreliable (C1). Authentication (decision P13): the service takes one shared API key, sent raw in the X-API-KEY header. Put the key in 'password', which IDM encrypts on write; leave 'username' empty and 'defaultAuthMethod' NONE so IDM adds no Basic header. connectTimeoutMs (default 10000) and socketTimeoutMs (default 60000) bound every request, so a stalled service cannot hang reconciliation. The connector library is deployed as graphentity-connector-lib.jar (./gradlew :connector:connectorScripts): IDM 7.5 fails to compile it from Groovy sources on the classpath the first time (WS7.02).",
   "name": "graphentity",
   "connectorRef": {
     "bundleName": "org.forgerock.openicf.connectors.scriptedrest-connector",
@@ -23,7 +23,7 @@
       "&{idm.instance.dir}/connectors/graphentity/scripts"
     ],
     "classpath": [
-      "&{idm.instance.dir}/connectors/graphentity/lib"
+      "&{idm.instance.dir}/connectors/graphentity/lib/graphentity-connector-lib.jar"
     ],
     "customizerScriptFileName": "CustomizerScript.groovy",
     "testScriptFileName": "TestScript.groovy",
@@ -37,7 +37,7 @@
   },
   "systemActions": [],
   "objectTypes": {
-    "_comment": "Populated by the Schema operation on first load (IDM refreshes it when the connector configuration is updated). Leave empty in source control."
+    "_comment": "Generated, not hand-written: POST this provisioner to system?_action=createFullConfig and save the result once, which carries the object types from the Schema script. IDM does not fill this in by itself; left empty, system/graphentity/<type> does not exist and reconciliation fails. Call createFullConfig before saving: saving first initialises the connector twice at once, which can fail on the first call with a LinkageError (found in IDM 7.5, WS8)."
   },
   "operationTimeout": {
     "CREATE": -1,

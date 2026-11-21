@@ -1,0 +1,26 @@
+description = 'WS8 integration tests: the connector, scripts, mappings and library inside a real IDM 7.5 container'
+
+dependencies {
+    testImplementation project(':connector')
+    testImplementation project(':discovery')
+    testImplementation testFixtures(project(':connector'))
+}
+
+// Needs Docker and the IDM image, so it only runs when asked for:
+//   ./gradlew :integration:test -Pidm            (image: gcr.io/forgerock-io/idm:7.5.0)
+//   ./gradlew :integration:test -Pidm -PidmImage=<image>
+//   ./gradlew :integration:test -Pidm -PidmScale=2000   (adds the volume and concurrency spec)
+test {
+    onlyIf { project.hasProperty('idm') }
+    dependsOn ':connector:libraryJar'
+    systemProperty 'library.jar', project(':connector').tasks.named('libraryJar').get().archiveFile.get().asFile.absolutePath
+    systemProperty 'repo.root', rootProject.projectDir.absolutePath
+    systemProperty 'idm.image', project.findProperty('idmImage') ?: 'gcr.io/forgerock-io/idm:7.5.0'
+    systemProperty 'idm.keep', project.findProperty('idmKeep') ?: 'false'
+    // WS8.10/8.11: -PidmScale=N adds ScaleInIdmSpec with N users and N accounts (skipped otherwise).
+    systemProperty 'idm.scale', project.findProperty('idmScale') ?: '0'
+    maxParallelForks = 1
+    // Each run starts from a fresh container, so its results are never up to date.
+    outputs.upToDateWhen { false }
+    testLogging { events 'passed', 'failed', 'skipped' }
+}

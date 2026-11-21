@@ -79,17 +79,23 @@ class ObjectTypesGenerator {
     private static Map relationshipEntry(String typeName, ManagedType.ManagedRelationship rel, Set<String> selected,
                                          GeneratorOptions options, GenerationResult result) {
         String at = "${typeName}.${rel.property}"
-        String relatedType = rel.resourceCollections ? rel.resourceCollections[0].substring(rel.resourceCollections[0].lastIndexOf('/') + 1) : null
+        String collection = rel.resourceCollections ? rel.resourceCollections[0] : null
+        // Only managed objects can be configured types; internal/role and the like never are.
+        String relatedType = collection?.startsWith('managed/') ? collection.substring('managed/'.length()) : null
         if (rel.resourceCollections.size() > 1) {
             result.warnings << "${at} may reference ${rel.resourceCollections.join(', ')}; relatedType is taken from the first. Check the reverse side by hand".toString()
-        }
-        if (relatedType && !(relatedType in selected)) {
-            result.warnings << "${at} relates to '${relatedType}', which is not selected: its relationships will be skipped by the mapping library until it is".toString()
         }
         Map override = options.relationshipOverrides?.get(typeName)?.get(rel.property) as Map
         Map entry = new LinkedHashMap()
         if (override) {
             entry.putAll(override)
+            if (relatedType && !(relatedType in selected)) {
+                result.warnings << "${at} relates to '${relatedType}', which is not selected: its relationships will be skipped by the mapping library until it is".toString()
+            }
+        } else if (relatedType == null || !(relatedType in selected)) {
+            // No edge can be built to an unconfigured type, so there is nothing to resolve: exclude it.
+            result.warnings << "${at} relates to ${relatedType ? "'" + relatedType + "', which is not selected" : (collection ?: 'no managed type')}: it is excluded with sync: false".toString()
+            entry.sync = false
         } else if (!rel.reversePropertyName) {
             result.warnings << "${at} has no reverse property, so it is not bidirectional (design A2): it is excluded with sync: false".toString()
             entry.sync = false

@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.19 — 2026-11-21** (WS6 done: the discovery tool, its command line, a read-only IDM source and the mapping lint; every unit suite green, M4 reached; the natural-key signal is a proposal for the platform team). v2.18: (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.20 — 2026-11-21** (WS8: the connector runs inside a real IDM 7.5 container; Appendix A, updates, relationship removal, delete, orphans, error paths and a first scale run pass; IDM showed four defects the unit suites could not, all fixed: library as a jar, `createFullConfig` before saving, `"source": ""`, and the `SOURCE_MISSING` policy). v2.19: (WS6 done: the discovery tool, its command line, a read-only IDM source and the mapping lint; every unit suite green, M4 reached; the natural-key signal is a proposal for the platform team). v2.18: (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -101,7 +101,7 @@ Each decision is pinned by a test, so changing one is deliberate. "Status" says 
 | P6 | ~~Paging uses `offset`/`pageSize` with `items` and `totalCount` or `nextCursor`.~~ | **Superseded.** The real protocol is `pageSize` plus an opaque `pagedResultsCookie`, with `results`, `totalResults` and `hasMore` in the response. All paging knowledge stays in `PageCursor` | `PageCursorSpec` (revise in WS0.14) |
 | P7 | **Unsupported ICF filters raise `UnsupportedOperationException`** rather than silently enumerating. | Holds, but more filters become supported (D8) | `SearchPlannerSpec` |
 | P8 | **The build compiles against ConnId's `connector-framework` by default** (`icfFlavour=connid`), switchable to ForgeRock's (`icfFlavour=forgerock`). The release build uses ForgeRock's. | Holds | `gradle.properties`, `build.gradle` |
-| P9 | **Library classes deploy as Groovy sources under the provisioner's `classpath`.** | Holds; verify in WS7.02 | `connectorScripts` task |
+| P9 | ~~Library classes deploy as Groovy sources under the provisioner's `classpath`.~~ | **Superseded (WS8, 2026-11-21):** IDM 7.5 fails to compile the sources the first time (service contract H9). The library deploys as `graphentity-connector-lib.jar` | `libraryJar`, `connectorScripts`, `ConnectorInIdmSpec` |
 | P10 | **The mapping library reads `config/managed` only as a fallback** for relationship properties not listed in `objectTypes`. | Holds | `graphEntityPayload.test.js` |
 | P11 | **A failed verification GET after a successful create does not fail the create**; it is logged at WARN. | Holds. Matters now: GET by ID returned 500 in the first real run (C1) | `CreateOperationSpec` |
 | P12 | **Package namespace `au.com.azwork.idm.graphentity`.** Renaming is a find-and-replace before WS1 starts. | Holds | everywhere |
@@ -206,6 +206,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Goal:** prove the scripts run inside the real Scripted REST harness and the mappings drive the connector as designed: create, update, relationship changes, delete, initial-load reconciliation, and orphans reported but never deleted.
 **Acceptance:** a scripted, repeatable run, archived in CI. Drift-repair scenarios are WS10's.
 **Estimate:** 5.5 days.
+**Status:** 2026-11-21: WS8.01–8.09 and 8.12 done, 8.10 done at small scale, 8.11 measured at 300 users (50,000 still to run). Four defects found and fixed, recorded in `docs/service-contract.md` §4.1.
 
 ### WS9 — Operational readiness and rollout
 
@@ -255,7 +256,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | L6 Mapping library | The JavaScript library under Rhino-like isolation, and under Rhino itself | Node test runner; Spock with Rhino 1.7.14 | `mapping-lib/test`, `GraphEntityPayloadRhinoSpec` |
 | L7 Discovery | Generator correctness and agreement with the connector's validation | Spock | `discovery/src/test` |
 | L7b Contract probe | The probe reports the service's semantics faithfully, never writes in read-only mode, cleans up, and never persists credentials or foreign data | Spock + `FakeGraphHttpServer` + WireMock replay | `contract-probe/src/test` |
-| L8 Integration (WS8) | The real IDM harness, Rhino and reconciliation engine | Docker; WireMock recordings or a test tenant | `integration/` |
+| L8 Integration (WS8) | The real IDM harness, Rhino and reconciliation engine | Docker, `gcr.io/forgerock-io/idm:7.5.0`, and `FakeGraphService` behind `FakeGraphHttpServer` (a test tenant can replace it) | `integration/` |
 | L9 Operational dry run (WS9) | The real service, `REPORT`-only reconciliation | Non-production IDM | runbook |
 | L10 Drift (WS10) | Remote-side changes are detected and repaired | Integration suite | `integration/` |
 
@@ -304,13 +305,13 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `mapping/GraphEntityPayloadRhinoSpec` | WS5.07, §8.2 | 6 | 9 |
 | **Connector total** | | **388** | **696** |
 | `discovery/ManagedSchemaReaderSpec` | §12, WS6.01 | 11 | 11 |
-| `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
-| `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
+| `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 20 | 20 |
+| `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2, H12, H13 | 11 | 11 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | `discovery/DiscoveryToolSpec` | WS6.07 | 11 | 15 |
 | `discovery/IdmManagedSourceSpec` | WS6.08, §14 | 4 | 4 |
-| `discovery/MappingLintSpec` | WS6.09, §8.4 | 5 | 6 |
-| **Discovery total** | | **66** | **71** |
+| `discovery/MappingLintSpec` | WS6.09, §8.4, H12 | 6 | 7 |
+| **Discovery total** | | **70** | **75** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6, WS5.01 | — | **109** |
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 56 | 56 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
@@ -318,9 +319,14 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **1002** |
+| `integration/ConnectorInIdmSpec` | WS7.07, WS8.08, H5, H9 | 5 | 5 |
+| `integration/AppendixAInIdmSpec` | WS8.03–8.07, Appendix A | 8 | 8 |
+| `integration/ErrorPathsInIdmSpec` | WS8.09 | 3 | 3 |
+| `integration/ScaleInIdmSpec` (opt-in, `-PidmScale=N`) | WS8.10, WS8.11 | 3 | 3 |
+| **Integration total** (needs Docker; `./gradlew :integration:test -Pidm`) | | **16 (+3)** | **16 (+3)** |
+| **Grand total** | | | **1022 (+3 opt-in)** |
 
-Current result (2026-11-21, after WS6): **every unit suite is green**: connector 696 / 696, discovery 71 / 71, mapping library 109 / 109, contract probe 126 / 126, and `:discovery:lintMappings` passes on `config/` (M4). No `TODO WSn` stub remains in the code.
+Current result (2026-11-21, after WS8): **every suite is green**: connector 696 / 696, discovery 75 / 75, mapping library 109 / 109, contract probe 126 / 126, `:discovery:lintMappings` on `config/`, and **integration 16 / 16 inside IDM 7.5** (plus the opt-in scale spec, 3 / 3 at 300 users). No `TODO WSn` stub remains in the code.
 
 Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83. The mapping library stood at 3 pass / 66 fail before WS5, and discovery at 0 / 45 before WS6.
 
@@ -811,28 +817,44 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 ### WS7 — Packaging and deployment artefacts
 
 - [ ] **WS7.01 Complete `connectorScripts` (S).** Include `graphEntityPayload.js` under `script/lib/`, a `VERSION` file with the git SHA, and a `distZip` task.
-- [ ] **WS7.02 Confirm the library deployment model (M).** Verify in IDM 7.5 that the provisioner's `classpath` accepts Groovy sources (P9); otherwise package a jar.
+- [x] **WS7.02 Confirm the library deployment model (M).** Verify in IDM 7.5 that the provisioner's `classpath` accepts Groovy sources (P9); otherwise package a jar.
+  *Done 2026-11-21 (WS8):* it does not, reliably (H9). The library ships as `graphentity-connector-lib.jar` from `:connector:libraryJar`, without the script classes; `connectorScripts` (now a `Sync`) puts it in `lib/` under the name the provisioner's `classpath` names.
 - [ ] **WS7.03 Provisioner generation (S).** Generate `customConfiguration` with the WS6.07 tool. Document the API key in `password` and `defaultAuthMethod: NONE` (P13).
-- [ ] **WS7.04 Confirm versions (S).** IDM 7.5's Groovy version and the Scripted REST bundle version.
+- [x] **WS7.04 Confirm versions (S).** IDM 7.5's Groovy version and the Scripted REST bundle version.
+  *Done 2026-11-21:* Scripted REST 1.5.20.21, Groovy 3.0.9, Rhino 1.7.14, JDK 17.0.10 (H8).
 - [ ] **WS7.05 ForgeRock flavour in CI (S).** A CI job with `-PicfFlavour=forgerock`, credentials as secrets.
 - [ ] **WS7.06 Development IDM container (M).** docker-compose with IDM 7.5 and its repository, mounting the build output.
-- [ ] **WS7.07 Smoke check (S).** `system/graphentity?_action=test` succeeds and the schema lists `user` and `account`.
+  *Partly done 2026-11-21:* `integration/…/IdmStack` runs `gcr.io/forgerock-io/idm:7.5.0` (embedded DS repository, so no separate database) with the build output, on the host network. A compose file for interactive development remains.
+- [x] **WS7.07 Smoke check (S).** `system/graphentity?_action=test` succeeds and the schema lists `user` and `account`.
+  *Done 2026-11-21:* `ConnectorInIdmSpec`. The provisioner's object types must come from `createFullConfig`, called before the provisioner is saved (H10, H11).
 - [ ] **WS7.08 Install section of the runbook (S).** §8.1 steps 1–3.
 
 ### WS8 — Integration tests against IDM 7.5
 
-- [ ] **WS8.01 Integration project (M).** An `integration/` subproject with Spock driving IDM's REST API on the WS7.06 stack, backed by WireMock recordings or a test tenant. Runs on demand and nightly.
-- [ ] **WS8.02 Managed schema fixture (S).** `managed.json` with `account` and the `owns`/`ownedBy` pair; provisioner and mappings generated by the discovery tool.
-- [ ] **WS8.03 Appendix A through reconciliation (M).** Reconcile users, then accounts. Assert the service's documents and relationships at each step, and the dropped-relationship WARN if the service drops them (WS0.07).
-- [ ] **WS8.04 Scalar-only update keeps relationships (S).** Change only a name in IDM; assert the update carried the full relationship set (P4, P15) and the relationship survives.
-- [ ] **WS8.05 Relationship removal (S).** Remove a relationship in IDM; assert both entities' writes omit it and the final state has none.
-- [ ] **WS8.06 Delete (S).** Delete the account in IDM; assert the delete and the user's relationship-free write.
-- [ ] **WS8.07 Orphans are reported, not deleted (S).** Seed an entity directly in the service; assert reconciliation reports it and does not delete it (P16).
-- [ ] **WS8.08 Library under real Rhino (S).** `require` the library in IDM; record the module cache's actual lifetime.
-- [ ] **WS8.09 Error paths (M).** 401 on test; 5xx during reconciliation reported against the right object; 429 under queued sync; `deleteMissingTolerated=false`.
-- [ ] **WS8.10 Concurrency (M).** Live sync during reconciliation with `taskThreads` > 1; once quiet, the service's state equals IDM's.
-- [ ] **WS8.11 Volume and write cost (L).** Enumerate 50,000 entities within the reconciliation window with flat memory. Measure `buildRelationships` cost per entity, and the cost of re-sending relationships on every reconciliation (WS4.08).
-- [ ] **WS8.12 Nightly job (S).** Run nightly, archive results, alert on failure.
+- [x] **WS8.01 Integration project (M).** An `integration/` subproject with Spock driving IDM's REST API on the WS7.06 stack, backed by WireMock recordings or a test tenant. Runs on demand and nightly.
+  *Done 2026-11-21.* `integration/` (`./gradlew :integration:test -Pidm`). One IDM container per run; the service is `FakeGraphService` in-process behind `FakeGraphHttpServer`, so specs read its state and requests. `IdmStack` deploys as the runbook does and waits on evidence, because IDM applies configuration asynchronously (H14).
+- [x] **WS8.02 Managed schema fixture (S).** `managed.json` with `account` and the `owns`/`ownedBy` pair; provisioner and mappings generated by the discovery tool.
+  *Done 2026-11-21.* `integration/src/test/resources/idm/managed.json` is IDM 7.5's own managed.json plus `account` and the `owns`/`ownedBy` pair; `answers.json` holds the operator's answers. `objectTypes` and mappings are generated by the discovery tool in-process. Running discovery on the real managed.json led to one discovery fix: relationships to unselected or non-managed types (`roles`, `authzRoles` → `internal/role`, …) are excluded with `sync: false` and a warning instead of being errors.
+- [x] **WS8.03 Appendix A through reconciliation (M).** Reconcile users, then accounts. Assert the service's documents and relationships at each step, and the dropped-relationship WARN if the service drops them (WS0.07).
+  *Done 2026-11-21.* `AppendixAInIdmSpec`: users reconcile with the dropped-edge WARN, accounts heal it, a second reconciliation is `CONFIRMED` and restates it, and reads through IDM return `entityRelationships` in the P17 shape.
+- [x] **WS8.04 Scalar-only update keeps relationships (S).** Change only a name in IDM; assert the update carried the full relationship set (P4, P15) and the relationship survives.
+  *Done 2026-11-21.*
+- [x] **WS8.05 Relationship removal (S).** Remove a relationship in IDM; assert both entities' writes omit it and the final state has none.
+  *Done 2026-11-21.* The changed end's write removes the relationship from the service for both entities. IDM does not re-sync the other end for a change made from this one, even with `notify`/`notifySelf` (H15); harmless, and the other end's next write is consistent.
+- [x] **WS8.06 Delete (S).** Delete the account in IDM; assert the delete and the user's relationship-free write.
+  *Done 2026-11-21.* **Found a policy defect:** a managed delete raises `SOURCE_MISSING`, and the generated policy was `REPORT`, so deletes never reached the service. Corrected to `SOURCE_MISSING: DELETE`, `MISSING: CREATE` in the generator, the sample and the design (H13).
+- [x] **WS8.07 Orphans are reported, not deleted (S).** Seed an entity directly in the service; assert reconciliation reports it and does not delete it (P16).
+  *Done 2026-11-21.* An entity seeded directly in the service is reported (`UNASSIGNED`) and never deleted.
+- [x] **WS8.08 Library under real Rhino (S).** `require` the library in IDM; record the module cache's actual lifetime.
+  *Done 2026-11-21.* `require('lib/graphEntityPayload')` works in IDM's Rhino (`ConnectorInIdmSpec`), and `buildRelationships` builds edges from IDM's real wrapped relationship objects (Appendix A). **Found:** the two library transforms need `"source": ""` (H12). The module cache's lifetime is not measured.
+- [x] **WS8.09 Error paths (M).** 401 on test; 5xx during reconciliation reported against the right object; 429 under queued sync; `deleteMissingTolerated=false`.
+  *Done 2026-11-21, except 429 under queued sync.* `ErrorPathsInIdmSpec`: a wrong key fails Test without logging it; a 503 on a write during implicit sync is logged against that entity and the next reconciliation repairs it; a DELETE answered 404 is tolerated by default and a 404 error with `deleteMissingTolerated=false` (H17). Queued sync is not configured, so its 429 behaviour remains.
+- [x] **WS8.10 Concurrency (M).** Live sync during reconciliation with `taskThreads` > 1; once quiet, the service's state equals IDM's.
+  *Done 2026-11-21 at 300 users* (`ScaleInIdmSpec`, opt-in): 60 implicit syncs racing a 4-thread reconciliation converge to IDM's state.
+- [x] **WS8.11 Volume and write cost (L).** Enumerate 50,000 entities within the reconciliation window with flat memory. Measure `buildRelationships` cost per entity, and the cost of re-sending relationships on every reconciliation (WS4.08).
+  *Measured 2026-11-21 at 300 users and 300 accounts:* the initial user reconciliation takes about 68 ms per user, single-threaded, including `buildRelationships`; the account reconciliation 13.5 s; a steady-state reconciliation re-sends every linked user, one PUT each (WS4.08); IDM memory stays at about 1.65 GiB. Extrapolated, 50,000 users single-threaded is about an hour per reconciliation: run `-PidmScale=50000` on a larger host and tune `taskThreads`.
+- [x] **WS8.12 Nightly job (S).** Run nightly, archive results, alert on failure.
+  *Done 2026-11-21:* `.github/workflows/integration.yml`, nightly and on demand (with a scale input), uploading reports; failures notify through GitHub's workflow notifications.
 
 ### WS9 — Operational readiness and rollout (core)
 
