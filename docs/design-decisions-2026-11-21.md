@@ -147,7 +147,7 @@ The first realigned probe runs (`20261121-173141`, `20261121-173153`) bear on th
 
 | Decision | Finding | Effect |
 |---|---|---|
-| P18 | `objectClass: 4` returns only Subjects and `2` only Resources (C6) | Supports the numbering. Confirming it on create waits for C8 |
-| P17, P20, P22 | Every create in the EntityDTO shape got 500, while the design-shaped creates of the first run were accepted (C8) | None of the write conditions could be checked. The probe now finds the accepted body (`create.shape`) |
+| P18 | `objectClass: 4` returns only Subjects (C6), and an entity created with base type 4 is a Subject (run `190350` #41, #45) | **Confirmed** |
+| P17, P20, P22 | Creates need `attributes.ID` equal to `id` (C8, run `190350`). With it, the P17 relationship form is accepted, and so is the design's. Writing the target without a relationship leaves it (Q07.8 answered: no) | P20 gains a requirement: mirror the ID into `attributes.ID` (plan WS0.19). Attribute removal (P20) and archetype replacement (P22) are still unobserved, because the probe read back before the service caught up (WS0.15e) |
 | P19 | Search shows `directArchetypes` empty on every entity; archetypes written as direct appear in `isArchetypes` (C9) | Scoping on a direct scope archetype would find nothing. To be revisited (plan WS0.18) |
-
+| §9.3 delete | DELETE answers 200 and removes nothing; so does the single-relationship DELETE (C10) | Delete cannot work as designed until the service is fixed. Raise with the service team |
