@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"ID\":\"ws0-probe-20261121-155100-id with space\",\"BaseType\":2,\"attributes\":{\"ID\":\"ws0-probe-20261121-155100-id with space\",\"probe\":\"ws0\"},\"Relationships\":[],\"directArchetypes\":[\"Ws0Probe\"]}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200
+    },
+    "metadata": {
+        "probeExchange": 70,
+        "check": "WS0.09",
+        "runId": "20261121-155100"
+    }
+}

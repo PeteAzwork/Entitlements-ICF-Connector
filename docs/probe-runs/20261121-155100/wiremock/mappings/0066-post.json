@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"BaseType\":2,\"attributes\":{\"probe\":\"ws0\"}}"
+            }
+        ]
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 66,
+        "check": "WS0.05",
+        "runId": "20261121-155100"
+    }
+}

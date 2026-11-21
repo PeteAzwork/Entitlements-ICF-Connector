@@ -1,0 +1,1136 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"from\":\"1970-01-01T00:00:00Z\"}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "CC-12345",
+                    "name": "CC-12345",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card Application",
+                        "Recipient": "Piet"
+                    },
+                    "isArchetypes": [
+                        "CreditCardApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Cor",
+                    "name": "Cor",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Cor Jette"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Credit-Card-1",
+                    "name": "Credit-Card-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-10",
+                    "name": "Credit-Card-10",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-11",
+                    "name": "Credit-Card-11",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-12",
+                    "name": "Credit-Card-12",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-13",
+                    "name": "Credit-Card-13",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-14",
+                    "name": "Credit-Card-14",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-15",
+                    "name": "Credit-Card-15",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-16",
+                    "name": "Credit-Card-16",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-17",
+                    "name": "Credit-Card-17",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-18",
+                    "name": "Credit-Card-18",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-19",
+                    "name": "Credit-Card-19",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-2",
+                    "name": "Credit-Card-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-3",
+                    "name": "Credit-Card-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-4",
+                    "name": "Credit-Card-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-5",
+                    "name": "Credit-Card-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-6",
+                    "name": "Credit-Card-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-7",
+                    "name": "Credit-Card-7",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-8",
+                    "name": "Credit-Card-8",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-9",
+                    "name": "Credit-Card-9",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-Piet",
+                    "name": "Credit-Card-Piet",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-1-Sanne",
+                    "name": "Current-Account-1-Sanne",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-10",
+                    "name": "Current-Account-10",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-11",
+                    "name": "Current-Account-11",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-12",
+                    "name": "Current-Account-12",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-14",
+                    "name": "Current-Account-14",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-15",
+                    "name": "Current-Account-15",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-16",
+                    "name": "Current-Account-16",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-17",
+                    "name": "Current-Account-17",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-18",
+                    "name": "Current-Account-18",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Current-Account-2",
+                    "name": "Current-Account-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-3",
+                    "name": "Current-Account-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-4",
+                    "name": "Current-Account-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-5",
+                    "name": "Current-Account-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-6",
+                    "name": "Current-Account-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-7",
+                    "name": "Current-Account-7",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Current-Account-8",
+                    "name": "Current-Account-8",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "David Visser",
+                    "name": "David Visser",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "David Visser"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:11Z"
+                },
+                {
+                    "uid": "Ella",
+                    "name": "Ella",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Ella"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Groceries Logistics B.V.",
+                    "name": "Groceries Logistics B.V.",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Subsidiary-Company",
+                        "Name": "Groceries Logistics B.V."
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:09Z"
+                },
+                {
+                    "uid": "Groentehoek B.V.",
+                    "name": "Groentehoek B.V.",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Holding-Company",
+                        "Name": "Groentehoek B.V."
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Groentehoek Partners B.V.",
+                    "name": "Groentehoek Partners B.V.",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Subsidiary-Company",
+                        "Name": "Groentehoek Partners B.V."
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Henk",
+                    "name": "Henk",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Henk Groen"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Henk Fin B.V.",
+                    "name": "Henk Fin B.V.",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Holding-Company",
+                        "Name": "Henk Fin B.V."
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Insurance-Policy-1",
+                    "name": "Insurance-Policy-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Insurance Policy"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Insurance-Policy-2",
+                    "name": "Insurance-Policy-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Insurance Policy"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Insurance-Policy-3",
+                    "name": "Insurance-Policy-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Insurance Policy"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Insurance-Policy-4",
+                    "name": "Insurance-Policy-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Insurance Policy"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Insurance-Policy-5",
+                    "name": "Insurance-Policy-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Insurance Policy"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Kom",
+                    "name": "Kom",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Kom Ommers"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Local Groceries B.V.",
+                    "name": "Local Groceries B.V.",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Subsidiary-Company",
+                        "Name": "Local Groceries B.V."
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:09Z"
+                },
+                {
+                    "uid": "Lumora Trade",
+                    "name": "Lumora Trade",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Subsidiary-Company",
+                        "Name": "Lumora Trade"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:11Z"
+                },
+                {
+                    "uid": "Lumora-Credit-Card-1",
+                    "name": "Lumora-Credit-Card-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Lumora-Current-Account-1",
+                    "name": "Lumora-Current-Account-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Lumora-Current-Account-2",
+                    "name": "Lumora-Current-Account-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Current Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Piet",
+                    "name": "Piet",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Piet Blauw"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Piet Investments B.V.",
+                    "name": "Piet Investments B.V.",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "Investment-Company",
+                        "Name": "Piet Investments B.V."
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Ravi",
+                    "name": "Ravi",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Ravi"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Sandbox App",
+                    "name": "Sandbox App",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "HasPSD2Certificate": "false",
+                        "HasAgreement": "false",
+                        "Name": "Sandbox App"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Sandbox App",
+                    "name": "Sandbox App",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "HasPSD2Certificate": "false",
+                        "HasAgreement": "false",
+                        "Name": "Sandbox App"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Sanne",
+                    "name": "Sanne",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Sanne Groen"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Savings-Account-1",
+                    "name": "Savings-Account-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Savings Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Savings-Account-2",
+                    "name": "Savings-Account-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Savings Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Savings-Account-3",
+                    "name": "Savings-Account-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Savings Account"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Tessa Jansen",
+                    "name": "Tessa Jansen",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Tessa Jansen"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:11Z"
+                },
+                {
+                    "uid": "Tom",
+                    "name": "Tom",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Tom Aat"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Zen B.V",
+                    "name": "Zen B.V",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Id": "Zen B.V",
+                        "Name": "Zen B.V"
+                    },
+                    "isArchetypes": [
+                        "Publisher"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Zen Cashflow App",
+                    "name": "Zen Cashflow App",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "HasPSD2Certificate": "false",
+                        "RegisteredScopes": "Production-BAI-Read,Production-BPI-SinglePayment",
+                        "Hasagreement": "true",
+                        "Haspsd2certificate": "true",
+                        "HasAgreement": "false",
+                        "Name": "Zen Cashflow App"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Zen Cashflow App",
+                    "name": "Zen Cashflow App",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "HasPSD2Certificate": "false",
+                        "RegisteredScopes": "Production-BAI-Read,Production-BPI-SinglePayment",
+                        "Hasagreement": "true",
+                        "Haspsd2certificate": "true",
+                        "HasAgreement": "false",
+                        "Name": "Zen Cashflow App"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Zen Sandbox App",
+                    "name": "Zen Sandbox App",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "HasPSD2Certificate": "false",
+                        "HasAgreement": "false",
+                        "Name": "Zen Sandbox App"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "Zen Sandbox App",
+                    "name": "Zen Sandbox App",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "HasPSD2Certificate": "false",
+                        "HasAgreement": "false",
+                        "Name": "Zen Sandbox App"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                }
+            ],
+            "pagedResultsCookie": null,
+            "totalResults": 72,
+            "hasMore": false
+        }
+    },
+    "metadata": {
+        "probeExchange": 20,
+        "check": "WS0.02",
+        "runId": "20261121-155100"
+    }
+}
