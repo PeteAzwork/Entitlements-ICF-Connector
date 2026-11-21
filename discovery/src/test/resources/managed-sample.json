@@ -5,7 +5,7 @@
       "schema": {
         "properties": {
           "_id": { "type": "string" },
-          "userName": { "type": "string" },
+          "userName": { "type": "string", "policies": [ { "policyId": "valid-username" } ] },
           "givenName": { "type": "string" },
           "sn": { "type": "string" },
           "mail": { "type": "string" },
@@ -38,8 +38,7 @@
             "type": "relationship",
             "resourceCollection": [ { "path": "managed/account" } ]
           }
-        },
-        "indices": ["userName"]
+        }
       }
     },
     {
@@ -47,7 +46,7 @@
       "schema": {
         "properties": {
           "_id": { "type": "string" },
-          "accountId": { "type": "string" },
+          "accountId": { "type": "string", "policies": [ { "policyId": "unique" } ] },
           "name": { "type": "string" },
           "productCode": { "type": "string" },
           "ownedBy": {
@@ -55,8 +54,7 @@
             "reversePropertyName": "owns",
             "resourceCollection": [ { "path": "managed/user" } ]
           }
-        },
-        "indices": ["accountId"]
+        }
       }
     },
     {

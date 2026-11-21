@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.18 — 2026-11-21** (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.19 — 2026-11-21** (WS6 done: the discovery tool, its command line, a read-only IDM source and the mapping lint; every unit suite green, M4 reached; the natural-key signal is a proposal for the platform team). v2.18: (WS5 done: the mapping library implemented, its §7 cases shared with the connector through `fixtures/convention-cases.json`, and a Rhino smoke test). v2.17: (WS4 done: search, scoping and paging; every connector spec green, milestone M3; `RecordedContractSpec` replays the real recordings through the connector). v2.16: (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -42,8 +42,8 @@ The design document says *what* the connector is. This plan says *in what order*
 | D3 | Connector tests: unit, script harness, contract, scenario | §6 of this plan | `connector/src/test/groovy/…` | **29 specs, 537 executions**, red by design |
 | D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js`, `mapping-lib/README.md` | **Implemented (WS5)** |
 | D5 | Mapping library tests | §8.2 | `mapping-lib/test/`, `fixtures/convention-cases.json`, `GraphEntityPayloadRhinoSpec` | **109 Node tests and 9 Rhino tests, all passing** |
-| D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…` | API fixed, bodies are stubs |
-| D7 | Discovery tool tests | §12 | `discovery/src/test/groovy/…` | **4 specs, 41 executions**, red by design |
+| D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…`, `./gradlew :discovery:run` | **Implemented (WS6)** |
+| D7 | Discovery tool tests | §12 | `discovery/src/test/groovy/…` | **7 specs, 71 executions, all passing**; `lintMappings` runs in CI |
 | D8 | Provisioner and mapping configuration samples | §6, §12 | `config/` | Written |
 | D9 | Build, CI, packaging task | — | `build.gradle`, `.github/workflows/ci.yml` | Written |
 | D10 | Integration tests against IDM 7.5 in Docker | this plan §6 | `integration/` | Not started (WS8) |
@@ -193,6 +193,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Implement:** `ManagedSchemaReader`, `ObjectTypesGenerator`, `MappingSkeletonGenerator`, `DiffSummary`, `DiscoveryTool`.
 **Acceptance:** all four discovery specs green, plus the new CLI, REST and lint specs.
 **Estimate:** 6 days.
+**Status:** Done 2026-11-21. All discovery specs green, including the new CLI, REST and lint specs. WS6.01's natural-key signal is a proposal awaiting the platform team.
 
 ### WS7 — Packaging and deployment artefacts
 
@@ -302,11 +303,14 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `scenario/RecordedContractSpec` | WS4.09, WS0.11 | 5 | 5 |
 | `mapping/GraphEntityPayloadRhinoSpec` | WS5.07, §8.2 | 6 | 9 |
 | **Connector total** | | **388** | **696** |
-| `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
+| `discovery/ManagedSchemaReaderSpec` | §12, WS6.01 | 11 | 11 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
-| **Discovery total** | | **45** | **45** |
+| `discovery/DiscoveryToolSpec` | WS6.07 | 11 | 15 |
+| `discovery/IdmManagedSourceSpec` | WS6.08, §14 | 4 | 4 |
+| `discovery/MappingLintSpec` | WS6.09, §8.4 | 5 | 6 |
+| **Discovery total** | | **66** | **71** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6, WS5.01 | — | **109** |
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 56 | 56 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
@@ -314,11 +318,11 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **976** |
+| **Grand total** | | | **1002** |
 
-Current result (2026-11-21, after WS5): **connector 696 pass / 0 fail / 0 skipped** (M3), **mapping library 109 pass / 0 fail**, including the Rhino smoke test in the connector suite. Discovery 0 / 45: every failure there is a WS6 `TODO` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass.
+Current result (2026-11-21, after WS6): **every unit suite is green**: connector 696 / 696, discovery 71 / 71, mapping library 109 / 109, contract probe 126 / 126, and `:discovery:lintMappings` passes on `config/` (M4). No `TODO WSn` stub remains in the code.
 
-Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83. The mapping library stood at 3 pass / 66 fail before WS5.
+Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83. The mapping library stood at 3 pass / 66 fail before WS5, and discovery at 0 / 45 before WS6.
 
 ### 6.4 Tests still to write
 
@@ -761,16 +765,17 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 
 ### WS6 — Discovery and generation tool
 
-- [ ] **WS6.01 Make the natural-key signal real (S).** The `indices` key in `managed-sample.json` is a placeholder; real `managed.json` has no such key. Agree with the platform team which real signal marks a natural key, for example a uniqueness policy on the property. Update the sample, `ManagedSchemaReader` and `ManagedSchemaReaderSpec` together.
-- [ ] **WS6.02 `ManagedSchemaReader.read` (M).**
+- [x] **WS6.01 Make the natural-key signal real (S).** The `indices` key in `managed-sample.json` is a placeholder; real `managed.json` has no such key. Agree with the platform team which real signal marks a natural key, for example a uniqueness policy on the property. Update the sample, `ManagedSchemaReader` and `ManagedSchemaReaderSpec` together.
+  *Proposed 2026-11-21, to agree with the platform team:* a property is a natural-key candidate when its `policies` include IDM's `unique` or `valid-username` policy (`userName` carries `valid-username` in IDM's default managed.json). The sample, reader (`NATURAL_KEY_POLICIES`) and spec are updated together; the placeholder `indices` key is gone. Another signal is a one-line change.
+- [x] **WS6.02 `ManagedSchemaReader.read` (M).**
   - Require an `objects` array, or throw `IllegalArgumentException`.
   - Domain properties exclude `_*`, `isVirtual`, `isProtected` and `password`, and keep the declared order.
   - Relationships are detected whether declared directly or as array `items`. Each records the reverse name, resource collection paths and whether it is multi-valued.
   - Report natural-key candidates per WS6.01.
   *Gotcha:* the spec relies on property order. Check that `JsonSlurper`'s map preserves insertion order for the parser in use.
-  *Green:* `ManagedSchemaReaderSpec`.
-- [ ] **WS6.03 `ObjectTypesGenerator.defaultIdProperty` (S).** Use the first natural-key candidate. Otherwise use a `userName`-like name. Otherwise return null, which forces a prompt (A3).
-- [ ] **WS6.04 `ObjectTypesGenerator.generate` (L).**
+  *Green:* `ManagedSchemaReaderSpec`. *Done 2026-11-21.* Object-typed properties are excluded with a reason as well as arrays; virtual properties, including virtual relationships, are dropped silently.
+- [x] **WS6.03 `ObjectTypesGenerator.defaultIdProperty` (S).** Use the first natural-key candidate. Otherwise use a `userName`-like name. Otherwise return null, which forces a prompt (A3).
+- [x] **WS6.04 `ObjectTypesGenerator.generate` (L).**
   - Only selected types are generated. A selected type missing from `managed.json` is an error.
   - A missing `entityKind` is an error naming the type. A missing `idProperty` with no default is an error.
   - `attributes` are the domain properties minus the `idProperty`.
@@ -780,25 +785,28 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
   - Apply overrides verbatim. Otherwise use `resolvePair`. An unresolved pair is an error naming both properties.
   - A related type that wasn't selected gives a warning.
   - Finally run `ObjectTypesParser` and `RelationshipConvention.validate` on the output and append their errors. The output must be deterministic.
-  *Green:* `ObjectTypesGeneratorSpec`.
-- [ ] **WS6.05 `MappingSkeletonGenerator.mapping` (M).** Target-phase situations stay on `REPORT` (P16); promotion to `DELETE` is WS10. Follow the shape of `config/sync-mapping-user.sample.json`:
+  *Green:* `ObjectTypesGeneratorSpec`. *Done 2026-11-21.* A type missing a required answer is left out of the output (its errors stand), so the rest is still validated. An `idProperty` that is not a single-valued property of the type is an error. A relationship that may reference several collections takes `relatedType` from the first, with a warning.
+- [x] **WS6.05 `MappingSkeletonGenerator.mapping` (M).** Target-phase situations stay on `REPORT` (P16); promotion to `DELETE` is WS10. Follow the shape of `config/sync-mapping-user.sample.json`:
   - name it `managed<Type>_system<Connector><Type>`;
   - map `__NAME__` from the `idProperty`, and map every attribute directly;
   - bind library transforms with no `condition`;
   - use a JavaScript correlation query on `__NAME__`;
   - give all 13 situations an explicit policy;
   - set `enableSync: true` and no queued sync.
-  *Green:* `MappingSkeletonGeneratorSpec`.
-- [ ] **WS6.06 `DiffSummary.summarise` (M).** Compare per type, at item level for attribute lists and per property for relationships. Mark lines `+` for added, `-` for removed and `~` for changed, showing old and new values. A null `current` means everything is added.
-  *Green:* `DiffSummarySpec`.
-- [ ] **WS6.07 `DiscoveryTool` command line (M). New tests.**
+  *Green:* `MappingSkeletonGeneratorSpec`. *Done 2026-11-21.* The correlation query escapes backslashes and quotes in the value, so an ID containing `"` cannot break the filter (checked by evaluating the generated script).
+- [x] **WS6.06 `DiffSummary.summarise` (M).** Compare per type, at item level for attribute lists and per property for relationships. Mark lines `+` for added, `-` for removed and `~` for changed, showing old and new values. A null `current` means everything is added.
+  *Green:* `DiffSummarySpec`. *Done 2026-11-21.* Archetype order changes are reported too, because the first archetype is the scope archetype (P19).
+- [x] **WS6.07 `DiscoveryTool` command line (M). New tests.**
   - Inputs: `--managed <file>`, `--types`, `--answers <answers.json>` (GeneratorOptions as JSON), `--current <provisioner.json>` and `--out <dir>`.
   - Outputs: `objectTypes.json`, the escaped `customConfiguration` string ready to paste into the provisioner, and one `sync-<type>.json` per type.
   - Print the diff. Exit non-zero on errors.
   - Wire it up with Gradle's `application` plugin.
   - Add `DiscoveryToolSpec` using a temporary directory.
-- [ ] **WS6.08 Read-only IDM REST source (M). New tests.** Add `--idm-url` and `--idm-user`, with the password from an environment variable, never from an argument. It reads only `config/managed`, with credentials separate from the connector's (§14). Add a WireMock-backed spec.
-- [ ] **WS6.09 Mapping lint (M). New tests.** This is the code-review check §8.4 and §15 ask for. Add `--lint <sync.json>`, which fails when a mapping targeting `system/graphentity/*` is missing the `entityRelationships` or `directArchetypes` property mapping, or puts a `condition` on either. Run it in CI against every mapping under `config/`.
+  *Done 2026-11-21.* `./gradlew :discovery:run --args="…"` or `installDist`. Outputs `objectTypes.json`, `customConfiguration.txt` (the Groovy value) and `customConfiguration.json` (the same, JSON-escaped for pasting into the provisioner), and `sync-<type>.json`. With `--current`, the provisioner's other `customConfiguration` settings are kept and only `objectTypes` is replaced; the diff is against its objectTypes. Exit 0 on success, 1 on generation or lint errors (nothing written), 2 on usage or input errors. An `answers.json` with an unknown key is refused, so a misspelt answer is not silently ignored. The spec checks the output loads through `ConnectorConfig.from` and passes the lint.
+- [x] **WS6.08 Read-only IDM REST source (M). New tests.** Add `--idm-url` and `--idm-user`, with the password from an environment variable, never from an argument. It reads only `config/managed`, with credentials separate from the connector's (§14). Add a WireMock-backed spec.
+  *Done 2026-11-21:* `IdmManagedSource`. One GET of `<url>/openidm/config/managed` with `X-OpenIDM-Username`/`X-OpenIDM-Password` and `X-OpenIDM-NoSession`; the password comes from `IDM_DISCOVERY_PASSWORD` and `--idm-password` is refused. No message carries the password. `IdmManagedSourceSpec`.
+- [x] **WS6.09 Mapping lint (M). New tests.** This is the code-review check §8.4 and §15 ask for. Add `--lint <sync.json>`, which fails when a mapping targeting `system/graphentity/*` is missing the `entityRelationships` or `directArchetypes` property mapping, or puts a `condition` on either. Run it in CI against every mapping under `config/`.
+  *Done 2026-11-21:* `MappingLint`, `--lint`, `MappingLintSpec`, and the Gradle task `:discovery:lintMappings` (part of `check`, and a CI step) over `config/sync*.json`.
 
 ### WS7 — Packaging and deployment artefacts
 
