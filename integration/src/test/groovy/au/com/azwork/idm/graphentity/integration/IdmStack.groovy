@@ -12,6 +12,7 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 import java.nio.file.Files
+import java.time.Instant
 
 /**
  * WS8.01: one real IDM 7.5 container per test run, with the connector deployed the way the runbook deploys it,
@@ -79,11 +80,12 @@ class IdmStack {
 
     /** createFullConfig first, then one save of its result, which carries the object types. */
     void loadProvisioner(Map config) {
+        awaitProvisionerSettled()   // createFullConfig alongside an initialisation in progress races (H11)
         Map full = idm.action('system', 'createFullConfig', config)
         if (!(full.objectTypes as Map)?.keySet()?.containsAll(['user', 'account'])) {
             throw new IllegalStateException("createFullConfig returned no user/account object types: ${full.objectTypes?.keySet()}")
         }
-        idm.put('config/provisioner.openicf/graphentity', full)
+        putProvisioner(full)
         fullProvisioner = full
         awaitConnector()
     }
@@ -91,13 +93,55 @@ class IdmStack {
     /** Saves a variant of the working provisioner as is, without createFullConfig (which runs the Test operation). */
     void saveProvisioner(Map changes) {
         Map props = (fullProvisioner.configurationProperties as Map) + (changes.configurationProperties as Map ?: [:])
-        Map saved = fullProvisioner + changes + [configurationProperties: props]
-        idm.put('config/provisioner.openicf/graphentity', saved)
-        // IDM applies it asynchronously; wait until the stored configuration is the one in use.
-        idm.awaitTrue(30, 'the provisioner change to apply') {
-            (idm.get('config/provisioner.openicf/graphentity').configurationProperties as Map).customConfiguration == props.customConfiguration
+        putProvisioner(fullProvisioner + changes + [configurationProperties: props])
+    }
+
+    /**
+     * One provisioner save that is known to be in effect when this returns (H21). IDM acknowledges a save that arrives
+     * while it is still applying the previous one, then discards it: the stored configuration and the connector stay
+     * on the earlier save. So this waits for IDM to settle before saving, marks the save so that it always changes the
+     * stored configuration (an identical save is not applied at all), waits for the connector to be reactivated, and
+     * checks that the stored configuration is this save, saving again if it is not.
+     */
+    void putProvisioner(Map config) {
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            awaitProvisionerSettled()
+            String marker = "it-save-${System.nanoTime()}".toString()
+            Instant sent = Instant.now()
+            idm.put('config/provisioner.openicf/graphentity', config + [_itSave: marker])
+            idm.awaitTrue(180, 'the provisioner save to be applied') {
+                provisionerEvents(sent.minusSeconds(1)).any { it[1] == 'activated' && it[0] >= sent } && provisionerSettled(sent)
+            }
+            if (idm.get('config/provisioner.openicf/graphentity')._itSave == marker) return
+            System.err.println("IdmStack: IDM discarded provisioner save ${attempt} (H21); saving again")
         }
-        Thread.sleep(3000)
+        throw new IllegalStateException('IDM discarded the provisioner save three times (H21)')
+    }
+
+    /** Waits until IDM is not applying a provisioner change. */
+    void awaitProvisionerSettled() {
+        idm.awaitTrue(180, 'IDM to finish applying provisioner changes') { provisionerSettled(Instant.now().minusSeconds(300)) }
+    }
+
+    /** No provisioner event in the last 3 s, and the last one since {@code since}, if any, is an activation. */
+    private boolean provisionerSettled(Instant since) {
+        List<List> events = provisionerEvents(since)
+        if (!events) return true
+        List last = events[-1]
+        last[1] == 'activated' && (last[0] as Instant) < Instant.now().minusSeconds(3)
+    }
+
+    /**
+     * The provisioner's lifecycle in IDM's console log since {@code since}, as [instant, 'updated' | 'deactivated' |
+     * 'activated'], with Docker's timestamps.
+     */
+    private static List<List> provisionerEvents(Instant since) {
+        docker('logs', '--timestamps', '--since', since.toString(), CONTAINER).readLines()
+            .findAll { it =~ /component graphentity is (de)?activated|Updating configuration file: .*provisioner\.openicf-graphentity/ }
+            .collect { String line ->
+                [Instant.parse(line.substring(0, line.indexOf(' '))),
+                 line.contains('is activated') ? 'activated' : line.contains('is deactivated') ? 'deactivated' : 'updated']
+            }
     }
 
     /**

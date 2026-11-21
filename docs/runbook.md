@@ -54,6 +54,7 @@ VERSION
    - The response carries the `objectTypes`; IDM does not fill them in by itself (H10).
    - **Do not save the provisioner first and then call `createFullConfig`.** On a fresh IDM, two first initialisations at once fail, with a `LinkageError` or a Groovy `BUG! exception` (H11, `script_vs_jar.md`).
    - **Alternative:** put the full provisioner in `conf/` before starting IDM.
+   - **One provisioner change at a time.** IDM silently discards a save that arrives while it is still applying the previous one (H21). After each save, wait for `OpenICF Provisioner Service component graphentity is activated` in IDM's log, then check that `GET config/provisioner.openicf/graphentity` shows your change.
 4. **Check the connector:**
    - `POST system/graphentity?_action=test` answers `"ok": true`;
    - its `objectTypes` list `user` and `account`;
@@ -170,6 +171,7 @@ Every write restates IDM's state in full, so a stale write can briefly undo a ne
   1. Agree the time.
   2. Change the key in the service.
   3. Set the new key in the provisioner's `password` straight away, with an IDM admin `PUT` or the admin UI.
+  4. **Check that it took effect:** the Test operation (`POST system/graphentity?_action=test`) returns `ok: true`. If it still fails with 401, IDM may have discarded the save because another provisioner change was still being applied (H21): wait for the connector's `is activated` log line and save again.
 - **No restart needed.** IDM re-initialises the connector when its configuration changes; the integration suite shows a changed key taking effect without a restart.
 - **Writes that fail between steps 2 and 3** fail with 401 and are repaired by the next reconciliation.
 - **Leaks.** A leaked key exposes every consumer of the service. Rotate immediately, and tell the service team.
@@ -183,6 +185,7 @@ Every write restates IDM's state in full, so a stale write can briefly undo a ne
 | `buildArchetypes needs the source object` / a transform receives no source | The mapping lacks `"source": ""` on the library transforms (H12) | Regenerate or edit the mapping; the lint catches it |
 | A managed delete leaves the entity in the service | `SOURCE_MISSING` is not `DELETE` in the mapping (H13) | The generated policies have `SOURCE_MISSING: DELETE`; check older mappings |
 | A configuration change seems ignored | IDM applies configuration asynchronously (H14) | Wait a few seconds; for mappings, check `GET sync/mappings` |
+| A provisioner save was accepted (200), but `GET` shows the old configuration and the connector behaves as before | IDM discarded it: it arrived while IDM was still applying an earlier save (H21) | Wait for `component graphentity is activated` in the log, then save again and check with `GET` and the Test operation |
 | A relationship removed in IDM stays in the service | The entity has no relationships left, so the write sends an empty list, which the service ignores today (C17, a service bug) | Known issue, section 9 |
 | Updates sent in quick succession are lost | The service can drop a write that follows another closely (C13) | The next write or reconciliation restates it |
 
@@ -194,6 +197,7 @@ Every write restates IDM's state in full, so a stale write can briefly undo a ne
 | **C17:** an empty `relationships` list does not purge | Removing an entity's **last** relationship in IDM does not remove it from the service until fixed. Removing one of several works | Service bug, owner confirmed (WS0.23). **A go-live decision** (`docs/go-live-checklist.md`) |
 | **C13:** rapid successive writes can be lost | A quick create-then-update may keep the create's state until the next write | Reconciliation repairs it |
 | **A1:** a second writer to the service | Its relationships are removed by this connector | Design review before admitting one |
+| **H21:** a provisioner save during another is discarded | Two quick changes (for example a key rotation right after another edit) can leave the first in effect, with no error | IDM behaviour. Make one change at a time and verify it (section 7) |
 | **H15:** the other end of a changed relationship is not re-synced at once | Its next write is consistent; nothing to do | By design |
 | **No drift detection (P16)** | Out-of-band changes persist until the entity is next written | WS10 |
 
