@@ -36,7 +36,15 @@ class EntityDecoderSpec extends Specification {
         obj.getAttributeByName('entityRelationships') == null
     }
 
-    def "isArchetypes is never surfaced as an ICF attribute"() {
+    def "a search item's isArchetypes surface as directArchetypes, because search reports direct assignments there (C9)"() {
+        when:
+        def obj = EntityDecoder.decode(EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [isArchetypes: ['Customer', 'Retail']]), Fixtures.userType(), Fixtures.USER)
+
+        then:
+        obj.getAttributeByName('directArchetypes').value == ['Customer', 'Retail']
+    }
+
+    def "isArchetypes is not a separate ICF attribute"() {
         expect:
         EntityDecoder.decode(EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [isArchetypes: ['Retail']]), Fixtures.userType(), Fixtures.USER)
             .attributes*.name.every { it != 'isArchetypes' }

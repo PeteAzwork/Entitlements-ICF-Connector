@@ -5,7 +5,7 @@ import au.com.azwork.idm.graphentity.support.Fixtures
 import spock.lang.Specification
 import spock.lang.Unroll
 
-/** Design §9.4; decision P19 — scoping service entities to an IDM object type. */
+/** Design §9.4; decision P19 as amended 2026-11-21 — scoping service entities to an IDM object type. */
 class TypeScoperSpec extends Specification {
 
     static EntityDocument doc(Integer baseType, List<String> direct, List<String> is = []) {
@@ -44,7 +44,11 @@ class TypeScoperSpec extends Specification {
         4    | ['VIP', 'Customer']     | []           | true  | false   // extra archetypes don't exclude
         4    | ['VIP']                 | []           | false | false   // scope archetype missing
         2    | ['Customer']            | []           | false | false   // base type disagrees
-        4    | []                      | ['Customer'] | false | false   // isArchetypes is never used (P19)
+        4    | []                      | ['Customer'] | true  | false   // search reports direct archetypes here (C9; P19 amended)
+        4    | null                    | ['Customer'] | true  | false   // the usual search item: directArchetypes unknown
+        2    | null                    | ['Account']  | false | true
+        4    | null                    | ['VIP']      | false | false
+        4    | null                    | null         | false | false
         4    | null                    | []           | false | false
         4    | ['customer']            | []           | false | false   // case-sensitive
     }

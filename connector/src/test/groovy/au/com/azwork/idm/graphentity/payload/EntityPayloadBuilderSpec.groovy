@@ -29,9 +29,10 @@ class EntityPayloadBuilderSpec extends Specification {
         EntityPayloadBuilder.build('Current-Account-1-Sanne', Fixtures.accountType(), Fixtures.accountAttributes()).baseType == 2
     }
 
-    def "attributes carry no mirrored ID: the service's attribute map holds domain attributes only"() {
+    def "the document's attributes hold domain attributes only; attributes.ID is added by toWire (C8)"() {
         expect:
         !EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes()).attributes.containsKey('ID')
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes()).toWire().attributes.ID == 'Sanne'
     }
 
     def "an attribute named ID is rejected"() {

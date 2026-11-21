@@ -3,7 +3,7 @@
 **Status:** Draft for review
 **Connector type:** Groovy Scripted REST (ICF), self-managed Ping IDM (formerly ForgeRock IDM)
 **Sync direction:** One-way, IDM → remote graph entity service
-**Date:** 2026-07-06; revised 2026-11-21 to the service's OpenAPI definition and the first probe run (decisions P13–P22)
+**Date:** 2026-07-06; revised 2026-11-21 to the service's OpenAPI definition, the probe runs and the owner's clarifications (decisions P13–P22; `attributes.ID` and archetype reporting, §2.1)
 
 ---
 
@@ -49,7 +49,7 @@ The service uses a different shape for each direction, and the connector must ha
 {
   "id": "Sanne",
   "baseType": 4,
-  "attributes": { "name": "Sanne Groen" },
+  "attributes": { "ID": "Sanne", "name": "Sanne Groen" },
   "relationships": [
     { "sourceID": "Sanne", "targetID": "Current-Account-1-Sanne", "type": "Owns" }
   ],
@@ -81,17 +81,17 @@ The service uses a different shape for each direction, and the connector must ha
   "name": "Sanne",
   "baseType": "Subject",
   "attributes": { "name": "Sanne Groen" },
-  "isArchetypes": [],
-  "directArchetypes": [ "Customer" ],
+  "isArchetypes": [ "Customer" ],
+  "directArchetypes": [],
   "lastEvaluated": "2026-01-01T00:00:10Z"
 }
 ```
 
 **Base type.** An integer enum. The connector sends **4 for a Subject and 2 for a Resource** (P18, A4) and accepts either a number or a name on reads. *C6: the definition's create samples say the reverse (2 = Subject, 4 = Resource). The realigned probe (WS0.15) must confirm the numbering before anything is created against a shared service.*
 
-**Attributes.** The write model's `attributes` is a map of string to string. The connector exposes single-valued string attributes only, and omits an attribute that has no value in IDM (P20). The ID is not mirrored into `attributes`.
+**Attributes.** The write model's `attributes` is a map of string to string. The connector exposes single-valued string attributes only, and omits an attribute that has no value in IDM (P20). **By design, the service requires `attributes.ID` equal to `id`** on every create and update. Without it the write fails with 500 (C8, confirmed by the service owner 2026-11-21). The connector always sets it from the entity's ID; it is not a configurable domain attribute. Reads do not return it: neither the read model's `Attributes` nor the search item's `attributes` include `ID`.
 
-**Archetypes.** `directArchetypes` are assigned by the writer, through the entity body (P22). `isArchetypes` are assigned by the service's own policy rules; the connector never reads or writes them for scoping (P19).
+**Archetypes.** The writer assigns archetypes through `directArchetypes` in the entity body (P22). The service also assigns archetypes through its own policy rules. **By design, a search item reports an entity's archetypes in `isArchetypes`, including those assigned through `directArchetypes`.** The search item's own `directArchetypes` field comes back empty (C9, confirmed by the service owner 2026-11-21). So `isArchetypes` is the only place a read can see the archetypes the connector wrote. It may also hold archetypes assigned by policy, which the connector does not control.
 
 ### 2.2 Relationship representation — normative rules
 
@@ -256,11 +256,11 @@ The library exposes, per mapping, `buildRelationships(sourceId, typeConfig)`, wh
 
 ICF's attribute model does not carry structured objects portably, so edges cross the ICF boundary as a **multivalued string attribute** `entityRelationships`, each value a compact JSON object in the service's write shape, keys in the order `sourceID`, `targetID`, `type`, with no whitespace, e.g. `{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}` (P17). The create and update scripts parse each value, check that it names the entity being written as its source or target (rejecting it with `InvalidAttributeValueException` otherwise), and place it into the body's `relationships` collection. On reads, the read model's `{source, target, type}` is converted back into the same string, so reconciliation compares like with like. This keeps the connector agnostic of IDM's relationship model — it receives fully resolved edges — while remaining inspectable in logs and recon diagnostics.
 
-`directArchetypes` travels as a plain multivalued string attribute, and the type's scope archetype is added to it if missing (P19). The base type is injected by the script from `entityKind`. Domain attributes are sent as strings; numbers and booleans as their text form; attributes with no value are omitted (P20).
+`directArchetypes` travels as a plain multivalued string attribute, and the type's scope archetype is added to it if missing (P19). On reads it is filled from the search item's `isArchetypes` (§2.1). The base type is injected by the script from `entityKind`, and `attributes.ID` from the entity's ID (§2.1, C8). Domain attributes are sent as strings; numbers and booleans as their text form; attributes with no value are omitted (P20).
 
 ### 8.4 Update payload algorithm (UpdateScript)
 
-Given `uid` and the attribute set delivered by sync, the script resolves the object type's configuration from the object class, then builds the write model: `id` from `uid`; `baseType` from `entityKind`; `attributes` from the configured attribute list, omitting empty values; `directArchetypes` from the attribute, with the scope archetype; `relationships` from parsing `entityRelationships`. It then issues `PUT /admin/entities/{id}`. Because the payload is total, the operation is idempotent: replaying it converges to the same remote state, which underpins both the concurrency posture (§10) and drift repair (§11). One correctness note for implementers: the mapping **must not** be configured to send partial attribute sets on update — `entityRelationships` and `directArchetypes` must be recomputed and included on *every* update event, even when only a scalar attribute changed, because the `PUT` is destructive to anything omitted. The update script refuses an update that lacks either attribute rather than silently deleting every relationship. The discovery tool emits mappings with this property, and it should be protected by a code-review check rather than left to convention.
+Given `uid` and the attribute set delivered by sync, the script resolves the object type's configuration from the object class, then builds the write model: `id` from `uid`; `baseType` from `entityKind`; `attributes` from the configured attribute list, omitting empty values, plus `ID` set to the entity's ID, which the service requires; `directArchetypes` from the attribute, with the scope archetype; `relationships` from parsing `entityRelationships`. It then issues `PUT /admin/entities/{id}`. Because the payload is total, the operation is idempotent: replaying it converges to the same remote state, which underpins both the concurrency posture (§10) and drift repair (§11). One correctness note for implementers: the mapping **must not** be configured to send partial attribute sets on update — `entityRelationships` and `directArchetypes` must be recomputed and included on *every* update event, even when only a scalar attribute changed, because the `PUT` is destructive to anything omitted. The update script refuses an update that lacks either attribute rather than silently deleting every relationship. The discovery tool emits mappings with this property, and it should be protected by a code-review check rather than left to convention.
 
 ---
 
@@ -288,7 +288,7 @@ Per §8.4. One interaction deserves explicit note: when a relationship is remove
 
 **Attribute filters.** `EqualsFilter`, `ContainsFilter` and `StartsWithFilter` on configured domain attributes, combined with `AndFilter`, `OrFilter` and `NotFilter`, translate into the service's filter tree (§2). Values are sent as text (P20). Any other filter — including any filter on `entityRelationships`, `directArchetypes` or `lastEvaluated`, and any timestamp comparison — raises `UnsupportedOperationException` before any request. It is never silently turned into a full scan (P7).
 
-**Enumeration.** An unfiltered search — used by target-phase reconciliation — posts the type's `objectClass` and enumerates page by page, following the service's `pagedResultsCookie`. Because several IDM types can share a base type, the connector keeps only results whose `directArchetypes` contain the type's scope archetype (P19); `isArchetypes` is never consulted. Entities without a scope archetype are therefore invisible to enumeration, and never reported as orphans of the wrong type. Scoping happens after paging, so a page can hand fewer objects to the handler than the page size.
+**Enumeration.** An unfiltered search — used by target-phase reconciliation — posts the type's `objectClass` and enumerates page by page, following the service's `pagedResultsCookie`. Because several IDM types can share a base type, the connector keeps only results that carry the type's scope archetype (P19). Search reports archetypes assigned through `directArchetypes` in `isArchetypes` (§2.1, C9), so the scope archetype is matched there (P19, amended 2026-11-21). Policy rules can also add to `isArchetypes`. A policy that assigned one type's scope archetype to another type's entities would bring them into that type's scope, so choose scope archetypes that no policy assigns. On reads, the ICF `directArchetypes` attribute is filled from `isArchetypes` (§8.3). Entities without a scope archetype are therefore invisible to enumeration, and never reported as orphans of the wrong type. Scoping happens after paging, so a page can hand fewer objects to the handler than the page size.
 
 **Paging.** When IDM sets a page size, the connector returns one service page per call, with an ICF cookie wrapping the service's cookie, and `remainingPagedResults` derived from `totalResults`. A corrupt ICF cookie is rejected rather than restarting from the first page, which would duplicate results. When IDM sets no page size, every page is streamed through the result handler, and enumeration stops early when the handler returns `false`. A malformed search item (no `uid` or `name`) is skipped with one `WARN` rather than aborting the whole recon.
 
@@ -346,7 +346,7 @@ Operation scripts map HTTP outcomes to ICF exceptions so that IDM's sync engine 
 | 404 | `GET /admin/manifests` | Test fails: the service defines no archetypes. |
 | 409 | POST | `AlreadyExistsException` — recon can link-and-update instead. *Assumed; the probe has not yet seen a duplicate create (Q04.1).* |
 | 500 | GET by ID | `ConnectorIOException`, never "not found". *C1: every GET by ID returned 500 in the first probe run; `byIdLookup: search` avoids it.* |
-| 500 | POST without an `id` | Treated as any 5xx. *C4: the definition documents 400.* The connector always sends an `id`. |
+| 500 | POST or PUT without an `id`, or without `attributes.ID` equal to it | Treated as any 5xx. *C4, C8: the definition documents 400.* The connector always sends both. |
 | 408 / 429 / 5xx / IO | any | `ConnectorIOException` (retryable) — pair with mapping/queued-sync retry configuration; honour `Retry-After` on 429 if present. |
 
 Error bodies are RFC 7807 problem details. Their `title`, `status` and `detail` are logged (minus credentials) but not parsed for control flow. All logging must treat entity attribute values as potentially personal data and log IDs and edge shapes rather than full attribute maps or response bodies at levels above `DEBUG`.
@@ -367,7 +367,7 @@ The service's API key is held in the connector configuration's `password` proper
 
 **Risk: partial-attribute updates.** Any mapping change that stops recomputing `entityRelationships` on every update silently converts routine attribute updates into relationship mass-deletions (§8.4). Mitigation: generator-emitted mappings, code review rule, and the drift recon as detection.
 
-**Decision log.** Scripted REST over custom Java bundle (confirmed requirement). Per-type dynamic schema over single generic class (§5.3). Mapping-side payload assembly over connector callback to IDM (§8.2). Pure IDM-derived full-state `PUT` over read-merge-write (§8.1), contingent on A1/A2. Self-heal plus verification logging over synchronous create-time repair (§9.1). No client-side locking; convergence plus serialisation plus drift recon (§10). Target-phase `REPORT`-then-`DELETE` rollout (§11). Shared `X-API-KEY` authentication in place of HTTP Basic, confirmed 2026-11-21 (§2, §14; delivery plan P13). Search by `POST /admin/entities/search` with a JSON body, not `GET` with query parameters, confirmed 2026-11-21 (§2; delivery plan P14). Relationship writes confirmed as full-state through the entity's `relationships` collection, with missing relationships removed by the service, 2026-11-21 (§8; delivery plan P15). Drift detection (§11) deferred to the final delivery workstream, 2026-11-21 (delivery plan P16). Alignment to the real API decided 2026-11-21 (delivery plan P17–P22; `docs/design-decisions-2026-11-21.md`): relationships as `{sourceID, targetID, type}`; base type sent as a number with 4 = Subject; a scope archetype per type; single-valued string attributes; search by ID plus equals, contains and starts-with with and, or and not; archetypes set in the entity body. §2, §6–§9 and §13 were rewritten to match in WS0.14b, the same day.
+**Decision log.** Scripted REST over custom Java bundle (confirmed requirement). Per-type dynamic schema over single generic class (§5.3). Mapping-side payload assembly over connector callback to IDM (§8.2). Pure IDM-derived full-state `PUT` over read-merge-write (§8.1), contingent on A1/A2. Self-heal plus verification logging over synchronous create-time repair (§9.1). No client-side locking; convergence plus serialisation plus drift recon (§10). Target-phase `REPORT`-then-`DELETE` rollout (§11). Shared `X-API-KEY` authentication in place of HTTP Basic, confirmed 2026-11-21 (§2, §14; delivery plan P13). Search by `POST /admin/entities/search` with a JSON body, not `GET` with query parameters, confirmed 2026-11-21 (§2; delivery plan P14). Relationship writes confirmed as full-state through the entity's `relationships` collection, with missing relationships removed by the service, 2026-11-21 (§8; delivery plan P15). Drift detection (§11) deferred to the final delivery workstream, 2026-11-21 (delivery plan P16). Alignment to the real API decided 2026-11-21 (delivery plan P17–P22; `docs/design-decisions-2026-11-21.md`): relationships as `{sourceID, targetID, type}`; base type sent as a number with 4 = Subject; a scope archetype per type; single-valued string attributes; search by ID plus equals, contains and starts-with with and, or and not; archetypes set in the entity body. §2, §6–§9 and §13 were rewritten to match in WS0.14b, the same day. Clarified by the service owner, 2026-11-21: the service requires `attributes.ID` equal to `id` on every write, by design (§2.1, §8.3, §8.4; C8). Search reports archetypes assigned through `directArchetypes` in `isArchetypes`, by design (§2.1; C9), so P19 is amended to scope on `isArchetypes` (§9.4; plan WS0.18). Deletes work (§9.3); the probe's contrary readings are being re-checked (C10).
 
 ---
 
@@ -375,8 +375,8 @@ The service's API key is held in the connector configuration's `password` proper
 
 *Revised 2026-11-21 to the service's real shapes (P17–P22).*
 
-1. **Initial recon runs the user mapping first.** Sanne is created: `POST /admin/entities` with `{"id":"Sanne","baseType":4,"attributes":{"name":"Sanne Groen"},"relationships":[{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}],"directArchetypes":["Customer"]}`. The service answers `200` with no body. The account does not yet exist, so the service silently drops the edge; the create script's verification `GET` sees no relationships against one submitted and logs `WARN dropped edge Sanne -Owns-> Current-Account-1-Sanne`.
-2. **The account mapping creates the account.** `POST` with `"baseType":2`, `"directArchetypes":["Account"]` and the **identical** relationship `{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}`. Sanne exists, so the edge is established, and the earlier drop is healed with no further action. A `GET` of either entity now shows `{"source":"Sanne","target":"Current-Account-1-Sanne","type":"Owns","sourceType":"Subject"}`.
+1. **Initial recon runs the user mapping first.** Sanne is created: `POST /admin/entities` with `{"id":"Sanne","baseType":4,"attributes":{"ID":"Sanne","name":"Sanne Groen"},"relationships":[{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}],"directArchetypes":["Customer"]}`. The service answers `200` with no body. The account does not yet exist, so the service silently drops the edge; the create script's verification `GET` sees no relationships against one submitted and logs `WARN dropped edge Sanne -Owns-> Current-Account-1-Sanne`.
+2. **The account mapping creates the account.** `POST` with `"baseType":2`, `"attributes":{"ID":"Current-Account-1-Sanne",…}`, `"directArchetypes":["Account"]` and the **identical** relationship `{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}`. Sanne exists, so the edge is established, and the earlier drop is healed with no further action. A `GET` of either entity now shows `{"source":"Sanne","target":"Current-Account-1-Sanne","type":"Owns","sourceType":"Subject"}`.
 3. **Sanne's name changes in IDM.** The update event recomputes the full payload (name `Sanne Smith`, the same single edge, the same archetypes) and `PUT`s it — idempotent full replacement, edge preserved because it was included.
 4. **A read of Sanne by ID** decodes the read model back into ICF attributes: `entityRelationships` is `["{\"sourceID\":\"Sanne\",\"targetID\":\"Current-Account-1-Sanne\",\"type\":\"Owns\"}"]`, exactly the string the mapping library computes from either end.
 5. **The account is deleted in IDM.** `DELETE /admin/entities/Current-Account-1-Sanne` removes the entity and the edge, and returns the deleted entity. IDM's removal of the reverse reference fires an update on Sanne, whose subsequent `PUT` contains no relationships — a consistent restatement of the new truth.

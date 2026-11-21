@@ -30,6 +30,7 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
   --out DIR              Output directory (default build/contract-probe/<run>)
   --max-pages N          Pages to read when sampling entities (default 5)
   --timeout-seconds N    Per-request timeout (default 15)
+  --settle-seconds N     How long a read-back waits for a write to show (default 10; 0 reads once)
   --search-path PATH     Search endpoint, called with POST and a JSON body
                          (default /admin/entities/search)
   --archetypes A,B       Two Resource archetypes for the archetype-replacement check (P22).
@@ -65,6 +66,7 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
                 case '--out': o.outDir = new File(next(a)); break
                 case '--max-pages': o.maxPages = positive(a, next(a)); break
                 case '--timeout-seconds': o.timeoutSeconds = positive(a, next(a)); break
+                case '--settle-seconds': o.settleSeconds = nonNegative(a, next(a)); break
                 case '--search-path':
                     o.searchPath = next(a)
                     if (!o.searchPath.startsWith('/')) throw new UsageException('--search-path must start with /')
@@ -92,6 +94,16 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
         o.apiKey = key.toCharArray()
         if (!o.outDir) o.outDir = new File("build/contract-probe/${o.runId}")
         o
+    }
+
+    private static int nonNegative(String flag, String v) {
+        try {
+            int n = Integer.parseInt(v)
+            if (n < 0 || n > 600) throw new NumberFormatException()
+            n
+        } catch (NumberFormatException e) {
+            throw new UsageException("${flag} must be a whole number from 0 to 600")
+        }
     }
 
     private static int positive(String flag, String v) {

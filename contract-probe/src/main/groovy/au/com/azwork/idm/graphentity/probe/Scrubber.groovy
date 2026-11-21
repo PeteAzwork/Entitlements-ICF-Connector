@@ -84,16 +84,27 @@ class Scrubber {
         path == MANIFESTS_PATH ? scrubManifests(body) : scrub(body)
     }
 
-    /** Keeps each manifest's name and the names of its archetypes; drops decisions, rules and instance lists. */
-    static Object scrubManifests(Object body) {
-        if (!(body instanceof List)) return body instanceof Map ? (body as Map).collectEntries { k, v -> [(k): k in ['title', 'status', 'type'] ? v : REDACTED] } : body
-        (body as List).collect { m ->
-            if (!(m instanceof Map)) return REDACTED
-            (m as Map).collectEntries { k, v ->
-                if (k == 'name') return [(k): v]
-                if ((k as String).endsWith('Archetypes') && v instanceof List) return [(k): (v as List).collect { a -> a instanceof Map ? [name: (a as Map).name] : REDACTED }]
-                [(k): v == null ? null : REDACTED]
-            }
+    /**
+     * Keeps manifest and archetype names, and the structure that leads to them; drops everything else. Handles the
+     * documented list of manifests and the export bundle the service actually returns (C11), where the manifests sit
+     * under {@code paths[*].manifests}. Fails closed: an object under any other key (such as {@code entities} or
+     * {@code policies}, which could be keyed by entity IDs) is replaced whole, keys included.
+     */
+    static Object scrubManifests(Object body) { keepNames(body, true) }
+
+    private static final Set<String> MANIFEST_CONTAINERS = ['paths', 'manifests'] as Set
+    private static final Set<String> PROBLEM_KEYS = ['title', 'status', 'type'] as Set
+
+    private static Object keepNames(Object n, boolean root, boolean inManifests = false) {
+        if (n instanceof List) return (n as List).collect { it instanceof Map || it instanceof List ? keepNames(it, root, inManifests) : REDACTED }
+        if (!(n instanceof Map)) return n == null ? null : REDACTED
+        (n as Map).collectEntries { k, v ->
+            String key = k as String
+            if (key == 'name' && !(v instanceof Map || v instanceof List)) return [(k): v]
+            if (key.endsWith('Archetypes') && v instanceof List) return [(k): (v as List).collect { a -> a instanceof Map ? [name: (a as Map).name] : REDACTED }]
+            if (root && key in PROBLEM_KEYS && !(v instanceof Map || v instanceof List)) return [(k): v]
+            if ((key in MANIFEST_CONTAINERS || inManifests) && (v instanceof Map || v instanceof List)) return [(k): keepNames(v, false, inManifests || key == 'manifests')]
+            [(k): v == null ? null : REDACTED]
         }
     }
 

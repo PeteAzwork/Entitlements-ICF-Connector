@@ -13,6 +13,60 @@ import spock.lang.TempDir
  */
 class ContractProbeSpec extends Specification {
 
+    /**
+     * The service's timing as the real runs saw it (C1, C5): after each write, search shows the previous version
+     * of the entity (or nothing) for the next {@code lag} searches on its ID, and GET of any entity the write touches
+     * fails with 500 for the next {@code lag} reads.
+     */
+    static class LaggingService extends FakeGraphService {
+        final int lag
+        final Map<String, Integer> gets = [:]
+        final Map<String, Map> stale = [:]
+
+        LaggingService(int lag) { this.lag = lag }
+
+        private void noteWrite(String id, Map doc, Map before) {
+            stale[id] = [left: lag, item: before]
+            ([id] + ((doc.relationships ?: []) as List).collectMany { Map r -> [r.sourceID, r.targetID] }).unique().each { gets[it as String] = lag }
+        }
+
+        @Override HttpResponse create(Map<String, Object> d) {
+            Map before = d.id instanceof String && entities.containsKey(d.id) ? renderSearchItem(d.id as String) : null
+            def r = super.create(d)
+            if (r.status == 200) noteWrite(d.id as String, d, before)
+            r
+        }
+
+        @Override HttpResponse replace(String id, Map<String, Object> d) {
+            Map before = entities.containsKey(id) ? renderSearchItem(id) : null
+            def r = super.replace(id, d)
+            if (r.status == 200) noteWrite(id, d, before)
+            r
+        }
+
+        @Override HttpResponse get(String id) {
+            if ((gets[id] ?: 0) > 0) {
+                gets[id] = gets[id] - 1
+                requests << [op: 'GET', id: id]
+                return new HttpResponse(status: 500)
+            }
+            super.get(id)
+        }
+
+        @Override HttpResponse search(Map<String, Object> q) {
+            def r = super.search(q)
+            Map f = q.filter as Map
+            Map st = f?.operation == 'EQUALS' ? stale[f.right as String] : null
+            if (r.status == 200 && st && (st.left as int) > 0) {
+                st.left = (st.left as int) - 1
+                List results = (r.body.results as List).findAll { it.uid != f.right }
+                if (st.item) results << st.item
+                r.body.results = results
+            }
+            r
+        }
+    }
+
     @TempDir File dir
     FakeGraphService service = new FakeGraphService()
     FakeGraphHttpServer server
@@ -98,12 +152,12 @@ class ContractProbeSpec extends Specification {
          'edges', 'attributes.omission', 'archetypes.replace', 'ids', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
     }
 
-    def "the probe writes the service's write model: lowercase id, numeric base type, string attributes, sourceID/targetID (P17, P18, P20)"() {
+    def "the probe writes the service's write model: lowercase id, attributes.ID, numeric base type, string attributes, sourceID/targetID (C8, P17, P18, P20)"() {
         given:
         def probeDoc = ContractProbe.probeDoc('x', [ContractProbe.edge('x', 'y')], [a: 'b'], 4, ['Card'])
 
         expect:
-        probeDoc == [id: 'x', baseType: 4, attributes: [probe: 'ws0', a: 'b'],
+        probeDoc == [id: 'x', baseType: 4, attributes: [ID: 'x', probe: 'ws0', a: 'b'],
                      relationships: [[sourceID: 'x', targetID: 'y', type: 'Ws0ProbeEdge']], directArchetypes: ['Card']]
     }
 
@@ -268,38 +322,48 @@ class ContractProbeSpec extends Specification {
         p.contract.baseTypeOnCreate == 'confirmed: 4 = Subject'
     }
 
-    def "WS0.15: each create variant is tried once, and the documented EntityDTO is adopted when it is accepted"() {
+    def "WS0.15: each create variant is tried once, and the designed body (EntityDTO with attributes.ID) is adopted"() {
         when:
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'create.shape').answer == 'The documented EntityDTO is accepted.'
-        f(p, 'create.shape').detail.contains('1. documented EntityDTO → 200')
-        f(p, 'create.shape').detail.contains('7. design casing (ID, BaseType, Relationships) → 400')
-        p.contract.createShape == 'documented EntityDTO'
+        f(p, 'create.shape').answer == 'The EntityDTO with attributes.ID is accepted, as designed (C8).'
+        f(p, 'create.shape').detail.contains('1. EntityDTO with attributes.ID (C8) → 200')
+        f(p, 'create.shape').detail.contains('2. EntityDTO without attributes.ID → 500')
+        f(p, 'create.shape').detail.contains('6. design casing (ID, BaseType, Relationships) → 400')
+        p.contract.createShape == 'EntityDTO with attributes.ID (C8)'
         service.requests.findAll { it.op == 'POST' && (it.body?.id ?: it.body?.ID)?.contains('-shape-') }.size() == ContractProbe.CREATE_VARIANTS.size()
     }
 
-    def "WS0.15: when the service needs attributes.ID, that variant is adopted and every later write carries it"() {
+    def "WS0.15: if the service stops accepting the designed body, the next accepted variant is adopted and the change reported"() {
         given:
         server.close()
-        def picky = new FakeGraphService() {
-            @Override HttpResponse create(Map<String, Object> d) { (d.attributes as Map)?.ID == d.id ? super.create(d) : new HttpResponse(status: 500) }
-            @Override HttpResponse replace(String id, Map<String, Object> d) { (d.attributes as Map)?.ID == d.id ? super.replace(id, d) : new HttpResponse(status: 500) }
+        def changed = new FakeGraphService() {
+            @Override HttpResponse create(Map<String, Object> d) { d.directArchetypes ? super.create(d) : new HttpResponse(status: 500) }
+            @Override HttpResponse replace(String id, Map<String, Object> d) { d.directArchetypes ? super.replace(id, d) : new HttpResponse(status: 500) }
         }
-        seedForeign(picky)
-        server = new FakeGraphHttpServer(picky).start()
+        seedForeign(changed)
+        server = new FakeGraphHttpServer(changed).start()
 
         when:
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'create.shape').answer.contains('the first variant that is: EntityDTO + attributes.ID')
+        f(p, 'create.shape').answer.contains('the first variant that is: EntityDTO with attributes.ID and a direct archetype')
+        f(p, 'create.shape').answer.contains('tell the service team')
         f(p, 'baseType.create').answer.startsWith('Yes')
         f(p, 'attributes.omission').answer.startsWith('Yes')
-        picky.requests.findAll { it.op in ['POST', 'PUT'] && !(it.body?.id as String)?.contains('-shape-') && it.body?.id }
-            .every { (it.body.attributes as Map).ID == it.body.id || (it.body.id as String).contains('non-string') }
         p.cleanupProblems == []
+    }
+
+    def "every write the probe sends carries attributes.ID equal to the id, apart from the variant that tests its absence (C8)"() {
+        when:
+        probe(allowWrites: true)
+
+        then:
+        def writes = service.requests.findAll { it.op in ['POST', 'PUT'] && it.body?.id }
+        writes
+        writes.every { (it.body.attributes as Map).ID == it.body.id || (it.body.id as String).endsWith('shape-2') }
     }
 
     def "WS0.15: when no create variant is accepted, the other write checks are skipped with the reason, and cleanup asks for no proof"() {
@@ -367,7 +431,7 @@ class ContractProbeSpec extends Specification {
         ProbeReport.write(p, dir)
 
         then:
-        f(p, 'search.reflectsDelete').answer.startsWith('No: after DELETE (200) a search still finds it')
+        f(p, 'search.reflectsDelete').answer.startsWith('No: after DELETE (200) search still finds it')
         p.cleanupProblems == []
         p.cleanupUnconfirmed
         p.cleanupUnconfirmed.every { it in p.written }
@@ -405,7 +469,7 @@ class ContractProbeSpec extends Specification {
         def a = f(probe(), 'manifests.archetypes')
 
         then:
-        a.answer == 'Cannot tell: 200, but not the documented list of manifests. Outline: {paths: list of 1 × {name: string, count: number, rules: object (1 fields)}}.'
+        a.answer == 'Cannot tell: 200, but no archetype lists were found. Outline: {paths: list of 1 × {name: string, count: number, rules: object (1 fields)}}.'
         !a.answer.contains('PII-')
     }
 
@@ -443,7 +507,7 @@ class ContractProbeSpec extends Specification {
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'attributes.omission').answer == 'Yes: the omitted attribute is gone, and `keep` was updated.'
+        f(p, 'attributes.omission').answer.startsWith('Yes: once the update was visible')
         f(p, 'archetypes.replace').answer == 'Yes: Created with both; after an update listing only `Card`, only `Card` remains.'
     }
 
@@ -465,12 +529,12 @@ class ContractProbeSpec extends Specification {
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'attributes.omission').answer.startsWith('No: the omitted attribute is still there')
+        f(p, 'attributes.omission').answer.startsWith('No: once the update was visible, the omitted attribute was still there')
         f(p, 'archetypes.replace').answer.startsWith('No:')
         f(p, 'archetypes.replace').answer.contains('merges')
     }
 
-    def "WS0.15: --archetypes overrides the manifests, and without either the archetype check is not tested"() {
+    def "WS0.15: --archetypes overrides the manifests, and without either the probe's own archetypes are used"() {
         when:
         def given = probe(allowWrites: true, archetypes: ['X1', 'X2'])
         service.manifests.clear()
@@ -478,7 +542,99 @@ class ContractProbeSpec extends Specification {
 
         then:
         f(given, 'archetypes.replace').answer.contains('only `X2` remains')
-        f(none, 'archetypes.replace').confidence == 'not-tested'
+        f(given, 'archetypes.replace').detail.contains('from --archetypes')
+        f(none, 'archetypes.replace').answer.contains('only `Ws0ProbeB` remains')
+        f(none, 'archetypes.replace').detail.contains('from probe archetypes')
+    }
+
+    def "WS0.15e: with a settle window, every read-back waits for the service to catch up, so lagging writes still get answers"() {
+        given:
+        server.close()
+        def lagging = new LaggingService(3)
+        seedForeign(lagging)
+        server = new FakeGraphHttpServer(lagging).start()
+
+        when:
+        def p = probe(allowWrites: true, settleSeconds: 2, pollMillis: 5)
+
+        then:
+        f(p, 'baseType.create').answer.startsWith('Yes')
+        f(p, 'search.createdVisible').answer.startsWith('Yes: both created entities were found by a search on their ID within')
+        f(p, 'attributes.omission').answer.startsWith('Yes: once the update was visible')
+        f(p, 'archetypes.replace').answer.startsWith('Yes')
+        ['edges.postToMissing', 'edges.inboundOnCreate', 'edges.getShowsInbound', 'edges.sourceOmission', 'edges.inboundOnPut',
+         'edges.targetOmission', 'edges.putToMissing', 'edges.relationshipEndpoints', 'edges.deleteCascades'].every { f(p, it).confidence == 'observed' }
+        f(p, 'edges.sourceOmission').answer.startsWith('Yes')
+        f(p, 'search.reflectsDelete').answer.startsWith('Yes')
+        f(p, 'ids.caseSensitivity').answer.startsWith('Yes')
+        f(p, 'paging.updateDuringEnumeration').answer.startsWith('Neither')
+        p.cleanupProblems == []
+    }
+
+    def "WS0.15e: the same lagging service read once, with no settle window, gives the 'cannot tell' answers of the real runs"() {
+        given:
+        server.close()
+        def lagging = new LaggingService(3)
+        seedForeign(lagging)
+        server = new FakeGraphHttpServer(lagging).start()
+
+        when:
+        def p = probe(allowWrites: true, settleSeconds: 0)
+
+        then:
+        f(p, 'baseType.create').answer.startsWith('Cannot tell')
+        f(p, 'attributes.omission').answer.startsWith('Cannot tell')
+        f(p, 'edges.postToMissing').answer.startsWith('Cannot tell')
+    }
+
+    def "WS0.15e: poll stops as soon as the condition holds, and makes exactly one attempt with no window"() {
+        given:
+        def p = new ContractProbe(options(settleSeconds: 2, pollMillis: 1))
+        int calls = 0
+
+        when:
+        def r = p.poll({ ++calls }, { it >= 3 })
+
+        then:
+        r.result == 3
+        r.done
+        r.attempts == 3
+
+        when:
+        calls = 0
+        def once = new ContractProbe(options(settleSeconds: 0)).poll({ ++calls }, { false })
+
+        then:
+        once.attempts == 1
+        !once.done
+    }
+
+    def "WS0.15: archetype names are found inside the manifests export bundle, and only names are recorded (C11)"() {
+        given:
+        server.close()
+        def bundled = new FakeGraphService() {
+            @Override HttpResponse manifests() {
+                new HttpResponse(status: 200, headers: ['Content-Type': 'application/json'], body: [paths: [[
+                    entities: ['PII-Cor': [name: 'PII-Cor']], entityRelationships: [], policies: [p1: [rules: 'PII-rule']],
+                    manifests: [banking: [name: 'banking', subjectArchetypes: [[name: 'Customer', subjects: [[name: 'PII-Cor']], reconciliationPath: 'PII-path']],
+                                          resourceArchetypes: [[name: 'Account'], [name: 'Card']], constraints: [[name: 'c1', rules: 'PII-rule']]]]]]])
+            }
+        }
+        seedForeign(bundled)
+        server = new FakeGraphHttpServer(bundled).start()
+
+        when:
+        def p = probe()
+        ProbeReport.write(p, dir)
+        def recorded = new File(dir, 'exchanges.jsonl').readLines().collect { new groovy.json.JsonSlurper().parseText(it) }.find { it.path == '/admin/manifests' }.body
+
+        then:
+        f(p, 'manifests.archetypes').answer == '1 manifest(s), nested in an export bundle rather than the documented list (C11). Subject archetypes: Customer. Resource archetypes: Account, Card.'
+        p.contract.resourceArchetypes == ['Account', 'Card']
+        recorded.paths[0].manifests.banking.subjectArchetypes == [[name: 'Customer']]
+        recorded.paths[0].entities == Scrubber.REDACTED
+        recorded.paths[0].policies == Scrubber.REDACTED
+        !new File(dir, 'exchanges.jsonl').text.contains('PII-')
     }
 
     def "WS0.05: write checks record error responses for bad writes"() {

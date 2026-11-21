@@ -29,13 +29,18 @@ class ProbeOptions {
     File outDir
     String runId = LocalDateTime.now().format(DateTimeFormatter.ofPattern('yyyyMMdd-HHmmss'))
 
-    /** How long to wait before re-checking that search has dropped a deleted entity. */
-    int settleSeconds = 2
+    /**
+     * How long a read-back may wait for a write to show (WS0.15e): search lags behind writes (C5), and GET fails
+     * while an entity is re-evaluated (C1). Zero means a single read.
+     */
+    int settleSeconds = 10
+    /** Pause between read-back attempts within the settle window. */
+    int pollMillis = 500
 
     String getPrefix() { "${NAMESPACE}${runId}-".toString() }
 
     @Override
     String toString() {
-        "ProbeOptions(baseUrl=${baseUrl}, apiKeyHeader=${apiKeyHeader}, allowWrites=${allowWrites}, maxPages=${maxPages}, runId=${runId})"
+        "ProbeOptions(baseUrl=${baseUrl}, apiKeyHeader=${apiKeyHeader}, allowWrites=${allowWrites}, maxPages=${maxPages}, settleSeconds=${settleSeconds}, runId=${runId})"
     }
 }

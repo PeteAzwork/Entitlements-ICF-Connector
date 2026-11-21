@@ -108,15 +108,15 @@ class Fixtures {
             relationships: [owns()], directArchetypes: ['Customer'])
     }
 
-    /** Write model (EntityDTO) for Sanne: a Subject, base type 4 (P18). */
+    /** Write model (EntityDTO) for Sanne: a Subject, base type 4 (P18), with attributes.ID by design (C8). */
     static Map<String, Object> sanneWire() {
-        [id: SANNE, baseType: 4, attributes: [name: 'Sanne Groen'],
+        [id: SANNE, baseType: 4, attributes: [ID: SANNE, name: 'Sanne Groen'],
          relationships: [[sourceID: SANNE, targetID: SANNE_ACCOUNT, type: 'Owns']], directArchetypes: ['Customer']]
     }
 
-    /** Write model (EntityDTO) for the account: a Resource, base type 2 (P18). */
+    /** Write model (EntityDTO) for the account: a Resource, base type 2 (P18), with attributes.ID (C8). */
     static Map<String, Object> accountWire() {
-        [id: SANNE_ACCOUNT, baseType: 2, attributes: [name: 'Current Account', productCode: 'CA1'],
+        [id: SANNE_ACCOUNT, baseType: 2, attributes: [ID: SANNE_ACCOUNT, name: 'Current Account', productCode: 'CA1'],
          relationships: [[sourceID: SANNE, targetID: SANNE_ACCOUNT, type: 'Owns']], directArchetypes: ['Account']]
     }
 
@@ -127,15 +127,18 @@ class Fixtures {
          relationships: [[source: SANNE, target: SANNE_ACCOUNT, type: 'Owns', sourceType: 'Subject']]]
     }
 
-    /** Search item for Sanne. It carries no relationships; the base type is a name. */
+    /**
+     * Search item for Sanne. It carries no relationships; the base type is a name. Her directly assigned archetype
+     * is reported in isArchetypes, and directArchetypes is empty (C9, by design).
+     */
     static Map<String, Object> sanneSearchItem() {
         [uid: SANNE, name: SANNE, baseType: 'Subject', attributes: [name: 'Sanne Groen'],
-         isArchetypes: [], directArchetypes: ['Customer'], lastEvaluated: EVALUATED]
+         isArchetypes: ['Customer'], directArchetypes: [], lastEvaluated: EVALUATED]
     }
 
     static Map<String, Object> accountSearchItem() {
         [uid: SANNE_ACCOUNT, name: SANNE_ACCOUNT, baseType: 'Resource', attributes: [name: 'Current Account', productCode: 'CA1'],
-         isArchetypes: [], directArchetypes: ['Account'], lastEvaluated: EVALUATED]
+         isArchetypes: ['Account'], directArchetypes: [], lastEvaluated: EVALUATED]
     }
 
     /** A manifest defining the archetypes the fixture types use (P22). */

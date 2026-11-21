@@ -24,7 +24,9 @@ Most questions can be answered by observation with the contract probe in `contra
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
 ```
 
-**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: by default the first two the manifests define, or the ones given with `--archetypes A,B`.
+**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: the ones given with `--archetypes A,B`, else the first two the manifests define, else two probe archetypes (`Ws0ProbeA`, `Ws0ProbeB`). The service accepts archetype names no manifest defines.
+
+**Settle window.** The service applies writes with a short delay: search lags (C5), and GET fails while an entity is re-evaluated (C1). So every read-back after a write waits, polling, for up to `--settle-seconds` (default 10) until the write is visible. A "No" answer then means "not within the window". Raise the window if answers look like timing rather than behaviour; `--settle-seconds 0` reads once, as the first runs did.
 
 ```bash
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY --allow-writes"
@@ -68,13 +70,13 @@ Most questions can be answered by observation with the contract probe in `contra
 | Q03.3 | Offset, page number or cursor, and which request-body field? | An opaque `pagedResultsCookie`, sent back as returned (definition) | `paging.params` | Done in WS0.14 | **Documented**; probe confirms |
 | Q03.4 | What is the maximum page size? | 1000 (`ConnectorConfig.MAX_PAGE_SIZE`) | `paging.maxPageSize` | `MAX_PAGE_SIZE`, `ConnectorConfigSpec` | **Partly:** no cap at or below 91, the instance's whole content (run `20261121-173141` #13 #14) |
 | Q03.5 | Is ordering stable across pages, and what is it ordered by? | Stable | `paging.ordering` | Design §9.4 if not | **Confirmed:** stable, sorted by ID (run `20261121-173141` #15 #16) |
-| Q03.6 | Can an entity updated mid-enumeration be skipped? (Returned twice is harmless.) | Not skipped | `paging.updateDuringEnumeration` (write run) | Risk register §9. A skip would undermine target recon | Open |
+| Q03.6 | Can an entity updated mid-enumeration be skipped? (Returned twice is harmless.) | Not skipped | `paging.updateDuringEnumeration` (write run) | Risk register §9. A skip would undermine target recon | **Observed:** neither skipped nor duplicated, page size 1 (`190350` #156–#164) |
 
 ### WS0.04 — Duplicate POST
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
-| Q04.1 | What does a POST of an existing ID return? | 409, mapped to `AlreadyExistsException` (§13) | `create.duplicate` (write run) | `HttpErrorMapper`. If it upserts, raise a §9 risk and decide on GET-before-POST | Open |
+| Q04.1 | What does a POST of an existing ID return? | 409, mapped to `AlreadyExistsException` (§13) | `create.duplicate` (write run) | `HttpErrorMapper`. If it upserts, raise a §9 risk and decide on GET-before-POST | **200** (`190350` #48). Whether it replaced the entity could not be read back in time (C5). Given C2's upsert, assume it replaces until shown otherwise |
 
 ### WS0.05 — Error bodies
 
@@ -82,7 +84,7 @@ Most questions can be answered by observation with the contract probe in `contra
 |---|---|---|---|---|---|
 | Q05.1 | What do 400, 404 and 409 bodies look like? | Unparsed, logged after redaction (§13) | `errors.*` | `HttpErrorMapper.redact` if bodies echo input | **Partly:** 400s are problem details with `errors`, `status`, `title`, `traceId`, `type` (run `20261121-173153` #33 #34). 500s have no body. No 404 or 409 seen yet |
 | Q05.2 | Can an error body echo request content, such as attribute values? | Possibly, so redact | `errors.postWithoutId`, `errors.malformedJson` | Logging rules (WS3.15) | Open |
-| Q05.3 | What does a PUT to a missing entity return? | 404, mapped to `UnknownUidException` | `errors.putMissing` (write run) | `HttpErrorMapper`. An upsert changes recon handling | Open: 200 with the design shape (run `20261121-155100`), probably creating the entity (C10); 500 with the EntityDTO (run `20261121-173153` #35, C8) |
+| Q05.3 | What does a PUT to a missing entity return? | 404, mapped to `UnknownUidException` | `errors.putMissing` (write run) | `HttpErrorMapper`. An upsert changes recon handling | **Answered:** 200, and the entity is created (C2). The connector can never see `UnknownUidException` on update |
 
 ### WS0.06 — Read-only fields
 
@@ -102,24 +104,24 @@ Most questions can be answered by observation with the contract probe in `contra
 | Q07.3 | Does GET of the target show the relationship, with the other entity as `source`? | Yes | `edges.getShowsInbound` | `EntityDecoder`, recon comparison | Open |
 | Q07.4 | Does a write that omits a relationship delete it? | **Answered:** yes. Relationships can be written through the entity's `relationships` collection on create and update, or through `POST /admin/entities/{id}/relationships`. Any relationship missing from the collection is removed | `edges.putOmissionDeletesInbound` | Done: decision P15 keeps the design's full-state model | **Confirmed** by the project owner, 2026-11-21 |
 | Q07.5 | Does an inbound edge in a PUT link the entities? | Yes | `edges.inboundOnPut` | Design §8 | Open |
-| Q07.6 | Is a PUT edge to a missing entity dropped, rejected or kept? | Dropped silently (the fake's behaviour) | `edges.putToMissing` | `FakeGraphService.store`. If dropped, consider a verification GET after PUT | Open |
+| Q07.6 | Is a PUT edge to a missing entity dropped, rejected or kept? | Dropped silently (the fake's behaviour) | `edges.putToMissing` | `FakeGraphService.store`. If dropped, consider a verification GET after PUT | **Answered:** dropped silently. A PUT with relationships to an existing and a missing entity kept only the first (`190350` #61, #62) |
 | Q07.7 | Does DELETE cascade the entity's edges? | Yes | `edges.deleteCascades` | Design §9.3 | Open |
-| Q07.8 | Does a write of entity A also remove relationships where A is the **target** and that are missing from A's collection? | Yes (design A2 gathers both directions from IDM) | `edges.targetOmission` (write run) | `buildRelationships` (WS5.05): whether each entity's collection must list inbound relationships | Open |
+| Q07.8 | Does a write of entity A also remove relationships where A is the **target** and that are missing from A's collection? | Yes (design A2 gathers both directions from IDM) | `edges.targetOmission` (write run) | `buildRelationships` (WS5.05): whether each entity's collection must list inbound relationships | **Answered: no.** Writing B without the A → B relationship left it in place (`190350` #59, #60). Whether writing the source without it removes it (P15) is still unobserved |
 
 ### WS0.08 — Type discrimination
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
 | Q08.1 | Is BaseType only ever 2 or 4? | Yes. Anything else decodes to null (`EntityKind.fromBaseType`) | `types.baseTypes` | `EntityKind` | **Confirmed on this instance:** 77 Resources and 14 Subjects, nothing else (run `20261121-173141` #19) |
-| Q08.2 | Do archetypes, with BaseType, discriminate IDM types? | A scope archetype in `directArchetypes` (P19) | `types.archetypes` | `TypeScoper`, P19 | **No, not as P19 assumes:** search shows `directArchetypes` empty on all 91 entities, and archetypes the probe wrote as direct appear in `isArchetypes` (C9). `ThirdPartyApplication` occurs with both base types (run `20261121-173141` #19) |
+| Q08.2 | Do archetypes, with BaseType, discriminate IDM types? | A scope archetype per type (P19) | `types.archetypes` | `TypeScoper`, P19 | **Partly:** search reports directly assigned archetypes in `isArchetypes`, by design (C9), so scoping reads it (P19, amended). `ThirdPartyApplication` occurs with both base types (`173141` #19) |
 
 ### WS0.09 — ID constraints
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
-| Q09.1 | Which characters are allowed, and are they addressable percent-encoded? | Any, encoded as one path segment (`RestClientEntityApi.encodeSegment`) | `ids.*` | `encodeSegment`, `RestClientEntityApiSpec` | Open: not answerable until a create succeeds; every create in run `20261121-173153` got 500 (C8) |
-| Q09.2 | What is the maximum ID length? | None | `ids.length *` | Discovery tool validation (WS6) | Open: not answerable until a create succeeds; every create in run `20261121-173153` got 500 (C8) |
-| Q09.3 | Are IDs case-sensitive? | Yes | `ids.caseSensitivity` | Risk register §9: case-insensitive IDs can merge entities | Open: not answerable until a create succeeds; every create in run `20261121-173153` got 500 (C8) |
+| Q09.1 | Which characters are allowed, and are they addressable percent-encoded? | Any, encoded as one path segment (`RestClientEntityApi.encodeSegment`) | `ids.*` | `encodeSegment`, `RestClientEntityApiSpec` | **Partly:** IDs with a space, `/`, `?`, `#`, `+`, `%25`, dots and non-ASCII letters are stored verbatim (`155100`'s entities, `190350` #35). Addressing them by path cannot be checked while GET is unreliable (C1) |
+| Q09.2 | What is the maximum ID length? | None | `ids.length *` | Discovery tool validation (WS6) | **Partly:** IDs of 64, 255, 256 and 1024 characters are stored verbatim (`190350` #35). No limit found yet |
+| Q09.3 | Are IDs case-sensitive? | Yes | `ids.caseSensitivity` | Risk register §9: case-insensitive IDs can merge entities | Open: the run's answer ("yes") was read too soon after the write to trust (C5) |
 
 ### WS0.10 — Auth and limits
 
@@ -203,7 +205,7 @@ Out of scope for the connector: `/entitlements`, `/policy-information`, `/admin/
 | Entity (read) | GET, DELETE, bulk | `id` | `baseType`, enum 0–4 | `Attributes`: name → `{name, type, value}`; plus `compoundAttributes` | `relationships`: `{source, target, type, sourceType}` |
 | EntitySearchResultItem | search | `uid` and `name` | `baseType` (observed as `"Subject"`, `"Resource"`) | `attributes`: name → any value | **none** |
 
-Also on the read side: `directArchetypes` (assigned directly), `isArchetypes` (assigned by policy rules, search only), `lastEvaluated` ("last evaluation timestamp") and `reconciliationStarted` (Entity only).
+Also on the read side: `directArchetypes` (in search, always empty), `isArchetypes` (search only: the entity's archetypes, both those assigned through `directArchetypes` and those assigned by policy; C9), `lastEvaluated` ("last evaluation timestamp") and `reconciliationStarted` (Entity only).
 
 ### 5.3 Search
 
@@ -236,21 +238,21 @@ Also on the read side: `directArchetypes` (assigned directly), `isArchetypes` (a
 
 ### 5.5 Contradictions to raise with the service team
 
-Runs: `20261121-155100` (the first write run, design-shaped documents), `20261121-173141` (read-only) and `20261121-173153` (write run with the EntityDTO), all against a test instance. Evidence numbers refer to each run's `exchanges.jsonl`.
+Runs: `20261121-155100` (the first write run, design-shaped documents), `20261121-173141` (read-only), `20261121-173153` (write, EntityDTO) and `20261121-190350` (write, with the create-shape diagnosis), all against a test instance. Evidence numbers refer to each run's `exchanges.jsonl`.
 
 | ID | Definition says | Probe observed |
 |---|---|---|
-| C1 | GET of an entity: 200 or 404 | **500 every time**: missing IDs, just-created IDs and, since `173141` #18, an entity that exists. Reads by ID need `byIdLookup: search`, which works (`173141` #9) |
-| C2 | PUT to a missing entity: 404 | 200 in `155100`, apparently creating the entity (C10). 500 in `173153` #35, but every EntityDTO write got 500 there (C8) |
+| C1 | GET of an entity: 200 or 404 | **Unreliable.** 500 for a long-standing real entity (`173141` #18, `190350` #29), for missing IDs, and for a probe entity just after any write that touches it (`190350` #47–#58). 200 with the documented read model once the entity has been left alone (#60–#69). A missing entity never got 404. Reads by ID need `byIdLookup: search` (`173141` #9) |
+| C2 | PUT to a missing entity: 404 | **200, and the PUT creates the entity (upsert).** `155100` PUT the never-created ID `…-never-created`, and that entity is still found by search (`190350` #35) |
 | C3 | DELETE of a missing entity: 404 | 200 (`155100`; `173153` #36) |
 | C4 | Invalid create: 400 | 500 for a create without an ID (`173153` #32). Malformed JSON and a non-string attribute do get 400 (#33 #34) |
-| C5 | Create returns 200 | `155100`'s entities were not found by search during that run, but are now (see C10), so search may lag behind writes. `search.createdVisible` re-checks |
-| C6 | Create samples: 2 = Subject, 4 = Resource | Read-only evidence supports the design's numbering: `objectClass: 4` returns only Subjects and `2` only Resources (`173141` #5–#8). Confirming it on create waits for C8 |
+| C5 | Create returns 200 | **Search lags behind writes.** An entity created at `190350` #41 was not found at #43 but was at #45. Six entities created at #4–#14 were missing from the total at #15 (91) and present at #21 (97). The lag is short but real, so a single search straight after a write proves nothing |
+| C6 | Create samples: 2 = Subject, 4 = Resource | **The design's numbering holds:** an entity created with base type 4 is returned by a Subject search (`objectClass: 4`) as a `Subject` (`190350` #41, #45). `objectClass` reads agree (`173141` #5–#8) |
 | C7 | DELETE's summary reads "Retrieves an entity by ID" | Probably a copy-paste slip; DELETE returns the deleted entity |
-| C8 | Create takes EntityDTO: `id`, `baseType`, `attributes`, `relationships`, `directArchetypes`; 200 | **500 for every create in that shape** (`173153` #4–#6, #27–#29), while `155100`'s design-shaped creates (`ID`, `BaseType`, `attributes.ID` mirrored, `Relationships`, a non-empty `directArchetypes`, path with a trailing slash) got 200. The probe now tries each difference separately (`create.shape`) |
-| C9 | Search items carry `directArchetypes` (assigned) and `isArchetypes` (from policy) | `directArchetypes` is empty on all 91 entities (`173141` #19). The 19 entities `155100` created with `directArchetypes: ["Ws0Probe"]` show it in `isArchetypes`. Either search reports direct archetypes under `isArchetypes`, or the write put them there. P19 scopes on `directArchetypes` and must be revisited |
-| C10 | DELETE removes the entity | `155100` deleted all 20 of its entities with 200, yet 19 Resources carrying only its `probe` attribute and `Ws0Probe` are still found by search (`173141` #19). It created 18 IDs and PUT one missing ID (C2), so the PUT probably created it. Either DELETE does nothing, or search keeps deleted entities. GET fails (C1), so the probe cannot tell which. `search.reflectsDelete` now tests it directly |
-| C11 | `GET /admin/manifests` returns a list of manifests | 200 with an object holding one field, `paths` (`173141` #20). The probe now records its outline (field names and types only) |
+| C8 | Create takes EntityDTO: `id`, `baseType`, `attributes`, `relationships`, `directArchetypes`; 200 | **By design** (confirmed by the service owner 2026-11-21): every create and update must carry `attributes.ID` equal to `id`. Without it the write gets 500. Of 8 body variants, only the 3 carrying it were accepted (`190350` #4–#11). Reads do not return it (#35, #60). Design §2.1 and §8.3–§8.4 updated; connector change is plan WS0.19 |
+| C9 | Search items carry `directArchetypes` (assigned) and `isArchetypes` (from policy) | **By design** (confirmed by the service owner 2026-11-21): a search item reports archetypes assigned through `directArchetypes` in `isArchetypes`, and its own `directArchetypes` field is empty. Seen with `shape-4` (`190350` #7, #35). P19 is amended to scope on `isArchetypes` (design §9.4) |
+| C10 | DELETE removes the entity | **The service owner reports deletes work** (2026-11-21). The probe saw otherwise: straight after `DELETE edge-B` (`190350` #67), GET still returned it (#68, #69), the single-relationship DELETE showed no effect (#63, #64), and `155100`'s deleted entities were still found by search at #35. The likeliest explanation is that deletion is applied after a delay, like the search lag (C5) and GET's failures during re-evaluation (C1). WS0.15e re-checks with a settle window; the next run's `probe.leftovers` will show whether earlier runs' entities are gone |
+| C11 | `GET /admin/manifests` returns a list of manifests | 200 with `{paths: [{entities: {}, entityRelationships: [], policies: {}, manifests: {4 fields}}]}` (`190350` #31): an export bundle, with the manifests nested inside. Where the archetype names sit inside `manifests` is not yet known |
 | C12 | An invalid search request: 400 | 500 for an unknown `objectClass` (`173141` #23); 400 with problem details for an unknown filter operation (#22) |
 
 ## 6. What this changes in the design
@@ -307,12 +309,33 @@ The timestamp checks are gone: the service has no timestamp search (P16). Cleanu
 - proves a removal only with a GET 404, or with a search miss once `search.reflectsDelete` has shown that search drops deleted entities. Otherwise the removal is listed as unconfirmed. IDs the service never accepted need no proof;
 - describes an undocumented manifests response by its outline.
 
-**Next:** run the write mode again (plan WS0.15d). Raise C8–C12 with the service team, together with C1. Remove the 19 leftover entities by hand: `probe.leftovers` lists their IDs.
+**Write run `20261121-190350`.** Checked clean before being kept: all 1,754 attribute values are scrubbed, probe IDs or probe test values. It settled four questions:
+
+- **C8:** creates need `attributes.ID` equal to `id`.
+- **P18:** base type 4 is a Subject on create.
+- **Q07.8:** writing the target without a relationship does not delete it.
+- **C2:** a PUT to a missing entity creates it.
+
+It also showed that search reports directly assigned archetypes under `isArchetypes`, which the service owner confirms is by design (C9). C8 is also by design. The probe's readings suggested DELETE removes nothing, but the service owner reports deletes work (C10). The readings were probably taken before a delayed deletion applied. Several answers came back "cannot tell" because the probe read once, straight after a write: search lags slightly (C5), and GET fails while an entity is being re-evaluated after a write (C1).
+
+**Done since (plan WS0.15e):** read-backs wait within the settle window, archetypes are read from either field, and archetype names are found anywhere in the manifests bundle.
+
+**Next:** a write run with the settle window, to answer P15, P20, P22, Q09.3 and C10.
+
+**Earlier next steps:**
+- **Probe (plan WS0.15e, now done):** wait for a write to show up before reading it back. Poll search, retry GET within a short settle window, and read archetypes from either field. Find the archetype names inside the manifests bundle (C11). When the manifests give none, use probe archetypes for the P22 check, since the service does not validate archetype names.
+- **Connector (plan WS0.19):** send `attributes.ID` on every write (C8, by design). Read archetypes from `isArchetypes` (C9, by design; P19 amended). Done in the specs, fakes and probe; the implementation follows in WS2 and WS4.
+- **Leftovers:** the next run's `probe.leftovers` will show whether the entities from `155100` and `190350` have been deleted (C10).
+- **Service team:** raise C1 first. C8 and C9 are by design. C10 is reported as working.
 
 ## 8. Change log
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Probe WS0.15e: read-backs wait within a settle window (`--settle-seconds`, default 10) for writes to show. Archetypes are read from either field, probe archetypes are used when none are given, and manifest archetype names are found inside the export bundle. |
+| 2026-11-21 | P19 amended by the owner: enumeration scopes on `isArchetypes` (C9). The specs, fake, fixtures and probe now send `attributes.ID` (C8) and read archetypes from `isArchetypes` (plan WS0.18, WS0.19). |
+| 2026-11-21 | Service owner's clarifications: C8 (`attributes.ID` required) and C9 (directly assigned archetypes reported in `isArchetypes`) are by design. Deletes work, so C10 is re-framed as delayed deletion, to be re-checked. Design §2.1, §8.3, §8.4, §9.4, §13 and Appendix A updated. |
+| 2026-11-21 | Folded in write run `20261121-190350`. C8 answered (`attributes.ID` required); C6/P18 confirmed on create; C2 is an upsert; C10 is a DELETE that removes nothing; C9 confirmed (direct archetypes reported in `isArchetypes`); C5 is search lag; C1 refined (GET fails during re-evaluation and for some long-standing entities); C11 is a wrapped export bundle. Answered Q03.6, Q05.3, Q07.6 and Q07.8, and partly answered Q04.1, Q09.1 and Q09.2. |
 | 2026-11-21 | Folded in runs `20261121-173141` and `20261121-173153`. Answered Q03.5 and Q08.1, and partly answered Q03.4, Q05.1 and Q08.2. Updated C1–C6 and added C8–C12 (section 5.5). The probe gained `create.shape`, `create.relationshipShape`, `search.reflectsDelete` and `probe.leftovers`, and no longer treats a search miss as proof of deletion. Runs `20261121-154839` and `20261121-155100` were made before the scrubber fix and contain real entity data. They were committed to `main` and are removed from the branch tip; removing them from history needs a rewrite of `main`. |
 | 2026-11-21 | Probe realigned to the OpenAPI definition and P17–P22 (plan WS0.15): EntityDTO writes, search read-backs while GET fails, and new checks for P18, P20, P22, C5 and Q07.8 (section 7). The timestamp questions Q02.2–Q02.5 are answered by the definition (no timestamp search) and deferred to WS10. `--timestamp-field` is removed; `--archetypes` added. |
 | 2026-11-04 | Register created. Contract probe added. No answers confirmed yet: no instance of the service was reachable from the environment that wrote this. |
