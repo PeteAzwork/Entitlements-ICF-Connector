@@ -4,6 +4,8 @@ package au.com.azwork.idm.graphentity.discovery
  * Reads IDM's {@code config/managed} document into {@link ManagedType}s. Excludes by default: relationship
  * properties (surfaced separately), virtual properties ({@code isVirtual}), password-class properties
  * (name {@code password} or {@code "type": "string", "isProtected": true}), and the private {@code _*} fields.
+ * Array-typed properties that are not relationships go to {@link ManagedType#excludedProperties}: the service
+ * stores single-valued strings only (decision P20).
  */
 class ManagedSchemaReader {
 

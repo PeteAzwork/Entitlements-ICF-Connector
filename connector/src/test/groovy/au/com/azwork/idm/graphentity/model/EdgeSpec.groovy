@@ -1,43 +1,24 @@
 package au.com.azwork.idm.graphentity.model
 
-import au.com.azwork.idm.graphentity.config.Direction
 import spock.lang.Specification
 import spock.lang.Unroll
 
-/** Design §2.2 — edge representation, normative rules. */
+/** Decision P17 — one relationship with both ends named explicitly, in the service's write shape. */
 class EdgeSpec extends Specification {
 
-    def "an outbound edge carries TargetID and the type"() {
-        expect:
-        Edge.outbound('acct-1', 'Owns').toWire() == [TargetID: 'acct-1', type: 'Owns']
-        Edge.outbound('acct-1', 'Owns').direction == Direction.OUTBOUND
-        Edge.outbound('acct-1', 'Owns').otherId == 'acct-1'
+    def "the write shape is {sourceID, targetID, type}, in that key order"() {
+        when:
+        def wire = Edge.of('Sanne', 'Acct-1', 'Owns').toWire()
+
+        then:
+        wire == [sourceID: 'Sanne', targetID: 'Acct-1', type: 'Owns']
+        wire.keySet() as List == ['sourceID', 'targetID', 'type']
     }
 
-    def "an inbound edge carries SourceID and the type"() {
+    def "fromWire parses the write shape"() {
         expect:
-        Edge.inbound('Sanne', 'Owns').toWire() == [SourceID: 'Sanne', type: 'Owns']
-        Edge.inbound('Sanne', 'Owns').direction == Direction.INBOUND
-        Edge.inbound('Sanne', 'Owns').otherId == 'Sanne'
-    }
-
-    def "the type string is identical from both sides; only the endpoint field differs"() {
-        expect:
-        Edge.outbound('a', 'Owns').toWire().type == Edge.inbound('a', 'Owns').toWire().type
-        !Edge.outbound('a', 'Owns').toWire().containsKey('SourceID')
-        !Edge.inbound('a', 'Owns').toWire().containsKey('TargetID')
-    }
-
-    @Unroll
-    def "fromWire parses #wire"() {
-        expect:
-        Edge.fromWire(wire) == expected
-
-        where:
-        wire                                 | expected
-        [TargetID: 'x', type: 'Owns']        | Edge.outbound('x', 'Owns')
-        [SourceID: 'y', type: 'Owns']        | Edge.inbound('y', 'Owns')
-        [type: 'Owns', TargetID: 'x']        | Edge.outbound('x', 'Owns')
+        Edge.fromWire([sourceID: 'Sanne', targetID: 'Acct-1', type: 'Owns']) == Edge.of('Sanne', 'Acct-1', 'Owns')
+        Edge.fromWire([type: 'Owns', targetID: 'Acct-1', sourceID: 'Sanne']) == Edge.of('Sanne', 'Acct-1', 'Owns')
     }
 
     @Unroll
@@ -49,41 +30,54 @@ class EdgeSpec extends Specification {
         thrown(IllegalArgumentException)
 
         where:
-        wire                                                | why
-        [type: 'Owns']                                      | 'no endpoint'
-        [TargetID: 'x', SourceID: 'y', type: 'Owns']        | 'both endpoints'
-        [TargetID: 'x']                                     | 'no type'
-        [TargetID: '', type: 'Owns']                        | 'blank endpoint'
-        [TargetID: 'x', type: '']                           | 'blank type'
-        null                                                | 'null'
-        [targetId: 'x', type: 'Owns']                       | 'wrong key casing (TargetID is normative)'
+        wire                                                        | why
+        null                                                        | 'null'
+        [targetID: 'b', type: 'T']                                  | 'no source'
+        [sourceID: 'a', type: 'T']                                  | 'no target'
+        [sourceID: 'a', targetID: 'b']                              | 'no type'
+        [sourceID: '', targetID: 'b', type: 'T']                    | 'blank source'
+        [sourceID: 'a', targetID: ' ', type: 'T']                   | 'blank target'
+        [sourceID: 'a', targetID: 'b', type: '']                    | 'blank type'
+        [sourceID: 1, targetID: 'b', type: 'T']                     | 'non-string source'
+        [TargetID: 'b', type: 'T']                                  | "the design's old one-sided form"
+        [sourceID: 'a', targetID: 'b', type: 'T', extra: 'x']       | 'an unknown key'
     }
 
-    def "flip re-expresses the edge from the other endpoint"() {
+    def "fromRead converts the read model's {source, target, type, sourceType}; sourceType is dropped"() {
         expect:
-        Edge.outbound('Current-Account-1-Sanne', 'Owns').flip('Sanne') == Edge.inbound('Sanne', 'Owns')
-        Edge.inbound('Sanne', 'Owns').flip('Current-Account-1-Sanne') == Edge.outbound('Current-Account-1-Sanne', 'Owns')
+        Edge.fromRead([source: 'Sanne', target: 'Acct-1', type: 'Owns', sourceType: 'Subject']) == Edge.of('Sanne', 'Acct-1', 'Owns')
     }
 
-    def "flip twice returns the original"() {
+    def "fromRead rejects a read entry without both ends and a type"() {
+        when:
+        Edge.fromRead([source: 'Sanne', type: 'Owns'])
+
+        then:
+        thrown(IllegalArgumentException)
+    }
+
+    def "involves and otherEnd work from either end"() {
         given:
-        def e = Edge.outbound('b', 'Owns')
+        def e = Edge.of('Sanne', 'Acct-1', 'Owns')
 
         expect:
-        e.flip('a').flip('b') == e
+        e.involves('Sanne')
+        e.involves('Acct-1')
+        !e.involves('Someone')
+        e.otherEnd('Sanne') == 'Acct-1'
+        e.otherEnd('Acct-1') == 'Sanne'
     }
 
-    def "equality is by value so edge sets can be compared in recon and verification"() {
+    def "a self-relationship's other end is the entity itself"() {
         expect:
-        Edge.outbound('a', 'T') == Edge.outbound('a', 'T')
-        Edge.outbound('a', 'T') != Edge.inbound('a', 'T')
-        Edge.outbound('a', 'T') != Edge.outbound('a', 'U')
-        ([Edge.outbound('a', 'T'), Edge.outbound('a', 'T')] as Set).size() == 1
+        Edge.of('A', 'A', 'Manages').otherEnd('A') == 'A'
     }
 
-    def "toWire never emits a null endpoint key"() {
+    def "equality is by value, so edge sets compare correctly in recon and verification"() {
         expect:
-        !Edge.outbound('a', 'T').toWire().containsKey('SourceID')
-        Edge.outbound('a', 'T').toWire().keySet() == ['TargetID', 'type'] as Set
+        Edge.of('a', 'b', 'T') == Edge.of('a', 'b', 'T')
+        Edge.of('a', 'b', 'T') != Edge.of('b', 'a', 'T')
+        Edge.of('a', 'b', 'T') != Edge.of('a', 'b', 'U')
+        ([Edge.of('a', 'b', 'T'), Edge.of('a', 'b', 'T')] as Set).size() == 1
     }
 }

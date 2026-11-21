@@ -8,14 +8,67 @@ import org.identityconnectors.framework.common.exceptions.InvalidCredentialExcep
 /** Design §9.5 — Test and Schema. */
 class TestAndSchemaOperationSpec extends OperationSpecBase {
 
-    def "test issues an authenticated search with page size 1 and treats 2xx as healthy"() {
+    def setup() { Fixtures.seedManifest(service) }
+
+    def "test issues an authenticated search with page size 1, then checks the manifests (P22)"() {
         when:
         new TestOperation(ctx()).execute()
 
         then:
         noExceptionThrown()
-        service.requests*.op == ['SEARCH']
+        service.requests*.op == ['SEARCH', 'MANIFESTS']
         service.requestsOf('SEARCH')[0].query.pageSize == 1
+    }
+
+    def "test fails when a configured archetype is not defined in any manifest, naming it (P22)"() {
+        given:
+        service.manifests.clear()
+        service.seedManifest('test', ['Customer'], [])
+
+        when:
+        new TestOperation(ctx()).execute()
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('Account')
+    }
+
+    def "an archetype defined for the other base type does not count: Account must be a resource archetype"() {
+        given:
+        service.manifests.clear()
+        service.seedManifest('test', ['Customer', 'Account'], [])
+
+        when:
+        new TestOperation(ctx()).execute()
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('Account')
+    }
+
+    def "test fails clearly when the service has no manifests at all (404)"() {
+        given:
+        service.manifests.clear()
+
+        when:
+        new TestOperation(ctx()).execute()
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.toLowerCase().contains('manifest')
+    }
+
+    def "archetypes in later manifests count too"() {
+        given:
+        service.manifests.clear()
+        service.seedManifest('people', ['Customer'], [])
+        service.seedManifest('products', [], ['Account'])
+
+        when:
+        new TestOperation(ctx()).execute()
+
+        then:
+        noExceptionThrown()
     }
 
     def "test on an empty service is still healthy"() {

@@ -10,6 +10,10 @@ package au.com.azwork.idm.graphentity.probe
  * list ({@code results}, {@code items}, ...) is treated as an entity even without an ID field. A foreign entity
  * keeps its shape (base type, archetypes, attribute and field names, relationship types, timestamp formats)
  * so recordings stay useful, but every identifier and attribute value is replaced.
+ *
+ * <p>Two non-entity shapes also carry data: a search filter's {@code right} value (an entity ID, or an attribute
+ * value) is aliased or redacted unless it is a probe value, and a manifest list is reduced to archetype names,
+ * because manifests can name entities in their instance lists.
  */
 class Scrubber {
 
@@ -27,6 +31,8 @@ class Scrubber {
     static final List<String> RELATIONSHIP_KEYS = ['Relationships', 'relationships']
     /** Envelope keys whose list elements are entities. */
     static final List<String> RESULT_LIST_KEYS = ['results', 'items', 'data', 'entities', 'resources', 'content', 'value', 'result']
+    /** The manifests endpoint: its response is reduced to archetype names (see {@link #scrubManifests}). */
+    static final String MANIFESTS_PATH = '/admin/manifests'
     /** Path segments under /admin/entities/ that are endpoint names, not IDs. */
     static final Set<String> PATH_KEYWORDS = ['search', 'bulk', 'relationships', 'direct-assign-archetype', 'delegations'] as Set
 
@@ -67,11 +73,36 @@ class Scrubber {
         }.join('/').with { prefix + it }
     }
 
+    /** A response body, scrubbed according to the endpoint it came from. */
+    Object scrubResponse(String path, Object body) {
+        path == MANIFESTS_PATH ? scrubManifests(body) : scrub(body)
+    }
+
+    /** Keeps each manifest's name and the names of its archetypes; drops decisions, rules and instance lists. */
+    static Object scrubManifests(Object body) {
+        if (!(body instanceof List)) return body instanceof Map ? (body as Map).collectEntries { k, v -> [(k): k in ['title', 'status', 'type'] ? v : REDACTED] } : body
+        (body as List).collect { m ->
+            if (!(m instanceof Map)) return REDACTED
+            (m as Map).collectEntries { k, v ->
+                if (k == 'name') return [(k): v]
+                if ((k as String).endsWith('Archetypes') && v instanceof List) return [(k): (v as List).collect { a -> a instanceof Map ? [name: (a as Map).name] : REDACTED }]
+                [(k): v == null ? null : REDACTED]
+            }
+        }
+    }
+
+    /** A filter node, {operation, left, right, not}. Its right-hand value may be an ID or attribute data. */
+    private static boolean isFilter(Map m) { m.containsKey('operation') && m.containsKey('left') }
+
     Object scrub(Object node) {
         if (node instanceof Map) {
             Map m = node as Map
             String id = identity(m)
             if (id != null && !isProbeId(id)) return scrubForeignEntity(m)
+            if (isFilter(m) && m.right instanceof String && !isProbeId(m.right)) {
+                boolean onId = (m.left as String)?.toLowerCase() in ['id', 'uid']
+                return m.collectEntries { k, v -> [(k): k == 'right' ? (onId ? alias(v as String) : REDACTED) : scrub(v)] }
+            }
             return m.collectEntries { k, v ->
                 if (k in EDGE_ID_KEYS && v instanceof String) return [(k): alias(v as String)]
                 if (k in RESULT_LIST_KEYS && v instanceof List) {

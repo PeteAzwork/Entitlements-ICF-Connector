@@ -14,10 +14,10 @@ class EdgeVerifier {
     }
 
     /**
-     * WARN message of the form {@code dropped edge Sanne -Owns-> Current-Account-1-Sanne} (outbound) or
-     * {@code dropped edge Sanne <-Owns- Other} (inbound). Contains IDs and type only, never attributes. TODO WS3.
+     * WARN message of the form {@code dropped edge Sanne -Owns-> Current-Account-1-Sanne}: source, type,
+     * target, whichever end is being written. Contains IDs and type only, never attributes. TODO WS3.
      */
-    static String warnMessage(String entityId, Edge edge) {
+    static String warnMessage(Edge edge) {
         throw new UnsupportedOperationException('TODO WS3: EdgeVerifier.warnMessage')
     }
 }

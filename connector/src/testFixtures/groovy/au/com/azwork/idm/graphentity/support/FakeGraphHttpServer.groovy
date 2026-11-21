@@ -8,25 +8,28 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 import java.nio.charset.StandardCharsets
-import java.time.format.DateTimeParseException
 
 /**
  * Real HTTP front-end for {@link FakeGraphService}, so tools that speak HTTP (the contract probe, and later
- * WS8-style checks) can be tested against the documented service semantics without a real instance.
+ * WS8-style checks) can be tested against the service's semantics without a real instance.
  *
- * Routes (design §2, decision P14): POST {@code /admin/entities/search} with a JSON body of filter and paging
- * fields ({@code {}} is the unfiltered search); POST {@code /admin/entities[/]} creates; GET|PUT|DELETE
- * {@code /admin/entities/{id}}. Like the real service, any other method on {@code /admin/entities} gets
- * 405 with {@code Allow: POST}.
+ * Routes, as in the service's OpenAPI definition:
+ * <ul>
+ *   <li>{@code POST /admin/entities} creates; any other method on the collection gets 405 with {@code Allow: POST};</li>
+ *   <li>{@code POST /admin/entities/search} searches;</li>
+ *   <li>{@code GET|PUT|DELETE /admin/entities/{id}};</li>
+ *   <li>{@code POST /admin/entities/{id}/relationships} adds one relationship;</li>
+ *   <li>{@code DELETE /admin/entities/{source}/relationships/{target}[/{type}]} removes relationships;</li>
+ *   <li>{@code GET /admin/manifests}.</li>
+ * </ul>
  * Adds what the in-memory model leaves to the transport: API-key authentication (a raw key in the
- * {@code X-API-KEY} header; a missing or wrong key gets 401, as the service does), JSON parsing, a 400 for
- * a POST without {@code ID} or with a malformed body or timestamp, and percent-decoding of the ID path
- * segment.
+ * {@code X-API-KEY} header; a missing or wrong key gets 401 as problem details, as the service does), JSON
+ * parsing (malformed JSON is a 400), and percent-decoding of each path segment.
  */
 class FakeGraphHttpServer implements Closeable {
 
     static final String PREFIX = '/admin/entities'
-
+    static final String MANIFESTS = '/admin/manifests'
     static final String DEFAULT_API_KEY = 'test-api-key'
     static final String DEFAULT_API_KEY_HEADER = 'X-API-KEY'
 
@@ -41,6 +44,7 @@ class FakeGraphHttpServer implements Closeable {
         this.apiKeyHeader = apiKeyHeader
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         server.createContext(PREFIX) { HttpExchange ex -> handle(ex) }
+        server.createContext(MANIFESTS) { HttpExchange ex -> handle(ex) }
     }
 
     FakeGraphHttpServer start() { server.start(); this }
@@ -53,46 +57,62 @@ class FakeGraphHttpServer implements Closeable {
     private void handle(HttpExchange ex) {
         try {
             if (!authorised(ex)) {
-                send(ex, new HttpResponse(status: 401, body: [error: 'unauthorised']))
+                send(ex, new HttpResponse(status: 401, body: [type: 'https://tools.ietf.org/html/rfc9110#section-15.5.2', title: 'Unauthorized', status: 401, traceId: '00-fake-00'],
+                    headers: ['Content-Type': 'application/problem+json; charset=utf-8']))
                 return
             }
             String rawPath = ex.requestURI.rawPath
-            String rest = rawPath.length() > PREFIX.length() ? rawPath.substring(PREFIX.length()) : ''
-            boolean collection = rest == '' || rest == '/'
-            String id = collection ? null : decodeSegment(rest.substring(1))
             String method = ex.requestMethod
+            if (rawPath == MANIFESTS || rawPath == MANIFESTS + '/') {
+                send(ex, method == 'GET' ? service.manifests() : notAllowed('GET'))
+                return
+            }
+            String rest = rawPath.length() > PREFIX.length() ? rawPath.substring(PREFIX.length()) : ''
+            List<String> segs = rest.split('/', -1).drop(1).findAll { it != '' }.collect { decodeSegment(it) }
 
-            if (rest == '/search' && method == 'POST') {
+            if (segs.isEmpty()) {
+                send(ex, method == 'POST' ? createFrom(ex) : notAllowed('POST'))
+            } else if (segs == ['search']) {
+                if (method != 'POST') { send(ex, notAllowed('POST')); return }
                 def body = readJson(ex)
-                if (!(body instanceof Map)) { send(ex, new HttpResponse(status: 400, body: [error: 'body must be a JSON object'])); return }
-                send(ex, service.search(body as Map))
-            } else if (collection && method != 'POST') {
-                send(ex, new HttpResponse(status: 405, headers: [Allow: 'POST']))
-            } else if (collection && method == 'POST') {
+                send(ex, body instanceof Map ? service.search(body as Map) : badRequest('body must be a JSON object'))
+            } else if (segs.size() == 1) {
+                String id = segs[0]
+                switch (method) {
+                    case 'GET': send(ex, service.get(id)); break
+                    case 'PUT':
+                        def body = readJson(ex)
+                        send(ex, body instanceof Map ? service.replace(id, body as Map) : badRequest('body must be a JSON object')); break
+                    case 'DELETE': send(ex, service.delete(id)); break
+                    default: send(ex, notAllowed('GET, PUT, DELETE'))
+                }
+            } else if (segs.size() == 2 && segs[1] == 'relationships' && method == 'POST') {
                 def body = readJson(ex)
-                if (!(body instanceof Map)) { send(ex, new HttpResponse(status: 400, body: [error: 'body must be a JSON object'])); return }
-                if (!body.ID) { send(ex, new HttpResponse(status: 400, body: [error: 'ID is required'])); return }
-                send(ex, service.create(body as Map))
-            } else if (!collection && method == 'GET') {
-                send(ex, service.get(id))
-            } else if (!collection && method == 'PUT') {
-                def body = readJson(ex)
-                if (!(body instanceof Map)) { send(ex, new HttpResponse(status: 400, body: [error: 'body must be a JSON object'])); return }
-                send(ex, service.replace(id, body as Map))
-            } else if (!collection && method == 'DELETE') {
-                send(ex, service.delete(id))
+                send(ex, body instanceof Map ? service.addRelationship(segs[0], body as Map) : badRequest('body must be a JSON object'))
+            } else if (segs.size() in [3, 4] && segs[1] == 'relationships' && method == 'DELETE') {
+                send(ex, service.deleteRelationship(segs[0], segs[2], segs.size() == 4 ? segs[3] : null))
             } else {
-                send(ex, new HttpResponse(status: 405, body: [error: "method ${method} not allowed".toString()]))
+                send(ex, new HttpResponse(status: 404))
             }
         } catch (MalformedJson e) {
-            send(ex, new HttpResponse(status: 400, body: [error: 'invalid JSON']))
-        } catch (DateTimeParseException | NumberFormatException e) {
-            send(ex, new HttpResponse(status: 400, body: [error: 'invalid query parameter']))
+            send(ex, badRequest('invalid JSON'))
         } catch (Exception e) {
-            send(ex, new HttpResponse(status: 500, body: [error: 'internal error']))
+            send(ex, new HttpResponse(status: 500))
         } finally {
             ex.close()
         }
+    }
+
+    private HttpResponse createFrom(HttpExchange ex) {
+        def body = readJson(ex)
+        body instanceof Map ? service.create(body as Map) : badRequest('body must be a JSON object')
+    }
+
+    private static HttpResponse notAllowed(String allow) { new HttpResponse(status: 405, headers: [Allow: allow]) }
+
+    private static HttpResponse badRequest(String title) {
+        new HttpResponse(status: 400, body: [type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1', title: title, status: 400, traceId: '00-fake-00'],
+            headers: ['Content-Type': 'application/problem+json; charset=utf-8'])
     }
 
     /** The service compares a raw key; header names are case-insensitive in HTTP, and the JDK server honours that. */
@@ -112,13 +132,14 @@ class FakeGraphHttpServer implements Closeable {
     }
 
     private static void send(HttpExchange ex, HttpResponse r) {
-        r.headers?.each { k, v -> ex.responseHeaders.add(k, v) }
+        String contentType = r.header('Content-Type')
+        r.headers?.findAll { k, v -> !k.equalsIgnoreCase('Content-Type') }?.each { k, v -> ex.responseHeaders.add(k, v) }
         if (r.body == null) {
             ex.sendResponseHeaders(r.status, -1)
             return
         }
         byte[] bytes = JsonOutput.toJson(r.body).getBytes(StandardCharsets.UTF_8)
-        ex.responseHeaders.set('Content-Type', 'application/json')
+        ex.responseHeaders.set('Content-Type', contentType ?: 'application/json; charset=utf-8')
         ex.sendResponseHeaders(r.status, bytes.length)
         ex.responseBody.withStream { it.write(bytes) }
     }
@@ -126,15 +147,5 @@ class FakeGraphHttpServer implements Closeable {
     /** Percent-decodes one path segment. '+' is literal in a path, so protect it from URLDecoder. */
     static String decodeSegment(String raw) {
         URLDecoder.decode(raw.replace('+', '%2B'), StandardCharsets.UTF_8.name())
-    }
-
-    static Map<String, Object> parseQuery(String rawQuery) {
-        if (!rawQuery) return [:]
-        rawQuery.split('&').findAll { it }.collectEntries { pair ->
-            int i = pair.indexOf('=')
-            String k = URLDecoder.decode(i < 0 ? pair : pair.substring(0, i), 'UTF-8')
-            String v = i < 0 ? '' : URLDecoder.decode(pair.substring(i + 1), 'UTF-8')
-            [(k): v]
-        } as Map<String, Object>
     }
 }

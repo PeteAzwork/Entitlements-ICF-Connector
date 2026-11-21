@@ -3,19 +3,20 @@ package au.com.azwork.idm.graphentity.probe
 import au.com.azwork.idm.graphentity.http.HttpResponse
 import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
 import au.com.azwork.idm.graphentity.support.FakeGraphService
+import groovy.json.JsonSlurper
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.TempDir
 
 /**
- * Regression for the first real run (2026-11-21): the service's documents use {@code uid}, a string
- * {@code baseType} and {@code isArchetypes}, and every GET by ID returned 500. The probe leaked foreign data
- * (its scrubber only knew {@code ID}) and reported answers built on failed reads as "observed".
- * This fake reproduces those shapes and failures.
+ * Regression for the first real run (2026-11-21), and the realigned probe's answer to it (WS0.15). The real
+ * service answered every GET by ID with 500 (C1), a PUT or DELETE of a missing entity with 200 (C2, C3), and a
+ * create without an ID with 500 (C4); existing entities carried archetypes in isArchetypes only. The first probe
+ * leaked foreign data and reported answers built on failed reads as "observed". The realigned probe reads back by
+ * search when GET fails, so it can still answer everything except relationship questions.
  */
 class RealShapedServiceSpec extends Specification {
 
-    /** Search results shaped like the real EntitySearchResultItem; every GET by ID fails with 500. */
     static class RealShapedFakeService extends FakeGraphService {
         @Override
         HttpResponse get(String id) {
@@ -23,32 +24,35 @@ class RealShapedServiceSpec extends Specification {
             new HttpResponse(status: 500)
         }
 
-        /** Like the real service: a PUT to a missing entity answers 200 (whether it creates anything is unknown). */
         @Override
         HttpResponse replace(String id, Map<String, Object> document) {
             entities.containsKey(id) ? super.replace(id, document) : new HttpResponse(status: 200)
         }
 
         @Override
-        Map<String, Object> render(String id) {
-            def d = super.render(id)
-            [uid: d.ID, name: d.ID, baseType: d.BaseType == 4 ? 'Subject' : 'Resource',
-             attributes: (d.attributes as Map).findAll { k, v -> k != 'ID' },
-             isArchetypes: d.directArchetypes, directArchetypes: [], lastEvaluated: d.lastUpdated]
+        HttpResponse delete(String id) {
+            entities.containsKey(id) ? super.delete(id) : new HttpResponse(status: 200)
+        }
+
+        @Override
+        HttpResponse create(Map<String, Object> document) {
+            document.id == null ? new HttpResponse(status: 500) : super.create(document)
         }
     }
 
     @Shared @TempDir File dir
     @Shared ContractProbe probe
     @Shared List<File> files = []
-    @Shared Map<String, Map> before
 
     def setupSpec() {
         def service = new RealShapedFakeService()
-        service.seed([ID: 'PII-Cor', BaseType: 4, attributes: [ID: 'PII-Cor', Name: 'PII-Cor Jette'], directArchetypes: ['Customer']])
-        service.seed([ID: 'PII-CC-12345', BaseType: 2, attributes: [ID: 'PII-CC-12345', Recipient: 'PII-Piet'], directArchetypes: ['CreditCardApplication']])
-        service.seed([ID: 'PII-Card-1', BaseType: 2, attributes: [ID: 'PII-Card-1', Type: 'Credit Card'], directArchetypes: ['Account']])
-        before = service.entities.collectEntries { k, v -> [(k): new LinkedHashMap(v)] }
+        service.seed([id: 'PII-Cor', baseType: 4, attributes: [Name: 'PII-Cor Jette'], isArchetypes: ['Customer']])
+        service.seed([id: 'PII-CC-12345', baseType: 2, attributes: [Recipient: 'PII-Piet'], isArchetypes: ['CreditCardApplication']])
+        service.seed([id: 'PII-Card-1', baseType: 2, attributes: [Type: 'Credit Card'], isArchetypes: ['Account']])
+        service.seedEdge('PII-Cor', 'PII-Card-1', 'OWNS')
+        service.manifests << [name: 'PII-manifest-name-is-kept', subjectArchetypes: [[name: 'Customer', subjects: [[name: 'PII-Cor']], reconciliationPath: 'PII-path']],
+                              resourceArchetypes: [[name: 'Account', resources: [[name: 'PII-Card-1']]], [name: 'CreditCardApplication']],
+                              constraints: [[name: 'c', rules: 'PII-rule']]]
         def server = new FakeGraphHttpServer(service).start()
         try {
             probe = new ContractProbe(new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
@@ -66,16 +70,37 @@ class RealShapedServiceSpec extends Specification {
         found
     }
 
-    def "no output file contains any ID, name or attribute value of an entity the probe did not create"() {
+    def "no output file contains any ID, name, attribute value or manifest data of anything the probe did not create"() {
         expect:
         files
-        files.findAll { it.text.contains('PII-') }*.name == []
+        files.findAll { it.text.replace('PII-manifest-name-is-kept', '').contains('PII-') }*.name == []
+    }
+
+    def "a by-ID filter on a foreign entity is recorded with the ID aliased"() {
+        given:
+        def filters = new File(dir, 'exchanges.jsonl').readLines().collect { new JsonSlurper().parseText(it) }
+            .findAll { it.requestBody instanceof Map && it.requestBody.filter?.operation == 'EQUALS' && it.requestBody.filter?.left == 'ID' }
+            .collect { it.requestBody.filter.right }
+
+        expect:
+        filters.any { it.startsWith('scrubbed-') }
+        filters.every { it.startsWith('scrubbed-') || it.startsWith('ws0-probe-real-') }
+    }
+
+    def "manifests are recorded as archetype names only"() {
+        given:
+        def body = new File(dir, 'exchanges.jsonl').readLines().collect { new JsonSlurper().parseText(it) }
+            .find { it.path == '/admin/manifests' }.body
+
+        expect:
+        body == [[name: 'PII-manifest-name-is-kept', subjectArchetypes: [[name: 'Customer']],
+                  resourceArchetypes: [[name: 'Account'], [name: 'CreditCardApplication']], constraints: Scrubber.REDACTED]]
     }
 
     def "foreign entities in recordings keep their shape: field names, base type and archetypes"() {
         given:
-        def item = new File(dir, 'exchanges.jsonl').readLines().collect { new groovy.json.JsonSlurper().parseText(it) }
-            .collectMany { it.body instanceof Map && it.body.items ? it.body.items : [] }
+        def item = new File(dir, 'exchanges.jsonl').readLines().collect { new JsonSlurper().parseText(it) }
+            .collectMany { it.body instanceof Map && it.body.results ? it.body.results : [] }
             .find { it.isArchetypes == ['Customer'] }
 
         expect:
@@ -86,38 +111,53 @@ class RealShapedServiceSpec extends Specification {
         item.lastEvaluated ==~ /\d{4}-.*/
     }
 
-    def "the document check copes with uid instead of ID and does not crash"() {
+    def "GET of an existing entity is tried and its failure reported (C1); nothing crashes"() {
         expect:
         !probe.findings*.key.any { it.endsWith('.unexpected') }
-        f(probe, 'document.searchVsGet').confidence == 'inconclusive'
-        f(probe, 'document.searchVsGet').answer.contains('500')
+        f(probe, 'get.existingEntity').answer.startsWith('No: 500')
+        probe.contract.getById == 'fails (500)'
+        f(probe, 'document.readModelFields').confidence == 'inconclusive'
     }
 
-    def "base types are read from baseType and archetypes from isArchetypes"() {
+    def "base types are read as names from search, and archetypes from isArchetypes"() {
         expect:
         f(probe, 'types.baseTypes').answer == 'Resource: 2, Subject: 1'
         f(probe, 'types.archetypes').detail.contains('Customer')
+        f(probe, 'types.archetypes').detail.contains('3 of 3 entities have no direct archetype')
     }
 
-    def "answers that depend on a failed read are inconclusive, never observed"() {
+    def "relationship answers need the read model, so they are inconclusive, never observed"() {
         expect:
-        ['edges.postToMissing', 'create.duplicate', 'edges.inboundOnCreate', 'edges.getShowsInbound',
-         'edges.putOmissionDeletesInbound', 'edges.inboundOnPut', 'edges.putToMissing', 'edges.deleteCascades'].every {
+        ['edges.postToMissing', 'edges.inboundOnCreate', 'edges.getShowsInbound', 'edges.sourceOmission', 'edges.inboundOnPut',
+         'edges.targetOmission', 'edges.putToMissing', 'edges.relationshipEndpoints', 'edges.deleteCascades'].every {
             f(probe, it).confidence == 'inconclusive' && f(probe, it).answer.startsWith('Cannot tell')
         }
     }
 
-    def "a 2xx PUT to a missing entity is not reported as an upsert when the read-back fails"() {
+    def "answers that only need attributes or archetypes are read back by search while GET fails"() {
         expect:
-        f(probe, 'errors.putMissing').answer.contains('cannot be told')
-        !f(probe, 'errors.putMissing').answer.contains('creates missing entities')
+        f(probe, 'baseType.create').answer.startsWith('Yes')
+        f(probe, 'create.duplicate').confidence == 'observed'
+        f(probe, 'create.duplicate').detail.contains('Read back by search')
+        f(probe, 'attributes.omission').answer.startsWith('Yes')
+        f(probe, 'archetypes.replace').answer.startsWith('Yes')
+        f(probe, 'ids.space').answer.contains('a search finds it')
     }
 
-    def "cleanup does not claim entities are gone when it cannot read them back"() {
+    def "C2, C3 and C4 are recorded as the real service answers them"() {
         expect:
-        probe.cleanupProblems
-        probe.cleanupProblems.every { it.startsWith('could not confirm') }
-        !new File(dir, 'report.md').text.contains('confirmed gone')
+        f(probe, 'errors.putMissing').answer.startsWith('200')
+        f(probe, 'errors.putMissing').answer.contains('by search does not find it')
+        !f(probe, 'errors.putMissing').answer.contains('creates missing entities')
+        f(probe, 'errors.deleteMissing').answer.startsWith('200')
+        f(probe, 'errors.postWithoutId').answer.startsWith('500')
+    }
+
+    def "cleanup confirms removal by search when GET fails, and the report says how"() {
+        expect:
+        probe.cleanupProblems == []
+        probe.cleanupConfirmedBy.values().every { it == 'search' }
+        new File(dir, 'report.md').text.contains('by a search on the ID finding nothing, because GET failed (C1)')
     }
 
     def "foreign entities are never written to"() {

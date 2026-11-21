@@ -1,7 +1,9 @@
 package au.com.azwork.idm.graphentity.ops
 
+import au.com.azwork.idm.graphentity.config.ConnectorConfig
 import au.com.azwork.idm.graphentity.search.PageCursor
 import au.com.azwork.idm.graphentity.support.Fixtures
+import org.identityconnectors.common.logging.Log
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException
 import org.identityconnectors.framework.common.objects.AttributeBuilder
 import org.identityconnectors.framework.common.objects.ConnectorObject
@@ -10,15 +12,22 @@ import org.identityconnectors.framework.common.objects.OperationOptionsBuilder
 import org.identityconnectors.framework.common.objects.Uid
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder
 
-/** Design §9.4 — search / get, type scoping and paging. */
+/** Design §9.4; decisions P19, P21 — reads by ID, scoped enumeration, filters and cookie paging. */
 class SearchOperationSpec extends OperationSpecBase {
 
     List<ConnectorObject> results = []
     Closure handler = { ConnectorObject o -> results << o; true }
 
-    def "get by __UID__ issues GET /admin/entities/{id} and hands back one decoded object"() {
+    void seedUser(String id, List<String> archetypes = ['Customer']) {
+        service.seed([id: id, baseType: 4, attributes: [name: id], directArchetypes: archetypes])
+    }
+
+    // ---------------------------------------------------------------- by ID
+
+    def "get by __UID__ issues GET /admin/entities/{id} and decodes the read model, relationships included"() {
         given:
-        service.seed(Fixtures.sanneWire())
+        service.seed(Fixtures.sanneWire()); service.seed(Fixtures.accountWire())
+        service.seedEdge('Sanne', 'Current-Account-1-Sanne', 'Owns')
 
         when:
         def result = new SearchOperation(ctx()).execute(Fixtures.USER, FilterBuilder.equalTo(new Uid('Sanne')), handler, null)
@@ -26,7 +35,7 @@ class SearchOperationSpec extends OperationSpecBase {
         then:
         service.requests*.op == ['GET']
         results*.uid*.uidValue == ['Sanne']
-        results[0].objectClass == Fixtures.USER
+        results[0].getAttributeByName('entityRelationships').value == [Fixtures.OWNS_JSON]
         result.pagedResultsCookie == null
     }
 
@@ -50,7 +59,45 @@ class SearchOperationSpec extends OperationSpecBase {
         result != null
     }
 
-    def "a GET of an entity that exists but belongs to another type is filtered out"() {
+    def "a GET 500 (C1) is a ConnectorIOException, never 'not found', which would make recon create a duplicate"() {
+        given:
+        service.seed(Fixtures.sanneWire())
+        service.failNextWith(500)
+
+        when:
+        new SearchOperation(ctx()).execute(Fixtures.USER, FilterBuilder.equalTo(new Uid('Sanne')), handler, null)
+
+        then:
+        thrown(ConnectorIOException)
+    }
+
+    def "with byIdLookup: search, a read by ID is a search with an EQUALS filter on the ID (P21 fallback)"() {
+        given:
+        service.seed(Fixtures.sanneWire())
+
+        when:
+        new SearchOperation(ctx(byIdLookup: ConnectorConfig.ByIdLookup.SEARCH)).execute(Fixtures.USER, FilterBuilder.equalTo(new Uid('Sanne')), handler, null)
+
+        then:
+        service.requests*.op == ['SEARCH']
+        service.requestsOf('SEARCH')[0].query.filter == [operation: 'EQUALS', left: 'ID', right: 'Sanne']
+        service.requestsOf('SEARCH')[0].query.objectClass == 4
+        results*.uid*.uidValue == ['Sanne']
+        results[0].getAttributeByName('directArchetypes').value == ['Customer']
+    }
+
+    def "a read by ID finds an entity of the right base type even without the scope archetype (P19), so IDM can correlate it"() {
+        given:
+        service.seed(Fixtures.sanneWire() + [directArchetypes: []])
+
+        when:
+        new SearchOperation(ctx()).execute(Fixtures.USER, FilterBuilder.equalTo(new Uid('Sanne')), handler, null)
+
+        then:
+        results*.uid*.uidValue == ['Sanne']
+    }
+
+    def "a read by ID of an entity with another base type is filtered out"() {
         given:
         service.seed(Fixtures.accountWire())
 
@@ -61,33 +108,37 @@ class SearchOperationSpec extends OperationSpecBase {
         results.empty
     }
 
-    def "the decoded object re-serialises relationships so recon can compare edge state"() {
+    // ---------------------------------------------------------------- enumeration
+
+    def "an unfiltered search posts the type's objectClass (4 for subjects, P18) and keeps only its scope archetype (P19)"() {
         given:
         service.seed(Fixtures.sanneWire()); service.seed(Fixtures.accountWire())
-        service.seedEdge('Sanne', 'Current-Account-1-Sanne', 'Owns')
-
-        when:
-        new SearchOperation(ctx()).execute(Fixtures.ACCOUNT, FilterBuilder.equalTo(new Uid('Current-Account-1-Sanne')), handler, null)
-
-        then:
-        results[0].getAttributeByName('entityRelationships').value == ['{"SourceID":"Sanne","type":"Owns"}']
-        results[0].getAttributeByName('lastUpdated') != null
-    }
-
-    def "an unfiltered search enumerates from epoch, scoped to the requesting type"() {
-        given:
-        service.seed(Fixtures.sanneWire()); service.seed(Fixtures.accountWire())
-        service.seed([ID: 'Other-User', BaseType: 4, attributes: [ID: 'Other-User'], directArchetypes: ['Customer']])
+        seedUser('Other-User')
+        seedUser('Staff-1', ['Employee'])
 
         when:
         new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, null)
 
         then:
-        service.requestsOf('SEARCH')[0].query.updatedAfter == '1970-01-01T00:00:00Z'
+        service.requestsOf('SEARCH')[0].query.objectClass == 4
+        service.requestsOf('SEARCH')[0].query.pageSize == 200
+        !service.requestsOf('SEARCH')[0].query.containsKey('filter')
         results*.uid*.uidValue as Set == ['Sanne', 'Other-User'] as Set
     }
 
-    def "the account enumeration sees only accounts"() {
+    def "enumerated objects carry directArchetypes but no entityRelationships: search items have none (D4, WS10)"() {
+        given:
+        service.seed(Fixtures.sanneWire())
+
+        when:
+        new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, null)
+
+        then:
+        results[0].getAttributeByName('directArchetypes').value == ['Customer']
+        results[0].getAttributeByName('entityRelationships') == null
+    }
+
+    def "the account enumeration posts objectClass 2 and sees only accounts"() {
         given:
         service.seed(Fixtures.sanneWire()); service.seed(Fixtures.accountWire())
 
@@ -95,32 +146,26 @@ class SearchOperationSpec extends OperationSpecBase {
         new SearchOperation(ctx()).execute(Fixtures.ACCOUNT, null, handler, null)
 
         then:
+        service.requestsOf('SEARCH')[0].query.objectClass == 2
         results*.uid*.uidValue == ['Current-Account-1-Sanne']
     }
 
-    def "the configured timestampSearchParam name is used on the wire"() {
+    def "an attribute filter is sent as the service's filter tree (P21)"() {
         given:
-        service.timestampParam = 'modifiedSince'
+        service.seed(Fixtures.sanneWire())
+        seedUser('Other-User')
 
         when:
-        new SearchOperation(ctx(timestampSearchParam: 'modifiedSince')).execute(Fixtures.USER, null, handler, null)
+        new SearchOperation(ctx()).execute(Fixtures.USER, FilterBuilder.startsWith(AttributeBuilder.build('name', 'Sanne')), handler, null)
 
         then:
-        service.requestsOf('SEARCH')[0].query.containsKey('modifiedSince')
+        service.requestsOf('SEARCH')[0].query.filter == [operation: 'STARTSWITH', left: 'name', right: 'Sanne']
+        results*.uid*.uidValue == ['Sanne']
     }
 
-    def "GreaterThan on lastUpdated passes the instant through to the timestamp search"() {
-        when:
-        new SearchOperation(ctx()).execute(Fixtures.USER,
-            FilterBuilder.greaterThan(AttributeBuilder.build('lastUpdated', '2026-07-06T00:00:00Z')), handler, null)
-
-        then:
-        service.requestsOf('SEARCH')[0].query.updatedAfter == '2026-07-06T00:00:00Z'
-    }
-
-    def "paging: a page size smaller than the result set returns a cookie and the remaining count"() {
+    def "paging: a page size smaller than the result set returns an ICF cookie and the remaining count"() {
         given:
-        (1..5).each { service.seed([ID: "U$it", BaseType: 4, attributes: [ID: "U$it"], directArchetypes: ['Customer']]) }
+        (1..5).each { seedUser("U$it") }
 
         when:
         def result = new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, new OperationOptionsBuilder().setPageSize(2).build())
@@ -133,7 +178,7 @@ class SearchOperationSpec extends OperationSpecBase {
 
     def "paging: following the cookie yields the rest exactly once"() {
         given:
-        (1..5).each { service.seed([ID: "U$it", BaseType: 4, attributes: [ID: "U$it"], directArchetypes: ['Customer']]) }
+        (1..5).each { seedUser("U$it") }
         def op = new SearchOperation(ctx())
         def seen = []
         String cookie = null
@@ -153,35 +198,47 @@ class SearchOperationSpec extends OperationSpecBase {
         seen.sort() == ['U1', 'U2', 'U3', 'U4', 'U5']
     }
 
-    def "paging without a page size streams every page through the handler and returns no cookie"() {
+    def "the ICF cookie wraps the service's pagedResultsCookie"() {
         given:
-        (1..7).each { service.seed([ID: "U$it", BaseType: 4, attributes: [ID: "U$it"], directArchetypes: ['Customer']]) }
+        (1..3).each { seedUser("U$it") }
+
+        when:
+        def r = new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, new OperationOptionsBuilder().setPageSize(1).build())
+
+        then:
+        PageCursor.decode(r.pagedResultsCookie).serviceCookie == '1'
+        service.requestsOf('SEARCH')[0].query.pageSize == 1
+    }
+
+    def "without a page size every page is streamed through the handler, following the cookie, and no cookie is returned"() {
+        given:
+        (1..7).each { seedUser("U$it") }
 
         when:
         def result = new SearchOperation(ctx(pageSizeDefault: 3)).execute(Fixtures.USER, null, handler, null)
 
         then:
         results.size() == 7
-        service.requestsOf('SEARCH').size() == 3
+        service.requestsOf('SEARCH')*.query*.pagedResultsCookie == [null, '3', '6']
         result.pagedResultsCookie == null
     }
 
-    def "type scoping happens after paging, so a page of mixed types is not under-filled silently: remaining count still reported"() {
+    def "scoping happens after paging, so a page can hand fewer objects to the handler; the cookie still reflects the service's page"() {
         given:
-        service.seed(Fixtures.accountWire())
-        (1..3).each { service.seed([ID: "U$it", BaseType: 4, attributes: [ID: "U$it"], directArchetypes: ['Customer']]) }
+        seedUser('A-Staff', ['Employee'])
+        (1..3).each { seedUser("U$it") }
 
         when:
         def result = new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, new OperationOptionsBuilder().setPageSize(2).build())
 
         then:
-        results.every { it.objectClass == Fixtures.USER }
+        results*.uid*.uidValue == ['U1']
         result.pagedResultsCookie != null
     }
 
     def "the handler returning false stops enumeration early"() {
         given:
-        (1..5).each { service.seed([ID: "U$it", BaseType: 4, attributes: [ID: "U$it"], directArchetypes: ['Customer']]) }
+        (1..5).each { seedUser("U$it") }
 
         when:
         new SearchOperation(ctx(pageSizeDefault: 2)).execute(Fixtures.USER, null, { results << it; false }, null)
@@ -202,7 +259,7 @@ class SearchOperationSpec extends OperationSpecBase {
         thrown(ConnectorIOException)
     }
 
-    def "an unsupported filter is reported as unsupported"() {
+    def "an unsupported filter is reported as unsupported, before any request"() {
         when:
         new SearchOperation(ctx()).execute(Fixtures.USER, FilterBuilder.contains(new Name('S')), handler, null)
 
@@ -212,35 +269,24 @@ class SearchOperationSpec extends OperationSpecBase {
         service.requests.empty
     }
 
-    def "a malformed remote document (no ID) is skipped with a WARN rather than aborting the whole recon"() {
+    def "a malformed search item (no uid or name) is skipped with one WARN rather than aborting the whole recon"() {
         given:
-        service.seed(Fixtures.sanneWire())
-        service.failNextWith(200, [items: [[BaseType: 4, directArchetypes: ['Customer']], Fixtures.sanneWire()], totalCount: 2])
+        service.failNextWith(200, [results: [[baseType: 'Subject', directArchetypes: ['Customer']], Fixtures.sanneSearchItem()],
+                                   pagedResultsCookie: null, totalResults: 2, hasMore: false])
 
         when:
         new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, null)
 
         then:
         results*.uid*.uidValue == ['Sanne']
-        log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN).size() == 1
+        log.messagesAt(Log.Level.WARN).size() == 1
     }
 
     def "a corrupt cookie is rejected"() {
         when:
-        new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, new OperationOptionsBuilder().setPagedResultsCookie('junk').build())
+        new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, new OperationOptionsBuilder().setPagedResultsCookie('junk!').build())
 
         then:
         thrown(IllegalArgumentException)
-    }
-
-    def "cookies are produced by PageCursor so they round-trip"() {
-        given:
-        (1..3).each { service.seed([ID: "U$it", BaseType: 4, attributes: [ID: "U$it"], directArchetypes: ['Customer']]) }
-
-        when:
-        def r = new SearchOperation(ctx()).execute(Fixtures.USER, null, handler, new OperationOptionsBuilder().setPageSize(1).build())
-
-        then:
-        PageCursor.decode(r.pagedResultsCookie).offset == 1
     }
 }

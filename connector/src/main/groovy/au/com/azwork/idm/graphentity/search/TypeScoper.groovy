@@ -4,15 +4,34 @@ import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
 import au.com.azwork.idm.graphentity.model.EntityDocument
 
 /**
- * Filters enumeration results to the requesting object class (design §9.4): an entity belongs to a type
- * when its {@code directArchetypes} contain every static archetype configured for the type and its
- * {@code BaseType} matches the type's entityKind. An optional {@code idPattern} (regex) on the type is the
- * §15 fallback for when archetypes are ambiguous.
+ * Scopes service entities to an IDM object type (design §9.4; decision P19).
+ *
+ * <p>The search already restricts results to the type's base type through {@code objectClass}. Within a base
+ * type, a type's entities are those whose {@code directArchetypes} contain its <b>scope archetype</b>, the first
+ * entry of its static archetypes. {@code isArchetypes} (policy-assigned) is never used.
  */
 class TypeScoper {
 
-    /** TODO WS4. */
-    static boolean matches(EntityDocument doc, ObjectTypeConfig type) {
-        throw new UnsupportedOperationException('TODO WS4: TypeScoper.matches')
+    /** The type's scope archetype, or null when it has no static archetypes. TODO WS4. */
+    static String scopeArchetype(ObjectTypeConfig type) {
+        throw new UnsupportedOperationException('TODO WS4: TypeScoper.scopeArchetype')
+    }
+
+    /**
+     * Enumeration scope: the document's base type matches the type's kind and its {@code directArchetypes}
+     * contain the scope archetype. A type without a scope archetype matches on base type alone (allowed only when
+     * no other type shares its kind). TODO WS4.
+     */
+    static boolean inEnumerationScope(EntityDocument doc, ObjectTypeConfig type) {
+        throw new UnsupportedOperationException('TODO WS4: TypeScoper.inEnumerationScope')
+    }
+
+    /**
+     * Read-by-ID scope: the base type alone. An existing entity without the scope archetype is still found, so
+     * IDM can correlate it and the next update stamps the archetype. A document with an unknown base type is out of
+     * scope. TODO WS4.
+     */
+    static boolean inByIdScope(EntityDocument doc, ObjectTypeConfig type) {
+        throw new UnsupportedOperationException('TODO WS4: TypeScoper.inByIdScope')
     }
 }

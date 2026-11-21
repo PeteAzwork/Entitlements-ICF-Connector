@@ -9,7 +9,7 @@ interface EntityApi {
     /** GET /admin/entities/{id} */
     HttpResponse get(String id)
 
-    /** POST /admin/entities/ */
+    /** POST /admin/entities with a write-model document (EntityDTO). */
     HttpResponse create(Map<String, Object> document)
 
     /** PUT /admin/entities/{id} */
@@ -24,4 +24,7 @@ interface EntityApi {
      * until WS0 confirms them.
      */
     HttpResponse search(Map<String, Object> fields)
+
+    /** GET /admin/manifests — the archetype definitions, read by the Test operation (decision P22). */
+    HttpResponse manifests()
 }

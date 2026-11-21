@@ -217,19 +217,65 @@ class ObjectTypesParserSpec extends Specification {
         e.message.contains(reserved)
 
         where:
-        reserved << ['directArchetypes', 'entityRelationships', 'lastUpdated', '__UID__', '__NAME__']
+        reserved << ['directArchetypes', 'entityRelationships', 'lastEvaluated', '__UID__', '__NAME__', 'ID', 'id']
     }
 
-    def "the attribute named 'ID' is rejected because the connector mirrors ID automatically (§2.1)"() {
+    // ---------------------------------------------------------------- P19 scope archetypes
+
+    def "two types with the same entityKind and different scope archetypes are accepted"() {
         given:
         def m = Fixtures.objectTypesMap()
-        m.user.attributes << 'ID'
+        m.employee = [idmResource: 'managed/employee', entityKind: 'subject', idProperty: 'employeeId', archetypes: ['Employee']]
+
+        expect:
+        ObjectTypesParser.parse(m).keySet() == ['user', 'account', 'employee'] as Set
+    }
+
+    def "two types with the same entityKind sharing a scope archetype are rejected, naming both types and the archetype"() {
+        given:
+        def m = Fixtures.objectTypesMap()
+        m.employee = [idmResource: 'managed/employee', entityKind: 'subject', idProperty: 'employeeId', archetypes: ['Customer', 'Staff']]
 
         when:
         ObjectTypesParser.parse(m)
 
         then:
-        thrown(ConfigurationException)
+        def e = thrown(ConfigurationException)
+        e.message.contains('user')
+        e.message.contains('employee')
+        e.message.contains('Customer')
+    }
+
+    def "when types share an entityKind, each must have a scope archetype"() {
+        given:
+        def m = Fixtures.objectTypesMap()
+        m.employee = [idmResource: 'managed/employee', entityKind: 'subject', idProperty: 'employeeId', archetypes: []]
+
+        when:
+        ObjectTypesParser.parse(m)
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('employee')
+    }
+
+    def "a type alone in its entityKind may have no archetypes: objectClass alone scopes it"() {
+        given:
+        def m = Fixtures.objectTypesMap()
+        m.account.archetypes = []
+
+        expect:
+        ObjectTypesParser.parse(m).account.archetypes == []
+    }
+
+    def "only the first archetype is the scope archetype: later ones may repeat across types"() {
+        given:
+        def m = Fixtures.objectTypesMap()
+        m.user.archetypes = ['Customer', 'Person']
+        m.employee = [idmResource: 'managed/employee', entityKind: 'subject', idProperty: 'employeeId', archetypes: ['Employee', 'Person']]
+
+        expect:
+        ObjectTypesParser.parse(m).size() == 3
     }
 
     def "round-trips through JSON without loss"() {

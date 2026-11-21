@@ -1,52 +1,50 @@
 package au.com.azwork.idm.graphentity.model
 
-import au.com.azwork.idm.graphentity.config.Direction
 import groovy.transform.EqualsAndHashCode
 import groovy.transform.ToString
 
 /**
- * A directed edge as seen from one entity (design §2.2). Exactly one of {@code targetId} / {@code sourceId}
- * is set: {@code targetId} for an outbound edge, {@code sourceId} for an inbound one.
+ * One relationship, with both ends named explicitly (decision P17). This is the service's write shape,
+ * {@code {"sourceID", "targetID", "type"}}, and the value format of the {@code entityRelationships} ICF attribute.
+ * The read model's {@code {source, target, type, sourceType}} is converted to the same shape.
  */
 @EqualsAndHashCode
 @ToString(includeNames = true)
 class Edge {
-    String targetId
     String sourceId
+    String targetId
     String type
 
-    static Edge outbound(String targetId, String type) {
-        new Edge(targetId: targetId, type: type)
+    static Edge of(String sourceId, String targetId, String type) {
+        new Edge(sourceId: sourceId, targetId: targetId, type: type)
     }
 
-    static Edge inbound(String sourceId, String type) {
-        new Edge(sourceId: sourceId, type: type)
+    /** True when {@code entityId} is this edge's source or target. TODO WS2. */
+    boolean involves(String entityId) {
+        throw new UnsupportedOperationException('TODO WS2: Edge.involves')
     }
 
-    Direction getDirection() {
-        throw new UnsupportedOperationException('TODO WS2: Edge.getDirection')
+    /** The end that is not {@code entityId}; for a self-edge, {@code entityId} itself. TODO WS2. */
+    String otherEnd(String entityId) {
+        throw new UnsupportedOperationException('TODO WS2: Edge.otherEnd')
     }
 
-    /** The other endpoint's ID irrespective of direction. */
-    String getOtherId() {
-        throw new UnsupportedOperationException('TODO WS2: Edge.getOtherId')
-    }
-
-    /** Wire form: {@code [TargetID: ..., type: ...]} or {@code [SourceID: ..., type: ...]}. TODO WS2. */
+    /** Write shape, keys in this order: {@code sourceID}, {@code targetID}, {@code type}. TODO WS2. */
     Map<String, Object> toWire() {
         throw new UnsupportedOperationException('TODO WS2: Edge.toWire')
     }
 
-    /** Parses a wire-form map; rejects maps with both or neither endpoint, or no type. TODO WS2. */
+    /**
+     * Parses the write shape. Rejects (IllegalArgumentException) a missing, blank or non-string
+     * {@code sourceID}, {@code targetID} or {@code type}, and any other key, including the design's old
+     * one-sided {@code TargetID}/{@code SourceID} form. TODO WS2.
+     */
     static Edge fromWire(Map<String, Object> wire) {
         throw new UnsupportedOperationException('TODO WS2: Edge.fromWire')
     }
 
-    /**
-     * The same edge expressed from the other endpoint's perspective, given this entity's ID
-     * (e.g. Sanne's {@code TargetID=acct/Owns} becomes the account's {@code SourceID=Sanne/Owns}). TODO WS2.
-     */
-    Edge flip(String thisEntityId) {
-        throw new UnsupportedOperationException('TODO WS2: Edge.flip')
+    /** Parses the read model's {@code {source, target, type, sourceType}}; {@code sourceType} is dropped. TODO WS2. */
+    static Edge fromRead(Map<String, Object> read) {
+        throw new UnsupportedOperationException('TODO WS2: Edge.fromRead')
     }
 }

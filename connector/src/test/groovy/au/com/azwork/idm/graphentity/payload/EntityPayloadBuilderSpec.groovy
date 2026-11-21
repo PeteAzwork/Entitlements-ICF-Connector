@@ -10,38 +10,74 @@ import org.identityconnectors.framework.common.objects.Uid
 import spock.lang.Specification
 import spock.lang.Unroll
 
-/** Design §8.3, §8.4 — the payload is a pure function of the delivered attribute set. */
+/** Design §8.3, §8.4; decisions P15, P17–P20 — the write model is a pure function of the delivered attributes. */
 class EntityPayloadBuilderSpec extends Specification {
 
-    def "builds the Appendix A create document for Sanne"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes())
-
-        then:
-        doc.toWire() == Fixtures.sanneWire()
+    def "builds Sanne's write model, the Appendix A create body"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes()).toWire() == Fixtures.sanneWire()
     }
 
-    def "BaseType is injected from entityKind: subject→4, resource→2"() {
+    def "builds the account's write model, carrying the same relationship string"() {
+        expect:
+        EntityPayloadBuilder.build('Current-Account-1-Sanne', Fixtures.accountType(), Fixtures.accountAttributes()).toWire() == Fixtures.accountWire()
+    }
+
+    def "baseType comes from entityKind with P18's numbering: subject → 4, resource → 2"() {
         expect:
         EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes()).baseType == 4
-        EntityPayloadBuilder.build('acct', Fixtures.accountType(), Fixtures.accountAttributes()).baseType == 2
+        EntityPayloadBuilder.build('Current-Account-1-Sanne', Fixtures.accountType(), Fixtures.accountAttributes()).baseType == 2
     }
 
-    def "attributes.ID mirrors the top-level ID and cannot be overridden by an attribute"() {
+    def "attributes carry no mirrored ID: the service's attribute map holds domain attributes only"() {
+        expect:
+        !EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes()).attributes.containsKey('ID')
+    }
+
+    def "an attribute named ID is rejected"() {
         when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(ID: 'Other'))
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(ID: 'Other'))
 
         then:
         thrown(InvalidAttributeValueException)
     }
 
-    def "only configured domain attributes are written into the attribute map"() {
+    def "every configured attribute with a value is written"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(mail: 's@example.com', telephoneNumber: '+61')).attributes ==
+            [name: 'Sanne Groen', mail: 's@example.com', telephoneNumber: '+61']
+    }
+
+    def "numbers and booleans are written as their text, because the service's attributes are strings (P20)"() {
+        given:
+        def attrs = Fixtures.sanneAttributes()
+        attrs << AttributeBuilder.build('mail', 42)
+        attrs << AttributeBuilder.build('telephoneNumber', true)
+
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), attrs).attributes.subMap(['mail', 'telephoneNumber']) == [mail: '42', telephoneNumber: 'true']
+    }
+
+    def "a multi-valued domain attribute is rejected (P20)"() {
         when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(),
-            Fixtures.sanneAttributes(mail: 's@example.com', telephoneNumber: '+61'))
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(mail: ['a@x', 'b@x']))
 
         then:
-        doc.attributes == [ID: 'Sanne', name: 'Sanne Groen', mail: 's@example.com', telephoneNumber: '+61']
+        def e = thrown(InvalidAttributeValueException)
+        e.message.contains('mail')
+    }
+
+    def "an attribute that is absent, or present with no value, is omitted (P20)"() {
+        given:
+        def attrs = Fixtures.sanneAttributes()
+        attrs << AttributeBuilder.build('mail')
+
+        when:
+        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), attrs)
+
+        then:
+        !doc.attributes.containsKey('mail')
+        !doc.attributes.containsKey('telephoneNumber')
     }
 
     def "an attribute outside the configured list is rejected rather than silently dropped"() {
@@ -53,54 +89,32 @@ class EntityPayloadBuilderSpec extends Specification {
         e.message.contains('department')
     }
 
-    def "a configured attribute that is absent from the set is omitted from the map (not written as null)"() {
+    def "relationships are parsed verbatim from entityRelationships (P17)"() {
         when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes())
+        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(entityRelationships: [
+            '{"sourceID":"Sanne","targetID":"A1","type":"Owns"}', '{"sourceID":"Mgr","targetID":"Sanne","type":"Manages"}']))
 
         then:
-        !doc.attributes.containsKey('mail')
+        doc.relationships == [Edge.of('Sanne', 'A1', 'Owns'), Edge.of('Mgr', 'Sanne', 'Manages')]
     }
 
-    def "a configured attribute delivered with no values (removal) is written as null so the PUT clears it"() {
-        given:
-        def attrs = Fixtures.sanneAttributes()
-        attrs << AttributeBuilder.build('mail')   // attribute present, no values
-
+    def "a relationship that does not name the entity as source or target is rejected (P17)"() {
         when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), attrs)
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(entityRelationships: [
+            '{"sourceID":"Someone","targetID":"A1","type":"Owns"}']))
 
         then:
-        doc.attributes.containsKey('mail')
-        doc.attributes.mail == null
+        def e = thrown(InvalidAttributeValueException)
+        e.message.contains('entityRelationships')
+        e.message.contains('Sanne')
     }
 
-    def "a multi-valued domain attribute is written as a list"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(mail: ['a@x', 'b@x']))
-
-        then:
-        doc.attributes.mail == ['a@x', 'b@x']
+    def "duplicate relationship values collapse to one"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(entityRelationships: [Fixtures.OWNS_JSON, Fixtures.OWNS_JSON])).relationships.size() == 1
     }
 
-    def "Relationships are parsed verbatim from entityRelationships"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(
-            entityRelationships: ['{"TargetID":"A1","type":"Owns"}', '{"SourceID":"Mgr","type":"Manages"}']))
-
-        then:
-        doc.relationships == [Edge.outbound('A1', 'Owns'), Edge.inbound('Mgr', 'Manages')]
-    }
-
-    def "duplicate edge values collapse to one edge"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(
-            entityRelationships: ['{"TargetID":"A1","type":"Owns"}', '{"TargetID":"A1","type":"Owns"}']))
-
-        then:
-        doc.relationships.size() == 1
-    }
-
-    def "a malformed edge value is an InvalidAttributeValueException naming entityRelationships"() {
+    def "a malformed relationship value is an InvalidAttributeValueException naming entityRelationships"() {
         when:
         EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(entityRelationships: ['nope']))
 
@@ -109,29 +123,19 @@ class EntityPayloadBuilderSpec extends Specification {
         e.message.contains('entityRelationships')
     }
 
-    def "an empty entityRelationships attribute yields an explicit empty Relationships array"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(entityRelationships: []))
-
-        then:
-        doc.relationships == []
-        doc.toWire().Relationships == []
+    def "an empty entityRelationships yields an explicit empty relationships array (P15)"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(entityRelationships: [])).toWire().relationships == []
     }
 
-    def "directArchetypes merges the static type archetypes with the delivered values, de-duplicated, order-stable"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(directArchetypes: ['VIP', 'Customer']))
-
-        then:
-        doc.directArchetypes == ['Customer', 'VIP']
+    def "directArchetypes puts the type's static archetypes first (the scope archetype, P19), then delivered ones, without duplicates"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(directArchetypes: ['VIP', 'Customer'])).directArchetypes == ['Customer', 'VIP']
     }
 
-    def "static archetypes are stamped even when the attribute is absent"() {
-        when:
-        def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(directArchetypes: null))
-
-        then:
-        doc.directArchetypes == ['Customer']
+    def "the scope archetype is stamped even when directArchetypes is absent"() {
+        expect:
+        EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(directArchetypes: null)).directArchetypes == ['Customer']
     }
 
     @Unroll
@@ -146,20 +150,20 @@ class EntityPayloadBuilderSpec extends Specification {
         id << [null, '', '  ']
     }
 
-    def "the __NAME__ and __UID__ attributes are not written into the attribute map"() {
+    def "__NAME__, __UID__ and the read-only lastEvaluated are never written as attributes"() {
         given:
         def attrs = Fixtures.sanneAttributes()
         attrs << new Uid('Sanne')
+        attrs << AttributeBuilder.build('lastEvaluated', '2026-01-01T00:00:00Z')
 
         when:
         def doc = EntityPayloadBuilder.build('Sanne', Fixtures.userType(), attrs)
 
         then:
-        !doc.attributes.containsKey('__NAME__')
-        !doc.attributes.containsKey('__UID__')
+        doc.attributes.keySet() == ['name'] as Set
     }
 
-    def "a __NAME__ that disagrees with the id is rejected (A3: __UID__ == __NAME__ == ID)"() {
+    def "a __NAME__ that disagrees with the id is rejected (A3: __UID__ == __NAME__ == id)"() {
         when:
         EntityPayloadBuilder.build('Sanne', Fixtures.userType(), Fixtures.sanneAttributes(__NAME__: 'Someone-Else'))
 

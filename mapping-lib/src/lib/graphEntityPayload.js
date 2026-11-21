@@ -12,7 +12,8 @@
  *   - resolveRelationship(...)        apply the §7 override-then-convention rule for one property
  *   - buildRelationships(sourceId, typeConfig)   enumerate forward + reverse relationship properties, resolve the
  *                                     related object's *remote ID* via the related type's idProperty, and return the
- *                                     edge set as canonical JSON strings
+ *                                     edge set as canonical JSON strings {"sourceID","targetID","type"} (decision P17:
+ *                                     both ends of a relationship emit the identical string)
  *   - buildArchetypes(sourceObject, typeConfig)  static archetypes + archetypeProperty values, de-duplicated
  */
 (function (exports) {
@@ -68,6 +69,8 @@
     /**
      * Builds the complete edge set for the source object (A1/A2, §8.1): every synced relationship property,
      * forward and reverse, with each related object's remote ID resolved via the related type's idProperty.
+     * Each edge names both ends: {"sourceID":<source remote id>,"targetID":<target remote id>,"type":<remoteType>},
+     * keys in that order, no whitespace (P17). For an inbound property the related object is the source.
      * @returns {string[]} canonical JSON strings, sorted, de-duplicated
      */
     exports.buildRelationships = function (sourceId, typeConfig, options) {

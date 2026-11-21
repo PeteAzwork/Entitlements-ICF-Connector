@@ -108,6 +108,27 @@ class ScrubberSpec extends Specification {
         s.scrubPath('/admin/entities/bulk') == '/admin/entities/bulk'
     }
 
+    def "a filter's right-hand value is aliased when it is a foreign ID, redacted when it is attribute data, kept for probe values"() {
+        expect:
+        s.scrub([filter: [operation: 'EQUALS', left: 'ID', right: 'Cor']]).filter.right == 'scrubbed-1'
+        s.scrub([filter: [operation: 'EQUALS', left: 'uid', right: 'Cor']]).filter.right == 'scrubbed-1'
+        s.scrub([filter: [operation: 'CONTAINS', left: 'name', right: 'Cor Jette']]).filter.right == Scrubber.REDACTED
+        s.scrub([filter: [operation: 'STARTSWITH', left: 'ID', right: 'ws0-probe-r1-stab-']]).filter.right == 'ws0-probe-r1-stab-'
+        s.scrub([filter: [operation: 'AND', left: [operation: 'EQUALS', left: 'ID', right: 'Cor'], right: [operation: 'EQUALS', left: 'ID', right: 'ws0-probe-r1-A']]]).filter ==
+            [operation: 'AND', left: [operation: 'EQUALS', left: 'ID', right: 'scrubbed-1'], right: [operation: 'EQUALS', left: 'ID', right: 'ws0-probe-r1-A']]
+    }
+
+    def "manifests keep archetype names only; decisions, paths, instance lists and constraints are dropped"() {
+        given:
+        def body = [[name: 'm', subjectArchetypes: [[name: 'Customer', eligibilityDecisions: [[x: 1]], reconciliationPath: 'p', subjects: [[name: 'Cor']]]],
+                     resourceArchetypes: null, constraints: [[name: 'c', rules: 'Cor may not']]]]
+
+        expect:
+        s.scrubResponse('/admin/manifests', body) == [[name: 'm', subjectArchetypes: [[name: 'Customer']], resourceArchetypes: null, constraints: Scrubber.REDACTED]]
+        s.scrubResponse('/admin/manifests', [title: 'Not Found', status: 404, detail: 'Cor']) == [title: 'Not Found', status: 404, detail: Scrubber.REDACTED]
+        s.scrubResponse('/admin/entities/search', [results: [[uid: 'Cor']]]) == [results: [[uid: 'scrubbed-1']]]
+    }
+
     def "the search endpoint is not mistaken for an entity ID"() {
         expect:
         s.scrubPath('/admin/entities/search') == '/admin/entities/search'

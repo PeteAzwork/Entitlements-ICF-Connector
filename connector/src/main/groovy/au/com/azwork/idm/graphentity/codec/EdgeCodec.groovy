@@ -3,13 +3,14 @@ package au.com.azwork.idm.graphentity.codec
 import au.com.azwork.idm.graphentity.model.Edge
 
 /**
- * Encodes edges as the compact JSON strings carried in the multivalued {@code entityRelationships}
- * ICF attribute (design §8.3), e.g. {@code {"TargetID":"Current-Account-1-Sanne","type":"Owns"}}.
- * Serialisation is canonical (fixed key order, no whitespace) so set comparison in recon is stable.
+ * Encodes edges as the compact JSON strings carried in the multivalued {@code entityRelationships} ICF attribute
+ * (decision P17), e.g. {@code {"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}}.
+ * Serialisation is canonical (keys in that order, no whitespace) so set comparison in recon is stable, and the
+ * same edge produces the same string whichever of its two entities is being written.
  */
 class EdgeCodec {
 
-    /** TODO WS2. Throws InvalidAttributeValueException on malformed input. */
+    /** TODO WS2. Throws InvalidAttributeValueException on malformed input, naming the value. */
     static Edge parse(String json) {
         throw new UnsupportedOperationException('TODO WS2: EdgeCodec.parse')
     }

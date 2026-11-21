@@ -34,6 +34,24 @@ class ObjectTypesGeneratorSpec extends Specification {
         user.archetypes == ['Customer']
     }
 
+    def "a multi-valued property is left out of attributes with a warning naming the type and property (P20)"() {
+        when:
+        def result = ObjectTypesGenerator.generate(types, opts)
+
+        then:
+        !result.objectTypes.user.attributes.contains('aliases')
+        result.warnings.any { it.contains('user') && it.contains('aliases') }
+    }
+
+    def "excluded properties of unselected types produce no warning"() {
+        when:
+        def result = ObjectTypesGenerator.generate(types, new GeneratorOptions(selectedTypes: ['account'],
+            entityKinds: [account: 'resource'], idProperties: [account: 'accountId'], archetypes: [account: ['Account']]))
+
+        then:
+        !result.warnings.any { it.contains('aliases') }
+    }
+
     def "every relationship is listed with convention-derived values plus relatedType and reverseProperty"() {
         when:
         def user = ObjectTypesGenerator.generate(types, opts).objectTypes.user
