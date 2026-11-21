@@ -1,0 +1,2 @@
+uid in PAK instead of ID
+search only looks at attributes, which doesnt currently include lastUpdated
