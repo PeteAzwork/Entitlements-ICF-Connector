@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/entities/scrubbed-1"
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 27,
+        "check": "WS0.06",
+        "runId": "20261121-214027"
+    }
+}

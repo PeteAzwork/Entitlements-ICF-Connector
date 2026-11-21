@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/entities/ws0-probe-20261121-214027-edge-A"
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 188,
+        "check": "WS0.07",
+        "runId": "20261121-214027"
+    }
+}

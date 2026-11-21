@@ -1,0 +1,30 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"filter\":{\"operation\":\"EQUALS\",\"left\":\"ID\",\"right\":\"ws0-probe-20261121-155100-id%25\"},\"pageSize\":10}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                
+            ],
+            "pagedResultsCookie": null,
+            "totalResults": 0,
+            "hasMore": false
+        }
+    },
+    "metadata": {
+        "probeExchange": 52,
+        "check": "WS0.15",
+        "runId": "20261121-214027"
+    }
+}
