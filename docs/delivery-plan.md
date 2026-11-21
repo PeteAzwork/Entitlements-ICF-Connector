@@ -1,27 +1,33 @@
 # Delivery Plan — Ping IDM Scripted REST Connector for the Graph Entity Service
 
-**Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06)
-**Plan status:** Proposed, v1.5 — 2026-11-21 (service OpenAPI definition received; design revision WS0.14 needed before WS1)
+**Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
+**Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
+**Plan status:** Proposed, **v2.0 — 2026-11-21.** Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
-**Delivery approach:** Test-first. This repository already contains the complete unit test suite and thin stubs; implementation work turns specs green workstream by workstream.
+**Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
 ---
 
 ## 1. How to read this plan
 
-The design document says *what* the connector is. This plan says *in what order* it gets built, *how each piece is proven*, and *what is still unknown*. It is organised as:
+The design document says *what* the connector is. This plan says *in what order* it gets built, *how each piece is proven*, and *what is still unknown*.
 
-- §2 what is delivered, mapped to the design sections and to code that already exists in this repository;
-- §3 decisions this plan makes where the design was silent or underspecified (please review these first — they are the cheapest things to change now);
-- §4 the workstreams, each with its acceptance criterion expressed as "these specs are green";
-- §5 the schedule and critical path;
-- §6 the test strategy, including the full catalogue of tests already written;
+- §2 what is delivered, and where it lives;
+- §3 the decisions this plan makes, P1–P16 (review these first);
+- §4 the workstreams and the order they run in;
+- §5 milestones and the critical path;
+- §6 the test strategy and the catalogue of tests already written;
 - §7 environments, build and CI;
-- §8 deployment and rollout to IDM;
-- §9 risks, §10 open questions, §11 definition of done.
-- §12 the task list for every workstream: the working checklist, with sizes, the specs each task turns green, and known gotchas.
+- §8 deployment and rollout;
+- §9 risks, §10 open questions, §11 definition of done;
+- §12 the task list for every workstream, the working checklist.
 
-Every test name in the suite cites the design section it proves (for example `§9.1`), so a reviewer can trace design → test → code in either direction.
+### What changed in v2
+
+- **The real API is known.** The service's OpenAPI definition (IDP Entitlements API v1) arrived on 2026-11-21. It differs from the design in document shapes, relationship representation, base-type numbering and search. `docs/service-contract.md` sections 5 and 6 record the differences. Revising the design to match (WS0.14) now comes before most implementation.
+- **Relationship writes are full-state (P15).** An entity's `relationships` collection replaces its relationships, and the service removes any that are missing. This confirms the design's core model and makes the update guard (P4) essential.
+- **Drift detection is last (P16).** Everything built specifically to detect and repair changes made outside IDM moves into a new final workstream, WS10. The core connector, mappings, integration tests and rollout (WS1–WS9) proceed without it.
+- **Numbering is unchanged.** Workstreams WS1–WS9 keep their numbers, because the stubs' `TODO WSn` markers refer to them. WS10 is new.
 
 ---
 
@@ -29,166 +35,193 @@ Every test name in the suite cites the design section it proves (for example `§
 
 ### 2.1 Deliverables
 
-| # | Deliverable | Design ref | Location in repo | State today |
+| # | Deliverable | Design ref | Location | State today |
 |---|---|---|---|---|
-| D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/graphentity/` | API fixed, bodies are stubs |
+| D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/graphentity/` | API fixed, bodies are stubs. Several classes encode the old API model and change in WS0.14 |
 | D2 | Seven ICF operation scripts | §4 | `connector/src/main/scripts/*.groovy` | Written (thin delegation) |
-| D3 | Connector unit + script-harness + contract + scenario tests | §6 of this plan | `connector/src/test/groovy/…` | **Complete: 29 specs, 537 test executions** |
+| D3 | Connector tests: unit, script harness, contract, scenario | §6 of this plan | `connector/src/test/groovy/…` | **29 specs, 537 executions**, red by design |
 | D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js` | API fixed, bodies are stubs |
-| D5 | Mapping library tests (Node test runner, Rhino-like isolation) | §8.2 | `mapping-lib/test/` | **Complete: 67 tests** |
+| D5 | Mapping library tests | §8.2 | `mapping-lib/test/` | **67 tests**, red by design |
 | D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…` | API fixed, bodies are stubs |
-| D7 | Discovery tool tests | §12 | `discovery/src/test/groovy/…` | **Complete: 4 specs, 41 test executions** |
-| D8 | Provisioner and mapping configuration samples | §6, §11, §12 | `config/` | Written |
-| D9 | Build, CI, packaging task (`connectorScripts`) | — | `build.gradle`, `.github/workflows/ci.yml` | Written |
-| D10 | Integration test harness against IDM 7.5 in Docker | this plan §6.4 | `integration/` (to be created) | Not started |
-| D11 | Operator runbook (deployment, recon cadence, REPORT→DELETE promotion, log interpretation) | §9–§11, §14 | `docs/runbook.md` (to be created) | Not started |
-| D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` | Question register written; no answers confirmed yet |
-| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (81 tests). First real run on 2026-11-21 found that search is a POST (P14); not yet run to completion** |
+| D7 | Discovery tool tests | §12 | `discovery/src/test/groovy/…` | **4 specs, 41 executions**, red by design |
+| D8 | Provisioner and mapping configuration samples | §6, §12 | `config/` | Written |
+| D9 | Build, CI, packaging task | — | `build.gradle`, `.github/workflows/ci.yml` | Written |
+| D10 | Integration tests against IDM 7.5 in Docker | this plan §6 | `integration/` | Not started (WS8) |
+| D11 | Operator runbook | §9, §10, §14 | `docs/runbook.md` | Not started (WS7, WS9) |
+| D12 | Service contract | §15 | `docs/service-contract.md` | Register written; API definition recorded; contradictions C1–C7 and decisions D1–D9 listed |
+| D13 | Contract probe | §15 | `contract-probe/` | **81 tests passing.** Read checks work against the real API. Write checks need realigning (WS0.15) |
+| D14 | Drift detection: design, implementation, tests and operations | §11 | design §11, `mapping-lib`, `integration/`, runbook | Not started. **Scheduled last (WS10)** |
 
-### 2.2 Out of scope (unchanged from the design)
+### 2.2 Scope boundaries
 
-Inbound provisioning, password synchronisation, LiveSync/SyncScript, remote-originated relationship types, read-merge-write mode (specified in §15 as a future evolution, not built now).
+- **Out of scope** (unchanged from the design): inbound provisioning, password synchronisation, LiveSync and a SyncScript, remote-originated relationship types, and the read-merge-write mode of design §15.
+- **In scope but last** (P16): drift detection, as defined in WS10.
+- **Not used by the connector:** the service's `/entitlements`, `/policy-information`, `/admin/manifests` and delegation endpoints.
 
 ### 2.3 Design → code map
 
+The map below is the current one. WS0.14 revises the classes marked †, because they encode the design's original model of the API.
+
 | Design section | Library class(es) | Spec(s) |
 |---|---|---|
-| §2.1 document shape | `model.EntityDocument` | `EntityDocumentSpec` |
-| §2.2 edge rules | `model.Edge` | `EdgeSpec` |
-| §3 A3/A4 identity and kind | `config.EntityKind`, `payload.EntityPayloadBuilder` | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
+| §2.1 document shape | `model.EntityDocument` † | `EntityDocumentSpec` |
+| §2.2 edge rules | `model.Edge` † | `EdgeSpec` |
+| §3 A3/A4 identity and kind | `config.EntityKind` †, `payload.EntityPayloadBuilder` † | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
 | §5.2/§6 per-type dynamic schema | `config.ObjectTypesParser`, `config.ConnectorConfig`, `schema.SchemaFactory` | `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `SchemaFactorySpec` |
-| §7 convention (normative) | `convention.RelationshipConvention` | `RelationshipConventionSpec` (JS: `resolvePair`/`resolveRelationship` tests) |
+| §7 convention (normative) | `convention.RelationshipConvention` | `RelationshipConventionSpec`, and the JavaScript `resolvePair`/`resolveRelationship` tests |
 | §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js` |
-| §8.3 ICF encoding | `codec.EdgeCodec` | `EdgeCodecSpec` |
+| §8.3 ICF encoding | `codec.EdgeCodec` † | `EdgeCodecSpec` |
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
-| §9.1 create + verification | `ops.CreateOperation`, `payload.EdgeVerifier` | `CreateOperationSpec`, `EdgeVerifierSpec` |
+| §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` † | `CreateOperationSpec`, `EdgeVerifierSpec` |
 | §9.3 delete | `ops.DeleteOperation` | `DeleteOperationSpec` |
-| §9.4 search/get, scoping, paging | `search.SearchPlanner`, `search.TypeScoper`, `search.PageCursor`, `ops.SearchOperation`, `payload.EntityDecoder` | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
-| §9.5 test/schema | `ops.TestOperation`, `ops.SchemaOperation` | `TestAndSchemaOperationSpec` |
+| §9.4 search, get, scoping, paging | `search.SearchPlanner` †, `search.TypeScoper` †, `search.PageCursor` †, `ops.SearchOperation`, `payload.EntityDecoder` † | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
+| §9.5 test and schema | `ops.TestOperation`, `ops.SchemaOperation` | `TestAndSchemaOperationSpec` |
 | §13 exception mapping | `http.HttpErrorMapper` | `HttpErrorMapperSpec` |
 | §2/§14 transport and auth | `http.RestClientEntityApi`, `CustomizerScript` | `RestClientEntityApiSpec`, `CustomizerScriptSpec` |
 | §4 scripts as the harness runs them | `ops.ScriptSupport`, scripts | `OperationScriptsSpec`, `ScriptSupportSpec` |
 | §12 discovery | `discovery.*` | `ManagedSchemaReaderSpec`, `ObjectTypesGeneratorSpec`, `MappingSkeletonGeneratorSpec`, `DiffSummarySpec` |
-| Appendix A | all operations against `FakeGraphService` | `WorkedExampleSpec` |
+| Appendix A | all operations against `FakeGraphService` † | `WorkedExampleSpec` |
 
 ---
 
-## 3. Decisions made in this plan (review these first)
+## 3. Decisions (review these first)
 
-These are places where turning the design into testable code forced a concrete choice. Each is reversible now at low cost; each is pinned by a test so a change is deliberate.
+Each decision is pinned by a test, so changing one is deliberate. "Status" says whether the real API has confirmed, changed or superseded it.
 
-| # | Decision | Why | Where pinned |
+| # | Decision | Status | Where pinned |
 |---|---|---|---|
-| P1 | **Connector-specific configuration travels in `customConfiguration`** (a ConfigSlurper script surfaced as `configuration.propertyBag`), not as top-level `configurationProperties`. `objectTypes` is a JSON string inside it. | The Scripted REST connector has a fixed configuration class; arbitrary top-level properties are not available to scripts. The design's §6 example is kept as the *logical* model. | `config/provisioner.openicf-graphentity.json`, `ScriptSupportSpec` |
-| P2 | **Relationship entries carry `relatedType` and `reverseProperty` hints**, emitted by the discovery tool. | The connector cannot run the §7 consistency validation at load time without knowing which entry is the counterpart of which; `managed.json` is not available to it. Hand-written config may omit them (validation then warns instead of checking). | `ObjectTypesParserSpec`, `RelationshipConventionSpec` "validate" cases, `ObjectTypesGeneratorSpec` |
-| P3 | **The "passive form" of the §7 convention is defined as a trailing `By`** (`ownedBy`, `managedBy`). Exactly one passive side is required; otherwise the pair is unresolved and needs an override (the design's `manager`/`reports` case). | The design names the passive form by example only; a deterministic rule is needed for both the generator and the mapping library. | `RelationshipConventionSpec` normalisation/passive tables, JS equivalents |
-| P4 | **`UpdateOperation` refuses an update whose attribute set omits `entityRelationships` or `directArchetypes`** (`InvalidAttributeValueException`) instead of sending a PUT that would delete edges. | §8.4/§15 call the partial-update risk out as the way routine updates turn into mass edge deletions and rely on code review. A connector-side guard makes it structurally impossible. An empty attribute (present, no values) is still a valid "no edges". | `UpdateOperationSpec` |
-| P5 | **Type scoping on enumeration checks `BaseType` as well as archetypes.** | Archetype ambiguity is an open item (§15); BaseType is a cheap second discriminator that breaks ties between subject and resource types. An `idPattern` regex fallback is reserved but not implemented. | `TypeScoperSpec` |
-| P6 | **Paging protocol is assumed to be `offset`/`pageSize` request parameters with `items` + optional `totalCount` or `nextCursor` in the response.** All paging knowledge is confined to `PageCursor`. | §15 says the protocol is unconfirmed; isolating it means the confirmation changes one class and one spec. | `PageCursorSpec`, `FakeGraphService` |
-| P7 | **Unsupported ICF filters raise `UnsupportedOperationException`** rather than silently enumerating. | A silent fallback would turn a mistaken `_queryFilter` into a full scan of the remote service. | `SearchPlannerSpec` |
-| P8 | **Build compiles against ConnId's `connector-framework` by default** (`icfFlavour=connid`), switchable to ForgeRock's artefact (`icfFlavour=forgerock`). Both expose the same `org.identityconnectors.framework` API the scripts use. | ForgeRock's Maven repository is not reachable from every build environment (it was not from the one this suite was authored in). The release build must use the ForgeRock flavour; CI runs both when it can. | `gradle.properties`, `build.gradle` |
-| P9 | **Library classes are deployed as Groovy sources under a `classpath` root** of the provisioner, scripts under `scriptRoots`. | Keeps a single-artefact deployment with no custom bundle (the design's "Scripted REST over custom Java bundle" decision). | `config/provisioner…json`, `connectorScripts` Gradle task |
-| P10 | **The mapping library reads `config/managed` (cached) only as a fallback** for relationship properties not listed in `objectTypes`. | §6 says listing every property is *should*, not *must*; the fallback needs the reverse property name, which only `managed.json` has. | `graphEntityPayload.test.js` "falls back to managed.json" cases |
-| P11 | **Verification GET failure after a successful POST does not fail the create**; it is logged at WARN. | §9.1 makes verification an audit aid; failing the create would create a retry loop for an entity that already exists (409 on retry). | `CreateOperationSpec` |
-| P12 | **Package namespace `au.com.azwork.idm.graphentity`.** | Derived from the organisation domain; rename is a find-and-replace before WS1 starts if a different namespace is preferred. | everywhere |
-| P13 | **Authentication is one shared API key, sent raw in the `X-API-KEY` header.** Missing and wrong keys both return 401. The key is stored in the Scripted REST `password` property, which IDM encrypts, and the customizer sends it as a default header. `defaultAuthMethod` is `NONE` and there is no username. The header name can be overridden with `apiKeyHeader` in `customConfiguration`. *Decided 2026-11-21.* | Stated by the project owner on 2026-11-21, replacing the design's HTTP Basic. Reusing `password` keeps the key in IDM's encrypted-property handling with no custom secret store. Whether `customSensitiveConfiguration` would serve better is checked in WS3.01. The probe will observe the 401 behaviour (`auth.status`). | `ConnectorConfigSpec`, `CustomizerScriptSpec`, `RestClientEntityApiSpec`, `HttpErrorMapperSpec`, `ScriptSupportSpec`, `ContractProbeSpec` |
-| P14 | **Search is `POST /admin/entities/search` with a JSON body of filter and paging fields. `{}` is the unfiltered search.** `EntityApi.search(Map)` takes those body fields, and `PageCursor.toQuery` produces body fields, not query parameters. The service answers `GET /admin/entities` with 405. *Decided 2026-11-21.* | Stated by the project owner on 2026-11-21, after the first probe run against the real service got 405 for `GET /admin/entities` (run `20261121-150804`, exchanges 4 and 5). The names of the timestamp and paging fields are still open (Q02.2, Q03.2, Q03.3). | `RestClientEntityApiSpec`, `OperationScriptsSpec`, `ContractProbeSpec` |
+| P1 | **Connector-specific configuration travels in `customConfiguration`**, surfaced to scripts as `configuration.propertyBag`. `objectTypes` is a JSON string inside it. The Scripted REST connector has a fixed configuration class, so arbitrary top-level properties don't reach scripts. | Holds | `config/provisioner…json`, `ScriptSupportSpec` |
+| P2 | **Relationship entries carry `relatedType` and `reverseProperty` hints**, emitted by the discovery tool, so the connector can validate §7 consistency without `managed.json`. | Holds | `ObjectTypesParserSpec`, `RelationshipConventionSpec`, `ObjectTypesGeneratorSpec` |
+| P3 | **The passive form in the §7 convention is a trailing `By`** (`ownedBy`). Exactly one side must be passive, or the pair needs an override. | Holds | `RelationshipConventionSpec`, JavaScript equivalents |
+| P4 | **`UpdateOperation` refuses an update that omits `entityRelationships` or `directArchetypes`.** A present-but-empty attribute is still a valid "none". | **Essential, given P15**: the service deletes any relationship missing from an update | `UpdateOperationSpec` |
+| P5 | **Type scoping on enumeration checks the base type as well as archetypes.** | Revisit in WS0.14 (D6): search can scope by `objectClass` directly | `TypeScoperSpec` |
+| P6 | ~~Paging uses `offset`/`pageSize` with `items` and `totalCount` or `nextCursor`.~~ | **Superseded.** The real protocol is `pageSize` plus an opaque `pagedResultsCookie`, with `results`, `totalResults` and `hasMore` in the response. All paging knowledge stays in `PageCursor` | `PageCursorSpec` (revise in WS0.14) |
+| P7 | **Unsupported ICF filters raise `UnsupportedOperationException`** rather than silently enumerating. | Holds, but more filters become supported (D8) | `SearchPlannerSpec` |
+| P8 | **The build compiles against ConnId's `connector-framework` by default** (`icfFlavour=connid`), switchable to ForgeRock's (`icfFlavour=forgerock`). The release build uses ForgeRock's. | Holds | `gradle.properties`, `build.gradle` |
+| P9 | **Library classes deploy as Groovy sources under the provisioner's `classpath`.** | Holds; verify in WS7.02 | `connectorScripts` task |
+| P10 | **The mapping library reads `config/managed` only as a fallback** for relationship properties not listed in `objectTypes`. | Holds | `graphEntityPayload.test.js` |
+| P11 | **A failed verification GET after a successful create does not fail the create**; it is logged at WARN. | Holds. Matters now: GET by ID returned 500 in the first real run (C1) | `CreateOperationSpec` |
+| P12 | **Package namespace `au.com.azwork.idm.graphentity`.** Renaming is a find-and-replace before WS1 starts. | Holds | everywhere |
+| P13 | **Authentication is one shared API key, sent raw in the `X-API-KEY` header.** Stored in the encrypted `password` property; `defaultAuthMethod` is `NONE`; no username. *2026-11-21.* | Confirmed by the owner and the definition | `ConnectorConfigSpec`, `CustomizerScriptSpec`, `RestClientEntityApiSpec`, `HttpErrorMapperSpec`, `ScriptSupportSpec`, `ContractProbeSpec` |
+| P14 | **Search is `POST /admin/entities/search` with a JSON body; `{}` is the unfiltered search.** *2026-11-21.* | Confirmed by the owner and the definition | `RestClientEntityApiSpec`, `OperationScriptsSpec`, `ContractProbeSpec` |
+| P15 | **Relationship writes are full-state, through the entity's `relationships` collection on create and update.** The service removes every relationship missing from the collection, so every write carries the complete set. The single-relationship endpoint (`POST /admin/entities/{id}/relationships`) also works, but the connector does not use it: one full-state write per entity keeps writes idempotent and keeps the design's §8 model. *Decided 2026-11-21 (D1).* | Confirmed by the owner. Still open: whether "missing" includes relationships where the entity is the *target* (Q07.8) | `UpdateOperationSpec`, `WorkedExampleSpec` |
+| P16 | **Drift detection is built last, in WS10.** Drift detection means everything built specifically to detect and repair changes made outside IDM: the incremental drift check (design §11), comparing relationships during reconciliation, promoting orphans from `REPORT` to `DELETE`, and their tests, schedules and monitoring. Until WS10, reconciliation runs as IDM does it natively. It is used for the initial load, every target-phase situation stays on `REPORT`, and relationship drift goes undetected. *Decided 2026-11-21 (D3, D4).* | Decided by the owner | `MappingSkeletonGeneratorSpec` (REPORT policies) |
 
 ---
 
-## 4. Workstreams
+## 4. Workstreams and their order
 
-Each workstream names its acceptance criterion as the specs that must be green. Estimates are indicative engineer-days for one engineer familiar with IDM and Groovy, excluding review. The task-level breakdown of each workstream, with revised estimates, is in §12.
+Each workstream's acceptance criterion is the set of specs that must be green. Estimates are engineer-days for one engineer who knows IDM and Groovy, excluding review. §12 breaks each one into tasks.
 
-### WS0 — Service contract spike (blocks WS4 and WS8; can run in parallel with WS1–WS3)
+### 4.1 Order at a glance
 
-**Goal:** close the §15 open items against the real service.
-**Tasks:** confirm search parameter name and datetime format; confirm paging protocol (cursor vs offset, response envelope, page-size limit); confirm duplicate `POST` behaviour (409 or otherwise); capture error body shape; confirm whether archetypes discriminate types reliably; capture one real document of each type.
-**Outputs:** `docs/service-contract.md`; updated `PageCursor`/`PageCursorSpec` and `FakeGraphService` if the assumption in P6 is wrong; `timestampSearchParam` default; recorded WireMock stubs from real responses (used by WS8).
-**Acceptance:** every "assumed" marker in the suite replaced by a confirmed value or an explicit, agreed assumption.
-**Estimate:** 2 days, elapsed time depends on service-team availability.
+| Order | Workstream | Depends on | Can start |
+|---|---|---|---|
+| 1 | **WS0 Service contract and design revision** | Service team | Now |
+| 2 | WS1 Configuration, convention and schema | WS0.14 for D5 and D7 only | Now, except `EntityKind` and attribute cardinality |
+| 2 | WS6 Discovery tool | WS1 | After WS1's parser and convention |
+| 3 | WS2 Model, codec and payload | **WS0.14** (D2, document shapes) | After WS0.14 |
+| 3 | WS5 Mapping-side payload library | WS0.14 for the edge format (D2) | Convention parts now; edge output after WS0.14 |
+| 4 | WS3 Transport, errors and write operations | WS1, WS2; C1 for verification | After WS2 |
+| 5 | WS4 Search, scoping and paging | WS3, WS0.14 (D6, D8) | After WS3 |
+| 6 | WS7 Packaging and deployment | WS3 | After WS3 |
+| 7 | WS8 Integration in IDM 7.5 | WS4, WS5, WS7 | After WS7 |
+| 8 | WS9 Operational readiness and rollout | WS8 | After WS8 |
+| **9 (last)** | **WS10 Drift detection** | WS9; service answers on D3 and D4 | After go-live readiness (M5) |
+
+### WS0 — Service contract and design revision (first)
+
+**Goal:** know the real API, and revise the design and the code's model of it before building on it.
+**Part A, the contract:** largely done. The register is written, the API definition recorded, authentication and search confirmed (P13, P14), relationship writes confirmed (P15), and the probe built (WS0.13, WS0.16).
+**Part B, the design revision (WS0.14):** decide D2 and D5–D9, raise C1–C7 with the service team, amend design §2, §6–§9, and revise the stubs, fakes and specs that encode the old model.
+**Acceptance:** the design matches the real API. The specs that encode the API's shape describe the real one and still fail only on stubs. C1 (GET by ID returns 500) is understood.
+**Estimate:** 5 days plus service-team elapsed time.
 
 ### WS1 — Configuration, convention and schema
 
-**Goal:** the connector can load, validate and expose its schema.
-**Implement:** `EntityKind`, `Direction`, `ObjectTypesParser`, `ConnectorConfig`, `ObjectTypeConfig.syncedRelationships`, `RelationshipConvention` (all four functions), `ObjectClassResolver`, `SchemaFactory`, `SchemaOperation`.
-**Acceptance (green):** `EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec`, schema cases in `TestAndSchemaOperationSpec`.
-**Estimate:** 3.5 days (revised in §12).
+**Goal:** the connector loads, validates and exposes its schema.
+**Implement:** `EntityKind`, `Direction`, `ObjectTypesParser`, `ConnectorConfig`, `ObjectTypeConfig.syncedRelationships`, `RelationshipConvention`, `ObjectClassResolver`, `SchemaFactory`, `SchemaOperation`.
+**Acceptance:** `EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec`, and the schema cases of `TestAndSchemaOperationSpec`.
+**Estimate:** 3.5 days.
 
 ### WS2 — Model, codec and payload
 
-**Goal:** pure functions from ICF attributes to the wire document and back.
-**Implement:** `Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`.
+**Goal:** pure functions from ICF attributes to the service's write model, and from its read and search models back.
+**Implement:** `Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`, as revised by WS0.14.
 **Acceptance:** `EdgeSpec`, `EntityDocumentSpec`, `EdgeCodecSpec`, `EntityPayloadBuilderSpec`, `EntityDecoderSpec`.
-**Estimate:** 2 days. Depends on WS1 types only (compiles already).
+**Estimate:** 3 days (up from 2: three document models instead of one).
 
 ### WS3 — Transport, error mapping and write operations
 
-**Goal:** create/update/delete/test work end to end through the real HTTP Builder client.
-**Implement:** `HttpErrorMapper`, `RestClientEntityApi`, `ScriptSupport`, `EdgeVerifier`, `CreateOperation`, `UpdateOperation`, `DeleteOperation`, `TestOperation`, `CustomizerScript` body.
-**Acceptance:** `HttpErrorMapperSpec`, `RestClientEntityApiSpec`, `ScriptSupportSpec`, `EdgeVerifierSpec`, `CreateOperationSpec`, `UpdateOperationSpec`, `DeleteOperationSpec`, `TestAndSchemaOperationSpec`, `CustomizerScriptSpec`, and the create/update/delete/test cases of `OperationScriptsSpec`.
-**Estimate:** 5 days (revised in §12). Depends on WS1, WS2.
+**Goal:** create, update, delete and test work end to end through the real HTTP client.
+**Implement:** `HttpErrorMapper`, `RestClientEntityApi`, `ScriptSupport`, `EdgeVerifier`, `CreateOperation`, `UpdateOperation`, `DeleteOperation`, `TestOperation`, and the `CustomizerScript` body.
+**Acceptance:** `HttpErrorMapperSpec`, `RestClientEntityApiSpec`, `ScriptSupportSpec`, `EdgeVerifierSpec`, `CreateOperationSpec`, `UpdateOperationSpec`, `DeleteOperationSpec`, `TestAndSchemaOperationSpec`, `CustomizerScriptSpec`, and the create, update, delete and test cases of `OperationScriptsSpec`.
+**Estimate:** 5 days.
 
 ### WS4 — Search, scoping and paging
 
-**Goal:** get-by-id, timestamp search and scoped enumeration with ICF paging cookies.
-**Implement:** `SearchPlanner`, `PageCursor`, `TypeScoper`, `SearchOperation`.
-**Acceptance:** `SearchPlannerSpec`, `PageCursorSpec`, `TypeScoperSpec`, `SearchOperationSpec`, search cases of `OperationScriptsSpec`, then `WorkedExampleSpec` (the whole Appendix A scenario) goes green as the WS1–WS4 milestone check.
-**Estimate:** 3 days. Depends on WS0 for the final paging protocol (can be built against P6 and adjusted).
+**Goal:** get by ID, translation of ICF filters into the service's filter tree, and scoped enumeration with ICF paging cookies.
+**Implement:** `SearchPlanner`, `PageCursor`, `TypeScoper`, `SearchOperation`, as revised by WS0.14. Timestamp ("since") searches are **not** part of WS4; they belong to WS10 if the service ever offers one.
+**Acceptance:** `SearchPlannerSpec`, `PageCursorSpec`, `TypeScoperSpec`, `SearchOperationSpec`, the search cases of `OperationScriptsSpec`, then `WorkedExampleSpec` (Appendix A end to end) as the milestone check.
+**Estimate:** 3.5 days (filter-tree translation replaces the timestamp search).
 
 ### WS5 — Mapping-side payload library
 
-**Goal:** `buildRelationships`/`buildArchetypes` produce the complete edge set from IDM state, resolving remote IDs through the related type's `idProperty`.
-**Implement:** all functions in `graphEntityPayload.js`, ES5 only.
-**Acceptance:** `npm test` in `mapping-lib/` green (67 tests), plus a manual check in a real IDM that `require('lib/graphEntityPayload')` loads under Rhino (WS8 covers this formally).
-**Estimate:** 5 days (revised in §12: drift-check script and Rhino test added). Independent of WS1–WS4 (shares the §7 rules, which the Groovy and JS suites pin identically).
+**Goal:** `buildRelationships` and `buildArchetypes` produce the complete relationship set and archetypes from IDM state.
+**Implement:** every function in `graphEntityPayload.js`, ES5 only, emitting edges in the format WS0.14 settles (D2).
+**Acceptance:** `npm test` in `mapping-lib/` green, and the Rhino smoke test (WS5.07).
+**Estimate:** 4 days (the drift-check script moved to WS10).
 
 ### WS6 — Discovery and generation tool
 
 **Goal:** generate `objectTypes` and mapping skeletons from `managed.json`, with the same validation the connector runs.
-**Implement:** `ManagedSchemaReader`, `ObjectTypesGenerator`, `MappingSkeletonGenerator`, `DiffSummary`, `DiscoveryTool.main` (file IO and prompts).
-**Acceptance:** all four discovery specs green; `ObjectTypesGeneratorSpec` "parses and validates with the connector's own parser" proves generator and connector agree.
-**Estimate:** 6 days (revised in §12: CLI, read-only REST mode and mapping lint added). Depends on WS1 (reuses parser and convention).
+**Implement:** `ManagedSchemaReader`, `ObjectTypesGenerator`, `MappingSkeletonGenerator`, `DiffSummary`, `DiscoveryTool`.
+**Acceptance:** all four discovery specs green, plus the new CLI, REST and lint specs.
+**Estimate:** 6 days.
 
 ### WS7 — Packaging and deployment artefacts
 
 **Goal:** one command produces what is copied into IDM.
-**Tasks:** finish `connectorScripts` task (scripts, library sources, `graphEntityPayload.js` to `script/lib/`, provisioner sample); version stamping; `docs/runbook.md` first draft (install steps, provisioner encryption of the password, refreshing the connector after an `objectTypes` change).
-**Acceptance:** fresh IDM 7.5 container + artefact → `TestScript` passes via `system/graphentity?_action=test`, `SchemaScript` exposes `user` and `account`.
-**Estimate:** 2.5 days (revised in §12). Depends on WS3.
+**Acceptance:** a fresh IDM 7.5 container plus the artefact passes `system/graphentity?_action=test`, and the schema exposes `user` and `account`.
+**Estimate:** 2.5 days.
 
-### WS8 — Integration tests against IDM 7.5 (Docker)
+### WS8 — Integration tests against IDM 7.5
 
-**Goal:** prove the scripts run inside the real Scripted REST harness and the mappings drive the connector as designed.
-**Tasks:** `integration/` with docker-compose (IDM 7.5 + WireMock seeded from WS0 recordings, or the real service in a test tenant); seed `managed/user` and `managed/account` objects with relationships; run the user and account mappings' recon; assert the remote documents (Appendix A sequence); assert the dropped-edge WARN appears in IDM's log; run a target-phase recon and assert TARGET-only reports; incremental drift check script (§11).
-**Acceptance:** a scripted, repeatable run; results archived in CI.
-**Estimate:** 6 days (revised in §12). Depends on WS5, WS7, WS0.
+**Goal:** prove the scripts run inside the real Scripted REST harness and the mappings drive the connector as designed: create, update, relationship changes, delete, initial-load reconciliation, and orphans reported but never deleted.
+**Acceptance:** a scripted, repeatable run, archived in CI. Drift-repair scenarios are WS10's.
+**Estimate:** 5.5 days.
 
 ### WS9 — Operational readiness and rollout
 
-**Goal:** the connector is safe to run against production data.
-**Tasks:** runbook completion (recon cadence per §11, REPORT→DELETE promotion checklist per type, log interpretation incl. the doubled write of §9.2, concurrency notes of §10, A1 erosion watch); recon `taskThreads` and queued-sync recommendations; monitoring queries for `dropped edge` WARN volume; security review of the service account scope and TLS (§14); production onboarding order (resources first, then subjects).
-**Acceptance:** runbook reviewed by operations; dry-run recon in a non-production IDM against the real service with `REPORT` everywhere; sign-off.
-**Estimate:** 3 days plus review cycles.
+**Goal:** the core connector is safe to run against production data.
+**Acceptance:** the runbook is reviewed by operations, a dry-run reconciliation against the real service with `REPORT` everywhere is reviewed, and sign-off is recorded.
+**Estimate:** 3 days plus review.
+
+### WS10 — Drift detection (last)
+
+**Goal:** detect and repair changes made to the service outside IDM.
+**Scope (P16):** a design for drift detection against the real API; comparing relationships during reconciliation; an incremental check if the service can support one; promoting orphans from `REPORT` to `DELETE`; the integration tests, schedules, monitoring and runbook sections for all of these.
+**Prerequisites:** the service team's answers on a last-modified signal (D3) and on reading relationships for many entities (D4), and a working GET by ID (C1).
+**Acceptance:** an integration run in which a relationship removed directly in the service is restored by the chosen mechanism, and an orphan is deleted only after the promotion checklist is met.
+**Estimate:** 6–10 days, depending on what the service offers.
 
 ---
 
-## 5. Schedule and critical path
-
-Assumes one engineer on the connector and one on the mapping library/discovery, two-week sprints. Elapsed time is dominated by WS0 (external) and WS8 (environment).
+## 5. Milestones and critical path
 
 | Milestone | Contents | Exit check |
 |---|---|---|
-| **M0 — Suite accepted** (now) | This plan, the test suite and stubs reviewed; P1–P12 decisions confirmed or changed | Build compiles; suite runs red; decisions logged |
-| **M1 — Core library** (end of sprint 1) | WS1, WS2, WS3 | All non-search connector specs green |
-| **M2 — Full connector** (mid sprint 2) | WS4, WS0 results folded in | `WorkedExampleSpec` and every connector spec green; `OperationScriptsSpec` green through WireMock |
-| **M3 — Mapping + discovery** (end of sprint 2) | WS5, WS6 | `npm test` green; discovery specs green; generated config validates against connector parser |
-| **M4 — Deployed in test IDM** (sprint 3) | WS7, WS8 | Integration run green; Appendix A reproduced inside IDM |
-| **M5 — Production ready** (sprint 4) | WS9 | Runbook signed off; dry-run recon reviewed |
+| **M0 — Suite accepted** (done) | Plan, test suite and stubs reviewed | The build compiles; suites run red; decisions logged |
+| **M1 — Contract and design settled** | WS0, including WS0.14 and WS0.15 | Design amended; specs describe the real API; C1 explained; a probe write run gives trustworthy answers |
+| **M2 — Core library** | WS1, WS2, WS3 | All non-search connector specs green |
+| **M3 — Full connector** | WS4 | `WorkedExampleSpec` and every connector spec green |
+| **M4 — Mapping and discovery** | WS5, WS6 | `npm test` green; discovery specs green; generated configuration validates against the connector's parser |
+| **M5 — Ready for go-live** | WS7, WS8, WS9 | Integration run green; runbook signed off; dry run reviewed. Orphans are reported, not deleted; relationship drift is not yet detected |
+| **M6 — Drift detection** (last) | WS10 | The WS10 acceptance run passes; orphan promotion approved per type |
 
-**Critical path:** WS0 → WS4 → WS8 → WS9. Start WS0 on day one. WS5 and WS6 are off the critical path and can absorb slack.
-
-**Parallelism:** WS1→WS2→WS3 are sequential for one engineer; WS5 can start immediately in parallel; WS6 starts after WS1.
+**Critical path:** WS0.14 → WS2 → WS3 → WS4 → WS7 → WS8 → WS9 → WS10. WS0.14 is the new front of the path: WS2 and much of WS4 cannot start until the design matches the API.
+**Parallel work:** WS1 (except `EntityKind`), WS6, and the convention parts of WS5 can start now.
+**Going live at M5:** the core connector does not need drift detection to be correct. Every write restates IDM's full state, so any IDM-side change repairs the entity it touches. What M5 lacks is detecting changes made *directly in the service*. Whether that is acceptable for go-live is a decision for the design owner and operations (§10).
 
 ---
 
@@ -198,25 +231,25 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 
 | Level | What it proves | Tooling | Where |
 |---|---|---|---|
-| L1 Library unit | Pure functions: config, convention, model, codec, payload, error mapping, planning, scoping, paging | Spock data tables | `connector/src/test/groovy/…/{config,convention,model,codec,payload,http,schema,search}` |
-| L2 Operation unit | Each ICF operation's behaviour against the documented service semantics (drop on POST, destructive PUT, 404 handling), including every §13 status and the PII logging rule | Spock + `FakeGraphService` (in-memory model of §2) + `CapturingLog` | `…/ops` |
-| L3 Transport contract | Real HTTP Builder `RESTClient` → WireMock: paths, verbs, headers, Basic auth, JSON bodies, URL encoding, non-2xx passthrough, IO failures | WireMock 3 | `RestClientEntityApiSpec` |
-| L4 Script harness | The seven scripts evaluated through `GroovyShell` with the harness's bindings, against WireMock — catches wrong binding names, wrong return types, missing returns | `ScriptHarness` | `OperationScriptsSpec`, `CustomizerScriptSpec` |
-| L5 Scenario | Appendix A end to end, ordered | `@Stepwise` + `FakeGraphService` | `WorkedExampleSpec` |
-| L6 Mapping library | JS library under Rhino-like isolation (`vm` context, `openidm`/`logger` globals, ES5 lint) with an in-memory IDM | Node 20+ built-in test runner, no dependencies | `mapping-lib/test` |
-| L7 Discovery | Generator correctness and agreement with the connector's own validation | Spock | `discovery/src/test` |
-| L7b Contract probe | The probe reports exactly the documented semantics when run against them, makes no writes in read-only mode, cleans up, and never persists credentials or foreign data | Spock + `FakeGraphHttpServer` + WireMock replay | `contract-probe/src/test` |
-| L8 Integration (WS8) | Real IDM 7.5 harness, real Rhino, real recon engine | Docker, WireMock recordings or test tenant | `integration/` (to build) |
-| L9 Operational dry run (WS9) | Real service, `REPORT`-only recon | IDM non-prod | runbook |
+| L1 Library unit | Pure functions: configuration, convention, model, codec, payload, error mapping, planning, scoping, paging | Spock data tables | `connector/src/test/groovy/…` |
+| L2 Operation unit | Each ICF operation against the service's semantics, including every §13 status and the no-PII logging rule | Spock + `FakeGraphService` + `CapturingLog` | `…/ops` |
+| L3 Transport contract | The real HTTP client against WireMock: paths, methods, headers, the API key, JSON bodies, encoding, non-2xx handling | WireMock 3 | `RestClientEntityApiSpec` |
+| L4 Script harness | The seven scripts evaluated as the harness does, against WireMock | `ScriptHarness` | `OperationScriptsSpec`, `CustomizerScriptSpec` |
+| L5 Scenario | Appendix A end to end | `@Stepwise` + `FakeGraphService` | `WorkedExampleSpec` |
+| L6 Mapping library | The JavaScript library under Rhino-like isolation | Node test runner | `mapping-lib/test` |
+| L7 Discovery | Generator correctness and agreement with the connector's validation | Spock | `discovery/src/test` |
+| L7b Contract probe | The probe reports the service's semantics faithfully, never writes in read-only mode, cleans up, and never persists credentials or foreign data | Spock + `FakeGraphHttpServer` + WireMock replay | `contract-probe/src/test` |
+| L8 Integration (WS8) | The real IDM harness, Rhino and reconciliation engine | Docker; WireMock recordings or a test tenant | `integration/` |
+| L9 Operational dry run (WS9) | The real service, `REPORT`-only reconciliation | Non-production IDM | runbook |
+| L10 Drift (WS10) | Remote-side changes are detected and repaired | Integration suite | `integration/` |
 
 ### 6.2 Conventions enforced by the suite
 
-- **Red by construction, not by accident.** Stubs throw `UnsupportedOperationException("TODO WSn: …")`. Tests that expect `UnsupportedOperationException` for legitimate reasons (unsupported filters) also assert the message, so a stub cannot pass them.
-- **Every test cites its design section** in the spec Javadoc or feature name.
-- **No PII above DEBUG**: `CreateOperationSpec` and `OperationScriptsSpec` assert attribute values and the password never reach WARN/ERROR/INFO output (§13, §14).
-- **Fixtures are the design's own examples**: `Fixtures` reproduces the §6 configuration and Appendix A documents verbatim so the suite doubles as executable documentation.
-- **Service semantics live in one place**: `FakeGraphService` encodes §2 (drop-on-POST, destructive PUT, GET returns both directions, DELETE cascades, paging). When WS0 changes an assumption, change the fake and the affected spec together.
-- **The paging assumption is quarantined** in `PageCursor`/`PageCursorSpec` (P6).
+- **Red by construction.** Stubs throw `UnsupportedOperationException("TODO WSn: …")`. Tests that expect that exception for legitimate reasons also assert its message, so a stub cannot pass them.
+- **Every test cites its design section.**
+- **No PII above DEBUG**, and never the API key, in any log line or error message.
+- **Service semantics live in one place.** `FakeGraphService` models the service. When the contract changes, change the fake and the affected specs together. WS0.14 brings the fake in line with the real API's shapes.
+- **Drift-only cases are labelled.** Spec cases that exist only for drift detection (the timestamp searches in `SearchPlannerSpec` and `SearchOperationSpec`) move to WS10 in WS0.14, so WS4 can go green without them.
 
 ### 6.3 Catalogue of tests already written
 
@@ -237,7 +270,7 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `http/HttpResponseSpec` | — | 2 | 2 |
 | `http/RestClientEntityApiSpec` | §2, §14, P14 | 14 | 26 |
 | `schema/SchemaFactorySpec` | §5.2, §6, §9.5 | 10 | 13 |
-| `search/SearchPlannerSpec` | §9.4 | 11 | 19 |
+| `search/SearchPlannerSpec` | §9.4 (timestamp cases → WS10) | 11 | 19 |
 | `search/PageCursorSpec` | §9.4, §15 | 12 | 14 |
 | `search/TypeScoperSpec` | §9.4 | 4 | 11 |
 | `ops/ObjectClassResolverSpec` | §5.2 | 4 | 4 |
@@ -253,7 +286,7 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | **Connector total** | | **309** | **537** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 8 | 8 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 16 | 16 |
-| `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2, §11 | 10 | 10 |
+| `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **41** | **41** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **67** |
@@ -267,106 +300,112 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 
 Current result (2026-11-21): connector 9 pass / 523 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 81 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
 
-### 6.4 Tests still to write (WS8/WS9)
+### 6.4 Tests still to write
 
-- Integration: Appendix A inside IDM via recon; dropped-edge WARN visible in IDM logs; target-phase recon REPORTs an orphan; incremental drift script corrects a remote-side edge removal; `require('lib/graphEntityPayload')` loads under Rhino; provisioner refresh after an `objectTypes` change exposes a new class.
-- Non-functional: enumeration of 50k entities with page size 200 completes within the recon window; memory stays flat across pages (results are streamed, not buffered — `SearchOperationSpec` already asserts streaming behaviour at unit level).
-- Negative operational: `deleteMissingTolerated=false` end to end; 429 with `Retry-After` under queued sync shows retries in IDM's queue.
+- **WS8 (core integration):** Appendix A inside IDM through reconciliation; relationship add, change and removal; delete; an orphan reported and not deleted; the library loading under Rhino; a provisioner refresh exposing a new class; 50,000-entity enumeration within the reconciliation window with flat memory; error paths (401, 5xx, 429 under queued sync).
+- **WS10 (drift):** a relationship removed directly in the service is restored; an entity deleted directly in the service is re-created by full reconciliation; orphan deletion after promotion; the incremental check, if built.
 
 ---
 
 ## 7. Environments, build and CI
 
-- **Build:** Gradle 8.14 wrapper, Groovy 3.0.21 (IDM 7.5's Groovy line), Spock 2.3, WireMock 3.9 (standalone, shaded), HTTP Builder 0.7.1 (the `RESTClient` the harness binds). JDK 17+ (tests were run on 21).
-- **ICF flavour:** `./gradlew test` uses ConnId from Maven Central; `./gradlew test -PicfFlavour=forgerock` uses `org.forgerock.openicf.framework:connector-framework:1.5.20.21` from `maven.forgerock.org`. The release artefact is built with the ForgeRock flavour.
+- **Build:** Gradle 8.14 wrapper, Groovy 3.0.21, Spock 2.3, WireMock 3.9, HTTP Builder 0.7.1. **Run Gradle on JDK 17 or 21**; Gradle 8.14 cannot run on Java 25.
+- **ICF flavour:** `./gradlew test` uses ConnId from Maven Central. `./gradlew test -PicfFlavour=forgerock` uses ForgeRock's `connector-framework` 1.5.20.21 from `maven.forgerock.org`. The release artefact uses the ForgeRock flavour.
 - **Mapping library:** `cd mapping-lib && npm test` (Node 20+, no dependencies).
-- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL --api-key KEY"`. Alternatively, leave out `--api-key` and set `GRAPH_PROBE_API_KEY`, which keeps the key out of shell history. Add `--allow-writes` only against a test instance. Usage is in `docs/service-contract.md` §1. Its tests run in CI with the rest of the Gradle suite, entirely on loopback.
-- **Shared test fixtures:** `FakeGraphService` and its HTTP front-end `FakeGraphHttpServer` live in `connector/src/testFixtures`, so any subproject can test against the documented semantics.
-- **CI:** `.github/workflows/ci.yml` runs both Gradle subprojects (ConnId flavour) and the Node suite on every push and pull request, publishing JUnit reports. Add a second job with the ForgeRock flavour once the runner has repository access (credentials via secrets, never in `gradle.properties`).
-- **Packaging:** `./gradlew :connector:connectorScripts` → `connector/build/connector-scripts/{scripts,lib,provisioner…json}`.
+- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL --api-key KEY"`. Everything for the probe goes inside `--args="…"`. Read-only by default; `--allow-writes` only against a test instance, and not until WS0.15. Usage: `docs/service-contract.md` §1.
+- **Shared fixtures:** `FakeGraphService` and `FakeGraphHttpServer` in `connector/src/testFixtures`.
+- **CI:** `.github/workflows/ci.yml` runs the Gradle suites (ConnId flavour) and the Node suite on every push and pull request. Add a ForgeRock-flavour job when the runner can reach its repository.
+- **Packaging:** `./gradlew :connector:connectorScripts`.
 
 ---
 
-## 8. Deployment and rollout to IDM
+## 8. Deployment and rollout
 
-1. Copy `scripts/` to `&{idm.instance.dir}/connectors/graphentity/scripts`, `lib/` to `…/graphentity/lib`, `graphEntityPayload.js` to `&{idm.instance.dir}/script/lib/`.
-2. Install `provisioner.openicf-graphentity.json` with the password encrypted; `objectTypes` generated by the discovery tool and reviewed.
-3. `system/graphentity?_action=test`, then confirm `system/graphentity/user` and `/account` appear in the schema.
-4. Install the generated mappings with **all target-phase situations on `REPORT`** (§11).
-5. Initial onboarding order: resource types first, then subject types (reduces but does not eliminate dropped-then-healed edges, §9.1). Run one full recon per mapping; review `dropped edge` WARN counts, which should fall to zero after the second mapping's recon.
-6. Schedule: incremental drift check hourly, full recon per type daily during onboarding, weekly afterwards.
-7. Promote `TARGET_IGNORED`/`UNQUALIFIED` → `DELETE` per type only after at least two full recon cycles with zero unexplained TARGET-only reports.
+### 8.1 Core rollout (M5)
+
+1. Copy `scripts/` to `&{idm.instance.dir}/connectors/graphentity/scripts`, `lib/` to `…/graphentity/lib`, and `graphEntityPayload.js` to `&{idm.instance.dir}/script/lib/`.
+2. Install `provisioner.openicf-graphentity.json` with the API key in `password` and `defaultAuthMethod` set to `NONE` (P13). Generate `objectTypes` with the discovery tool and review it.
+3. Check `system/graphentity?_action=test`, then that `system/graphentity/user` and `/account` appear in the schema.
+4. Install the generated mappings with **every target-phase situation on `REPORT`** (P16).
+5. Initial load: resource types first, then subject types. Run one full reconciliation per mapping, and review the dropped-relationship WARN counts.
+6. Schedule full reconciliation per type, for initial load and periodic restatement. Implicit sync handles day-to-day changes.
+
+### 8.2 Added by WS10 (M6)
+
+7. The drift mechanism chosen in WS10, with its schedule.
+8. Promotion of orphans from `REPORT` to `DELETE`, per type, after the promotion checklist is met.
 
 ---
 
 ## 9. Risk register
 
-| Risk | Impact | Likelihood | Mitigation / owner |
+| Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
-| Service paging/search contract differs from P6 | WS4 rework, delayed M2 | Medium | WS0 first; all paging knowledge in `PageCursor`; adjust fake + spec together |
-| `POST` does not return 409 on duplicates | Create of an existing entity may overwrite silently | Medium | WS0 to confirm; fallback: HEAD/GET-before-POST in `CreateOperation` behind a flag |
-| Archetypes do not discriminate types | Target recon scope leaks across types | Low–Medium | P5 adds BaseType; `idPattern` fallback reserved in `TypeScoper` |
-| A1 erosion (another writer) | Connector deletes foreign edges | Low now | Runbook watch item; read-merge-write evolution path per §15 |
-| Mutable `idProperty` | Orphans on rename | Medium | Discovery tool prompts for natural keys; runbook documents orphan behaviour; optional `onUpdate` guard mapping snippet in WS9 |
-| Partial-attribute updates | Mass edge deletion | Low with P4 | Connector-side guard (P4) + generated mappings + drift recon |
-| One shared API key for every consumer (P13) | A leaked key gives full read and write access for every consumer. The key cannot be scoped to this connector, requests cannot be attributed to it, and rotation needs every consumer at once. Any consumer holding the key could also write relationships, which bears directly on invariant A1 | Medium | TLS for every non-localhost endpoint. The key lives only in IDM's encrypted configuration, and is redacted from logs and error messages by both header-name patterns and literal value (WS3.04). Ask the service team for per-client keys (T5) and a rotation procedure (T10). Confirm A1 (T1) before go-live |
-| ForgeRock Maven access from CI | Release build cannot run in CI | Medium | Flavour switch (P8); add credentials as secrets; fallback manual release build |
-| Rhino incompatibility in the JS library | Mapping transformations fail at runtime | Low | ES5 lint test; WS8 loads the library in real IDM |
-| ICF API difference between ConnId and ForgeRock | Compiles in CI, fails in IDM | Low | Only `org.identityconnectors.framework.common.*` is used; WS7 deploys to real IDM early |
-| Recon parallelism and live sync overlap during onboarding | Transient wrong intermediate states (§10) | Medium | Runbook: do not run clique recon and live sync concurrently during onboarding; conservative `taskThreads` |
+| **GET by ID fails (C1)** | Create verification, reconciliation reads by ID and WS10 drift detection don't work | High until explained | Raise with the service team first (WS0.14). Verification already degrades to a WARN (P11) |
+| **Design built on an assumed API** | Stubs and specs encode the wrong shapes; work done before WS0.14 may be redone | Certain, if WS0.14 is skipped | WS0.14 before WS2 and WS4; WS1 and WS6 limited to API-independent parts |
+| **Inbound relationships and full-state writes (Q07.8)** | If writing entity A removes edges where A is the *target*, every write must list them, or it deletes other entities' edges | Medium | Confirm Q07.8 in WS0.14. The design's A2 already gathers both directions from IDM |
+| **Reconciliation can't see relationships** | Search results carry none, so every reconciliation re-sends unchanged relationships (extra writes), and relationship drift is invisible until WS10 | Certain | Accept the extra writes, which are idempotent, until WS10. Measure their cost in WS8.11 |
+| **Base-type numbering (C6)** | Entities created as the wrong base type | Medium | Confirm D5 before WS1.02 |
+| **Drift undetected until M6** | Changes made directly in the service persist until an IDM change touches the entity | Certain before WS10 | Decide whether go-live waits for M6 (§10); full reconciliation restates IDM's view of every entity it touches |
+| A1 erosion (another writer) | The connector deletes relationships another writer created | Low now; the shared key raises it | Runbook watch item; confirm T1 before go-live |
+| Mutable `idProperty` | Orphans on rename | Medium | Natural keys from discovery; orphans reported, not deleted, until WS10 |
+| Partial-attribute updates | Mass relationship deletion | Low with P4 | P4 guard, generated mappings, mapping lint (WS6.09) |
+| One shared API key (P13) | A leaked key gives full access for every consumer | Medium | TLS everywhere; key only in encrypted configuration; redaction by name and value (WS3.04); ask for per-client keys and a rotation process |
+| ForgeRock Maven access from CI | The release build cannot run in CI | Medium | Flavour switch (P8); credentials as secrets |
+| Rhino incompatibility | Mapping transforms fail at runtime | Low | ES5 lint; Rhino smoke test (WS5.07); real IDM in WS8 |
+| Reconciliation and live sync overlapping during onboarding | Transient wrong intermediate states (§10) | Medium | Runbook: don't run them together during onboarding |
 
 ---
 
-## 10. Open questions (owners to confirm)
+## 10. Open questions
 
-1. **Service team:** all §15 items (search param, datetime format, paging, 409, error body, archetype discrimination), plus page-size upper limit and rate limits (429 policy).
-2. **Platform team:** confirm IDM 7.5 Groovy version (3.0.x assumed), whether `maven.forgerock.org` credentials can be provided to CI, and the IDM instance directory layout for `scriptRoots`/`classpath`.
-3. **Design owner:** accept or amend P1–P12, in particular P3 (passive-form rule), P4 (connector-side guard) and P12 (package name).
-4. **Operations:** desired recon cadence and the criteria for promoting `REPORT` → `DELETE` per type.
-5. **Security:** the authentication scheme is settled (P13), but the key is shared by every consumer and cannot be scoped. Still open: rotation procedure, whether the key differs per environment, and the TLS target for non-localhost deployment (§14). See `docs/service-contract.md` T5, T10 and T11.
+1. **Service team:** contradictions C1–C7 in `docs/service-contract.md` §5.5, especially GET by ID (C1) and base-type numbering (C6). Plus Q07.8 (does a write remove edges where the entity is the target?), the filter operation names, the maximum page size, ID constraints and the rate-limit policy.
+2. **Design owner:** D2 and D5–D9 (WS0.14); P12, the package name; and **whether go-live waits for drift detection (M6) or happens at M5**.
+3. **Platform team:** the Groovy version in IDM 7.5, ForgeRock repository access for CI, and the IDM directory layout.
+4. **Operations:** reconciliation cadence, and (for WS10) the criteria for promoting orphans to `DELETE`.
+5. **Security:** key rotation (T10), whether test and production share the key (T11), and the TLS target (§14).
 
 ---
 
 ## 11. Definition of done
 
-A workstream is done when its named specs are green with no test modified except to reflect a WS0-confirmed contract change or an accepted plan decision, code review has checked the §8.4 invariant (every update payload carries the full edge set), and the design → code map in §2.3 is still accurate.
+A **workstream** is done when its named specs are green, no test expectation changed except for a confirmed contract fact or an accepted decision, code review has checked the full-state write invariant (P4, P15), and §2.3 is still accurate.
 
-The project is done when M5 is reached: all 726 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
+The **core connector** is done at M5: all core unit-level tests green under both ICF flavours, the WS8 integration run green and archived, the runbook signed off, and a dry-run reconciliation reviewed with `REPORT` policies against the real service.
+
+The **project** is done at M6: WS10's acceptance run green, and orphan promotion approved per type.
 
 ---
 
 ## 12. Workstream task lists
 
-This section breaks every workstream in §4 into tasks small enough to pick up, review and tick off. It is the working checklist for the build; §4 remains the summary.
-
 ### 12.1 Conventions
 
-- **IDs** are `WSn.mm`. Cite the ID in commit messages and pull request titles so progress can be traced to this list.
-- **Size:** **S** is up to half a day, **M** is about a day, **L** is two days or more. Sizes include writing or adjusting tests, not review.
-- **Green** names the specs, or the parts of specs, that must pass for the task to be done. Spec execution counts are in §6.3.
-- **Gotcha** records something already known to be tricky, found while writing the suite. Read these before starting the task.
-- A task that changes a test's expectation must say why in the pull request. Acceptable reasons are a WS0-confirmed service fact or an accepted plan decision. "The test was inconvenient" is not one.
+- **IDs** are `WSn.mm`. Cite the ID in commit messages and pull request titles.
+- **Size:** **S** is up to half a day, **M** about a day, **L** two days or more, including tests.
+- **Green** names the specs that must pass for the task to be done.
+- **Gotcha** records something known to be tricky. Read these before starting.
+- A task that changes a test expectation must say why in the pull request: a confirmed contract fact or an accepted decision.
 - Tick a box only when its **Green** criterion passes on CI.
 
 ### 12.2 Summary
 
-| Workstream | Tasks | Revised estimate (days) | Change from §4 |
+| Workstream | Order | Tasks open | Estimate (days) |
 |---|---|---|---|
-| WS0 Service contract spike | 13 | 2 + elapsed | +1 task (probe, done) |
-| WS1 Configuration, convention, schema | 17 | 3.5 | +0.5, schema operation-set gotcha |
-| WS2 Model, codec, payload | 9 | 2 | none |
-| WS3 Transport, errors, write operations | 15 | 5 | +1, harness binding verification and partial-update guard |
-| WS4 Search, scoping, paging | 9 | 3 | none |
-| WS5 Mapping library and drift check | 9 | 5 | +2, drift-check script and Rhino test added |
-| WS6 Discovery tool | 9 | 6 | +2, CLI, read-only REST mode and mapping lint added |
-| WS7 Packaging and deployment | 8 | 2.5 | +0.5 |
-| WS8 Integration in IDM 7.5 | 13 | 6 | +1 |
-| WS9 Operational readiness | 9 | 3 + review | none |
-| Cross-cutting | 6 | ongoing | new |
+| WS0 Service contract and design revision | 1 | 12 | 5 + elapsed |
+| WS1 Configuration, convention, schema | 2 | 17 | 3.5 |
+| WS6 Discovery tool | 2 | 9 | 6 |
+| WS2 Model, codec, payload | 3 | 9 | 3 |
+| WS5 Mapping library | 3 | 8 | 4 |
+| WS3 Transport, errors, write operations | 4 | 15 | 5 |
+| WS4 Search, scoping, paging | 5 | 9 | 3.5 |
+| WS7 Packaging and deployment | 6 | 8 | 2.5 |
+| WS8 Integration in IDM 7.5 | 7 | 12 | 5.5 |
+| WS9 Operational readiness and rollout | 8 | 8 | 3 + review |
+| **WS10 Drift detection** | **9 (last)** | **9** | **6–10** |
+| Cross-cutting | — | 6 | ongoing |
 
-The additions in WS3, WS5 and WS6 come from gaps found while writing these lists. They are named in the tasks themselves. WS5 and WS6 are off the critical path, so §5's milestones still hold. WS3 gains a day on the path to M1.
-
-### 12.3 Already done (2026-11-04)
+### 12.3 Already done
 
 These were found and fixed while preparing this section. They are recorded so nobody repeats the diagnosis.
 
@@ -377,66 +416,52 @@ These were found and fixed while preparing this section. They are recorded so no
 - [x] **H.05 Remove accidental passes.** Two JavaScript assertions were satisfied by the stub's own error message, and two discovery assertions were vacuous (one ended in `|| true`). All four now assert something a stub cannot satisfy. A new test requires an explicit policy for every recon situation.
 - [x] **H.06 Verify the red baseline.** Every failing test in all three suites now fails on a `TODO WSn` stub, with no failures caused by the harness. The structural tests that pass are listed in §6.3.
 
+- [x] **WS0.13 Contract probe (L).** 2026-11-04. A command-line tool that observes the service and answers the observable contract questions, citing numbered exchanges as evidence. Read-only by default.
+- [x] **WS0.16 Fix the probe's scrubbing and read handling (M).** 2026-11-21. The first real run leaked unscrubbed entity data and reported answers built on failed reads as observed. Both are fixed and covered by `RealShapedServiceSpec`.
+- [x] **P13, P14, P15 folded in.** 2026-11-21. Authentication, the search endpoint and full-state relationship writes are reflected in the code, fakes, specs and documents.
+
 ---
 
-### WS0 — Service contract spike
+### WS0 — Service contract and design revision
 
-Owner: connector lead with the service team. Output: `docs/service-contract.md`. Every answer is recorded as *confirmed* (with evidence) or *agreed assumption* (with who agreed).
+Owner: connector lead with the service team and the design owner. Outputs: `docs/service-contract.md`, the amended design, and revised stubs and specs.
 
-**Progress, 2026-11-04.** The question register is written and the contract probe (WS0.13) is built and tested. No question is answered yet: no instance of the service was reachable from the environment that did this work. The next step is a person running the probe:
+#### Part A — Contract questions still open
 
-1. Run it read-only against any instance.
-2. Run it with `--allow-writes` against a test instance.
-3. Bring `report.md` and section 3 of the register to the WS0.01 session.
+- [ ] **WS0.01 Hold the service-team session (S).** The question pack is `docs/service-contract.md` §2, §3 and §5.5. Lead with C1 (GET by ID returns 500), C6 (base-type numbering), Q07.8 and T1 (another relationship writer). Booking it needs a person.
+- [ ] **WS0.07 Relationship semantics (M).** Confirm with the service team, then observe once WS0.15 lands:
+  - Q07.8: does a write of entity A remove relationships where A is the target and that are missing from A's collection? The answer decides whether each write must list inbound relationships too (design A2 says yes).
+  - Does a create keep, drop or reject a relationship to an entity that doesn't exist yet (design A7)?
+  - Does GET return relationships in both directions?
+  - Does DELETE remove every relationship touching the entity?
+- [ ] **WS0.09 ID constraints (S).** Allowed characters, maximum length, case sensitivity, and percent-encoding in paths. The first run could not answer this, because GET failed.
+- [ ] **WS0.10 Rate limits (S).** The rate-limit policy, and whether 429 carries `Retry-After`. Authentication is settled (P13).
+- [ ] **WS0.11 Keep real recordings (M).** From a scrubbed probe run, keep one document of each model (create body, GET, search page) under `connector/src/test/resources/wiremock/`. These feed WS4.09 and WS8.
+- [ ] **WS0.12 Fold answers in as they arrive (M, ongoing).** For each answer: change the code, fake and specs it names, add a decision to §3, and close the item in §10 and in the contract.
 
-The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding keys are listed against each question in the register.
+#### Part B — Revise the design to the real API
 
-- [ ] **WS0.01 Book the session and name the service-side contact (S).** Send the question list below in advance so answers can be checked against a running instance, not memory.
-  *Progress:* the question pack is ready. It is `docs/service-contract.md`, sections 2 and 3, with the service-team-only questions in section 3, led by T1, design invariant A1. Booking the session and naming a contact need a person.
-- [ ] **WS0.02 Search endpoint (S).** *Progress, 2026-11-21:* the endpoint is answered and folded in (P14). It is `POST /admin/entities/search` with a JSON body, and `{}` returns everything. The timestamp field's name, format and boundary are still open. Pass `--timestamp-field` to the probe if the name is known. Confirm the exact path, with or without a trailing slash. Confirm the timestamp parameter name and datetime format: ISO-8601 with `Z`, an offset, or milliseconds, and the precision. Confirm whether the filter is strictly after or inclusive.
-  *Impacts:* `ConnectorConfig.DEFAULT_TIMESTAMP_PARAM`, and whether `SearchPlanner` maps `GreaterThanOrEqual` differently from `GreaterThan` (WS4.04).
-- [ ] **WS0.03 Paging protocol (M).** *Progress, 2026-11-21:* paging fields travel in the search POST body (P14). Their names and the response envelope are still open. Confirm offset or cursor, the parameter names, and the response envelope: a top-level array or `items`, with or without `totalCount` or `nextCursor`. Confirm the maximum page size and whether ordering is stable across pages.
-  *Ask specifically:* if an entity is updated mid-enumeration, can it be skipped or returned twice? Being returned twice is harmless for recon. Being skipped is not.
-  *Impacts:* `PageCursor`, `PageCursorSpec`, `FakeGraphService.search`, `ConnectorConfig.MAX_PAGE_SIZE`.
-- [ ] **WS0.04 Duplicate `POST` (S).** Ask whether it returns 409, silently upserts, or returns 400. If it upserts, raise the risk in §9 and decide whether `CreateOperation` should `GET` first behind a flag.
-- [ ] **WS0.05 Error bodies (S).** Capture the shape for 400, 401, 403, 404, 409, 429 and 5xx. Ask whether any body can echo request content, which matters for PII and redaction.
-- [ ] **WS0.06 Read-only fields (S).** Confirm the field name and format of `lastUpdated`, whether `GET` and search both return it, and whether the service rejects it on `PUT`.
-- [ ] **WS0.07 Edge semantics (M).** Verify against a running instance:
-  - `POST` silently drops edges to missing endpoints (A7).
-  - `GET` returns inbound edges as `SourceID`.
-  - A `PUT` asserting an inbound edge is accepted.
-  - A `PUT` with an edge to a missing entity is dropped silently, rejected with 400, or kept dangling.
-  - `DELETE` cascades edges.
-  *Impacts:* `FakeGraphService` (it currently drops on `PUT` as well), and possibly `UpdateOperation` verification.
-- [ ] **WS0.08 Type discrimination (S).** Confirm that `BaseType` is only ever 2 or 4. Confirm whether archetypes are unique per IDM type in practice. Decide whether the `idPattern` fallback is needed (P5).
-- [ ] **WS0.09 ID constraints (S).** Confirm allowed characters, maximum length, case sensitivity, and how an ID containing `/`, `?`, `#` or a space must be encoded in the path.
-  *Impacts:* `RestClientEntityApi.encodeSegment` and `RestClientEntityApiSpec`'s encoding table.
-- [ ] **WS0.10 Auth and limits (S).** Confirm the authentication scheme and the semantics of 401 versus 403. Confirm rate limits, and whether 429 carries `Retry-After` as seconds or as an HTTP-date. Confirm the service account's scoping options (§14).
-  *Progress, 2026-11-21:* authentication is answered and folded into the code (P13). It is one shared key, sent raw in `X-API-KEY`, with 401 for a missing or wrong key, so no 403 is expected. Scoping is answered: the key cannot be scoped. Rate limits remain open.
-- [ ] **WS0.11 Record real traffic (M).** *Progress:* the probe writes every exchange as a scrubbed WireMock stub. What remains is a run against the real service, then choosing which stubs to keep. Capture one real document of each type plus a search page as WireMock JSON under `connector/src/test/resources/wiremock/`. Scrub PII and replace names with Appendix A values. These recordings feed WS8 and a contract spec in WS4.09.
-- [ ] **WS0.12 Fold the answers into the code and plan (M).** *Progress, 2026-11-21:* the authentication answers (Q10.1, Q10.2, T5) and the search endpoint (Q02.1, P14) are folded in. That covers the probe, configuration model, customizer contract, redaction rules, provisioner sample, fixtures and specs, the design's §2, §4 and §14, decision P13 and the risk register. Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
-  *Green:* all suites still compile, and changed specs fail only on stubs.
-- [ ] **WS0.14 Revise the design to the real API (L). New 2026-11-21. Blocks WS1, WS2 and WS4.**
-  - The OpenAPI definition shows the design's model of the API is wrong in several places. See `docs/service-contract.md` sections 5 and 6.
-  - Decide D1 to D9 with the design owner. D1 (full-state PUT, or relationship endpoints), D3 (no "updated since" search) and D4 (no relationships in search results) change the design most.
-  - Raise contradictions C1 to C7 with the service team. C1, GET by ID returning 500, blocks verification, recon and drift detection.
-  - Then amend design §2, §6, §7, §8, §9.4 and §11, and update the stubs and specs those sections drive. Today `EntityDocument`, `Edge`, `EdgeCodec`, `EntityKind`, `TypeScoper`, `SearchPlanner` and `PageCursor` encode the old model.
-- [ ] **WS0.15 Realign the probe's write checks to the real API (M). New 2026-11-21.** Send EntityDTO-shaped documents (`id`, enum `baseType`, `relationships` with `sourceID`/`targetID`), and exercise the single-edge relationship endpoints. Read the Entity model on GET. Until then, treat write-mode results as unreliable. Depends on the D5 answer (base-type numbering).
-- [x] **WS0.16 Fix the probe's scrubbing and read handling (M). Done 2026-11-21.** The first real run leaked unscrubbed entity data, because the scrubber only recognised `ID`. It also reported answers built on failed reads (GET returned 500) as observed. The scrubber now recognises `uid`, `id` and the read model's attribute objects, and fails closed on any search result element. Read-dependent answers become "cannot tell". Cleanup only confirms removal on a 404. Raw non-JSON bodies are only kept for errors.
-  *Green:* `RealShapedServiceSpec` (an end-to-end run against a fake with the real service's shapes and 500s), `ScrubberSpec`.
-- [x] **WS0.13 Contract probe (L). Done 2026-11-04.**
-  - Built `contract-probe/`, a command-line tool that observes the service and answers the observable WS0 questions, citing numbered exchanges as evidence.
-  - It is read-only by default. `--allow-writes` limits writes to `ws0-probe-<run>-` IDs and always cleans up.
-  - Outputs never contain credentials or data from entities it did not create.
-  - It was tested against `FakeGraphHttpServer`, an HTTP front-end over the in-memory model of design §2, so a difference in a real run's report is a real difference in the service.
-  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (81 tests).
+- [ ] **WS0.14a Decide the open design questions (M).** With the design owner, decide D2 and D5–D9 from `docs/service-contract.md` §6:
+  - D2, the format of `entityRelationships` values (likely `{sourceID, targetID, type}`);
+  - D5, base-type numbering;
+  - D6, type scoping by `objectClass` and archetypes;
+  - D7, single-valued attributes;
+  - D8, which ICF filters to translate;
+  - D9, archetype assignment and whether archetypes must already exist in a manifest.
+  D1 is decided (P15). D3 and D4 are deferred to WS10 (P16).
+- [ ] **WS0.14b Amend the design document (M).** Rewrite §2 (endpoints and three document models), §2.2 and §7 (explicit source and target), §6 (configuration), §8.3 (edge encoding), §9.4 (search with filter trees and the paging cookie) and §9.5. Move §11 under a "deferred to WS10" heading.
+- [ ] **WS0.14c Revise the model and its specs (L).** Bring `EntityDocument`, `Edge`, `EdgeCodec`, `EntityKind`, `EntityPayloadBuilder`, `EntityDecoder` and their specs in line with the decisions. Keep them as stubs. They must still fail only on `TODO` markers.
+- [ ] **WS0.14d Revise search and paging specs (M).** Rewrite `SearchPlannerSpec`, `PageCursorSpec`, `TypeScoperSpec` and `SearchOperationSpec` for filter trees, `objectClass` and `pagedResultsCookie`. Move the timestamp ("since") cases to a WS10 spec, so WS4 can go green without them.
+- [ ] **WS0.14e Bring the fakes in line (M).** `FakeGraphService` and `FakeGraphHttpServer` serve the real shapes: `id` on write, `uid` in search, `source`/`target` on read, the paging cookie, and the documented status codes. Update `Fixtures` and the Appendix A scenario.
+- [ ] **WS0.15 Realign the probe's write checks (M).** Send EntityDTO documents and use the relationship endpoints. Read the Entity model on GET. Re-run read and write modes against a test instance, and fold the answers in through WS0.12.
+  *Green:* `ContractProbeSpec` against the revised fake; a real write run whose answers are all "observed" or explained.
 
 ### WS1 — Configuration, convention and schema
 
 Do these in order; later tasks reuse earlier ones.
 
 - [ ] **WS1.01 Settle the package name (S).** If P12 changes, rename `au.com.azwork.idm.graphentity` across all three projects now, before any implementation lands.
-- [ ] **WS1.02 `EntityKind` (S).** `fromConfig` trims the value and ignores case. A null, blank or unknown value throws `ConfigurationException`, with "entityKind" and the value in the message. `fromBaseType` returns null for an unknown or null BaseType, so a strange remote document never fails a read.
+- [ ] **WS1.02 `EntityKind` (S).** *Blocked by D5 (base-type numbering, WS0.14a).* The definition's samples say 2 = Subject and 4 = Resource, the reverse of today's enum and `EntityKindSpec`. WS0.14c fixes the numbering first. `fromConfig` trims the value and ignores case. A null, blank or unknown value throws `ConfigurationException`, with "entityKind" and the value in the message. `fromBaseType` returns null for an unknown or null BaseType, so a strange remote document never fails a read.
   *Green:* `EntityKindSpec`.
 - [ ] **WS1.03 `Direction` (S).** `fromConfig` ignores case and rejects null, blank or unknown values with `ConfigurationException`. Implement `opposite`.
   *Green:* `DirectionSpec`.
@@ -445,7 +470,7 @@ Do these in order; later tasks reuse earlier ones.
   - The type name comes from the map key and the relationship property from its key.
   - `idmResource`, `entityKind` and `idProperty` are required. A missing one is reported with the type and field named.
   - `attributes` and `archetypes` must be lists of non-blank strings. Missing optional blocks default to empty.
-  - Reserved attribute names are rejected: `directArchetypes`, `entityRelationships`, `lastUpdated`, `__UID__`, `__NAME__` and `ID`.
+  - Reserved attribute names are rejected: `directArchetypes`, `entityRelationships`, `lastUpdated`, `__UID__`, `__NAME__` and `ID`. WS0.14 may rename `lastUpdated`, since the service has `lastEvaluated`, which is not a modification time.
   - A relationship entry is *explicit* only when it has both `remoteType` and `direction`. Having only one of them is rejected as a half override, naming the property. `sync` defaults to true. `relatedType` and `reverseProperty` are carried as hints (P2).
   *Gotcha:* `ObjectTypeConfig` and `RelationshipConfig` use `@Canonical` equality. Normalise every list to `ArrayList` and every map to `LinkedHashMap`, or "map input equals JSON input" fails on collection type alone.
   *Green:* `ObjectTypesParserSpec`.
@@ -478,7 +503,7 @@ Do these in order; later tasks reuse earlier ones.
   *Green:* `ConnectorConfigSpec`.
 - [ ] **WS1.13 `ObjectClassResolver` (S).** A null or unknown class throws `ConnectorException`, naming it and the configured classes. There is no implicit `__ACCOUNT__` alias.
   *Green:* `ObjectClassResolverSpec`.
-- [ ] **WS1.14 `SchemaFactory.objectClassInfo` (S).** `__NAME__` is required. Domain attributes are single-valued strings. `directArchetypes` and `entityRelationships` are multivalued strings. `lastUpdated` is readable but neither creatable nor updatable.
+- [ ] **WS1.14 `SchemaFactory.objectClassInfo` (S).** *Depends on D7 (WS0.14a):* the write model's attributes are string to string, so multi-valued domain attributes may not be possible. `__NAME__` is required. Domain attributes are single-valued strings. `directArchetypes` and `entityRelationships` are multivalued strings. `lastUpdated` is readable but neither creatable nor updatable.
   *Decide:* whether `lastUpdated` should be returned by default. The spec title says it is not, but no assertion checks this, because mappings don't map it. Pick one, then make the spec assert it.
 - [ ] **WS1.15 `SchemaFactory.build` (M).** Use one `SchemaBuilder` for all types. Support Schema, Test, Search, Get, Create, Update and Delete. Do not support Sync or Authenticate.
   *Gotcha:* `SchemaBuilder` derives its default operation set from the SPI interfaces the connector class implements. The spec passes the bare `Connector` interface, which implements none. In IDM the class is `ScriptedRESTConnector`, which implements all of them, including Sync. So the implementation must add and remove support per operation explicitly. Alternatively, change the spec to pass a test class implementing exactly the seven SPI interfaces. Record the decision in the PR.
@@ -489,41 +514,32 @@ Do these in order; later tasks reuse earlier ones.
 
 ### WS2 — Model, codec and payload
 
-- [ ] **WS2.01 `Edge` (S).**
-  - Implement `getDirection` and `getOtherId`.
-  - `toWire` emits exactly two keys, endpoint first then `type`, and never a null key.
-  - `fromWire` accepts only `TargetID` and `SourceID` in that exact casing. It rejects both endpoints together, neither endpoint, blank values and non-string values with `IllegalArgumentException`.
-  - Implement `flip`.
-  *Green:* `EdgeSpec`.
-- [ ] **WS2.02 `EntityDocument` (S).**
-  - `toWire` emits `ID`, `BaseType`, `attributes`, `Relationships` and `directArchetypes`. It always emits the two collections, even when empty, so a `PUT` is explicit, and never emits `lastUpdated`.
-  - `fromWire` requires `ID`, coerces `BaseType` from a String or Long, defaults missing collections to empty, and reads `lastUpdated`.
-  *Green:* `EntityDocumentSpec`.
-- [ ] **WS2.03 `EdgeCodec.serialise` and `serialiseAll` (S).** Produce canonical JSON: endpoint key, then `type`, with no whitespace. `serialiseAll` sorts its output by the serialised string.
-  *Gotcha:* Groovy's `JsonOutput` escapes non-ASCII as `\uXXXX`. That is correct, but log lines become unreadable. Prefer a `JsonGenerator` with unicode escaping disabled.
-- [ ] **WS2.04 `EdgeCodec.parse` (M).** Reject malformed input with `InvalidAttributeValueException` naming the offending value. That covers a non-object, a non-string endpoint, both endpoints, no type, and trailing garbage.
-  *Gotcha:* `JsonSlurper`'s default parser can be lenient about trailing characters. Check the `'{…} trailing'` row first. If it passes when it should fail, add an end-of-input check or use `JsonSlurperClassic`.
-- [ ] **WS2.05 `EdgeCodec.parseAll` (S).** Null or empty input returns an empty list. Remove duplicates, keeping first-seen order. Name the offending value in the exception.
+*Starts after WS0.14c.* The task list below is the shape of the work. WS0.14c fixes the exact field names.
+
+- [ ] **WS2.01 `Edge` (S).** One relationship with explicit `sourceID`, `targetID` and `type` (D2). Validate that both ends and the type are non-blank. Provide the read-model mapping from `source`/`target`/`type`/`sourceType`.
+  *Green:* `EdgeSpec` as revised.
+- [ ] **WS2.02 `EntityDocument` (M).** Three models:
+  - the write model (EntityDTO: `id`, `baseType`, `attributes` as string to string, `relationships`, `directArchetypes`), always emitting the two collections so a write is explicit (P15);
+  - the read model (Entity: `id`, `baseType`, `Attributes` as `{name, type, value}`, `compoundAttributes`, `relationships`, `lastEvaluated`, `reconciliationStarted`);
+  - the search item (`uid`, `name`, `baseType` as a name, `attributes`, `isArchetypes`, `directArchetypes`, `lastEvaluated`).
+  *Green:* `EntityDocumentSpec` as revised.
+- [ ] **WS2.03 `EdgeCodec.serialise` and `serialiseAll` (S).** Canonical JSON in the D2 format, no whitespace, sorted.
+  *Gotcha:* Groovy's `JsonOutput` escapes non-ASCII as `\uXXXX`. Prefer a `JsonGenerator` with unicode escaping disabled.
+- [ ] **WS2.04 `EdgeCodec.parse` (M).** Reject malformed input with `InvalidAttributeValueException` naming the offending value.
+  *Gotcha:* `JsonSlurper` can be lenient about trailing characters. Add an end-of-input check if needed.
+- [ ] **WS2.05 `EdgeCodec.parseAll` (S).** Null or empty gives an empty list. Remove duplicates, keeping first-seen order.
   *Green:* `EdgeCodecSpec`.
-- [ ] **WS2.06 `EntityPayloadBuilder.idForCreate` (S).** Prefer `__NAME__`, fall back to `__UID__`, and throw `InvalidAttributeValueException` if neither is present.
-- [ ] **WS2.07 `EntityPayloadBuilder.build` (M).**
-  - Validate the id: non-blank, and equal to `__NAME__` when present (A3).
-  - Skip `__NAME__` and `__UID__`. Reject `ID` and any attribute not configured, naming them.
-  - Map domain values: one value becomes a scalar, several become a list, and a present-but-empty attribute becomes null so the `PUT` clears it. An absent attribute is omitted.
-  - Set `attributes.ID` to the id.
-  - Build `directArchetypes` as the static archetypes first, then delivered values, without duplicates.
-  - Build `Relationships` from `EdgeCodec.parseAll`. Wrap errors so the message names `entityRelationships`.
-  *Gotcha:* the decode-then-build round trip in `EntityDecoderSpec` feeds a decoded object's attributes back into `build`. Those attributes include `__UID__` and `lastUpdated`. `build` must **ignore** `lastUpdated`, which is read-only, rather than reject it as unknown.
+- [ ] **WS2.06 `EntityPayloadBuilder.idForCreate` (S).** Prefer `__NAME__`, fall back to `__UID__`, otherwise throw `InvalidAttributeValueException`.
+- [ ] **WS2.07 `EntityPayloadBuilder.build` (M).** Build the write model:
+  - `id` from the uid (A3) and `baseType` from the type's kind (D5);
+  - configured attributes as strings (D7);
+  - `directArchetypes` as the static archetypes plus delivered ones (D9);
+  - `relationships` from `entityRelationships`, complete (P15).
+  Ignore read-only attributes such as `lastEvaluated` rather than rejecting them.
   *Green:* `EntityPayloadBuilderSpec`.
-- [ ] **WS2.08 `EntityDecoder.decode` (M).**
-  - Set `__UID__` and `__NAME__` from the document ID.
-  - Include only configured domain attributes that are present remotely.
-  - Convert non-string scalars to strings, and lists to multivalued strings.
-  - Never surface `attributes.ID`.
-  - Always include `entityRelationships`, even when empty, through `serialiseAll`.
-  - Include `lastUpdated` only when the service returned it.
+- [ ] **WS2.08 `EntityDecoder.decode` (M).** Decode both the search item and the read model into a `ConnectorObject`: `__UID__` and `__NAME__` from `uid` or `id`, configured attributes, and archetypes. Include `entityRelationships` only from the read model; search items carry none (D4, deferred to WS10).
   *Green:* `EntityDecoderSpec`.
-- [ ] **WS2.09 WS2 review pass (S).** Confirm that `build` and `decode` remain pure functions with no API, log or clock dependencies (§8.1).
+- [ ] **WS2.09 Review (S).** `build` and `decode` stay pure functions with no API, log or clock dependencies.
 
 ### WS3 — Transport, error mapping and write operations
 
@@ -557,9 +573,9 @@ Do these in order; later tasks reuse earlier ones.
   - It logs the config's validation warnings at WARN.
   - Cache the parsed `ConnectorConfig`, keyed by a hash of the `objectTypes` text. Recon calls the scripts thousands of times, and re-parsing and re-validating each time is waste.
   *Green:* `ScriptSupportSpec`.
-- [ ] **WS3.07 `EdgeVerifier` (S).** `dropped` compares as sets, treating null as empty. `warnMessage` uses `-T->` for outbound and `<-T-` for inbound edges, with IDs and type only.
+- [ ] **WS3.07 `EdgeVerifier` (S).** *Depends on D2 (WS0.14a)* for the edge shape, and on C1 (GET by ID) to be useful against the real service. If GET stays broken, verification logs a WARN and the create still succeeds (P11). `dropped` compares as sets, treating null as empty. `warnMessage` uses `-T->` for outbound and `<-T-` for inbound edges, with IDs and type only.
   *Green:* `EdgeVerifierSpec`.
-- [ ] **WS3.08 `CreateOperation` (M).**
+- [ ] **WS3.08 `CreateOperation` (M).** Create is `POST /admin/entities` with an EntityDTO body (`id`, `baseType`, `attributes`, `relationships`, `directArchetypes`), carrying the full relationship set (P15).
   1. Resolve the type, get the id from `idForCreate`, and build the document. Malformed input fails here, before any HTTP call.
   2. `POST`, then map the outcome, logging a 400 body at ERROR.
   3. Run the verification `GET`. If it fails, log WARN "verification GET failed for <id>" and still return the Uid (P11).
@@ -569,12 +585,12 @@ Do these in order; later tasks reuse earlier ones.
   7. Return `new Uid(id)`.
   Never log attribute values above `OK`.
   *Green:* `CreateOperationSpec`.
-- [ ] **WS3.09 `UpdateOperation` (M).** Resolve the type. Require `entityRelationships` and `directArchetypes` to be present (P4), or throw `InvalidAttributeValueException` naming the missing one. Build from `uid.uidValue`, `PUT`, and map the outcome. Never `GET`.
+- [ ] **WS3.09 `UpdateOperation` (M).** The service removes every relationship missing from the collection (P15), so the P4 guard is essential, not defensive. Resolve the type. Require `entityRelationships` and `directArchetypes` to be present (P4), or throw `InvalidAttributeValueException` naming the missing one. Build from `uid.uidValue`, `PUT`, and map the outcome. Never `GET`.
   *Green:* `UpdateOperationSpec`.
 - [ ] **WS3.10 Reject partial-value updates in `UpdateScript` (S). New test needed.** The Groovy toolkit routes `ADD_ATTRIBUTE_VALUES` and `REMOVE_ATTRIBUTE_VALUES` through the update script with a different `operation` binding. Those carry deltas, not the full state, so turning them into a `PUT` would delete edges. Throw `UnsupportedOperationException` for them, and add an `OperationScriptsSpec` case for each.
-- [ ] **WS3.11 `DeleteOperation` (S).** `DELETE`, then map the outcome. A tolerated 404 logs INFO with the id. Never `GET`.
+- [ ] **WS3.11 `DeleteOperation` (S).** `DELETE`, then map the outcome. The definition documents 404 for a missing entity, but the probe saw 200 (C3); either way the outcome is "gone". A tolerated 404 logs INFO with the id. Never `GET`.
   *Green:* `DeleteOperationSpec`.
-- [ ] **WS3.12 `TestOperation` (S).** Run a search POST from epoch with page size 1 using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
+- [ ] **WS3.12 `TestOperation` (S).** Run a search POST with `pageSize: 1` using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
   *Green:* the test cases in `TestAndSchemaOperationSpec`.
 - [ ] **WS3.13 `CustomizerScript` (M).**
   - `init` reads the API key from the `GuardedString` `password` property and adds it, raw, as a default `X-API-KEY` header, or under the `apiKeyHeader` override from the property bag. It never sends an `Authorization` header (P13).
@@ -588,71 +604,44 @@ Do these in order; later tasks reuse earlier ones.
 
 ### WS4 — Search, scoping and paging
 
-Build against assumption P6. Adjust after WS0.03.
+*Starts after WS3 and WS0.14d.* Search is `POST /admin/entities/search` (P14).
 
-- [ ] **WS4.01 `PageCursor.encode` and `decode` (S).** Encode as URL-safe base64 of compact JSON, such as `{"o":400,"c":"tok"}`. A blank cookie means the first page. Anything undecodable, a negative offset or a non-integer offset throws `IllegalArgumentException`. Never silently restart from the first page.
-- [ ] **WS4.02 `PageCursor.toQuery` (S).** The result is merged into the search POST body, so values stay numbers rather than strings (P14). With an opaque cursor, return `[cursor:, pageSize:]`. Otherwise return `[offset:, pageSize:]`. The parameter names come from WS0.03.
-- [ ] **WS4.03 `PageCursor.next` (S).**
-  - An empty page is the end.
-  - A `nextCursor` value becomes the opaque cursor.
-  - With `totalCount`, continue while offset + page size is below the total.
-  - Without either, a full page continues and a short page ends.
-  *Green:* `PageCursorSpec`.
+- [ ] **WS4.01 `PageCursor` encode and decode (S).** The ICF cookie wraps the service's opaque `pagedResultsCookie`. A blank ICF cookie is the first page. A corrupt one throws `IllegalArgumentException`; never restart from the first page silently.
+- [ ] **WS4.02 `PageCursor.toQuery` (S).** Produce `{pageSize, pagedResultsCookie}` request-body fields; numbers stay numbers.
+- [ ] **WS4.03 `PageCursor.next` (S).** The next page exists when the response carries a non-null `pagedResultsCookie` (`hasMore` true). `totalResults` of −1 means unknown.
+  *Green:* `PageCursorSpec` as revised.
 - [ ] **WS4.04 `SearchPlanner.plan` (M).**
-  - No filter means `ENUMERATE` from epoch.
-  - An `EqualsFilter` on `__UID__` or `__NAME__` means `BY_ID`.
-  - `GreaterThan` or `GreaterThanOrEqual` on `lastUpdated` means `SINCE`. Validate the value with `Instant.parse` and throw `IllegalArgumentException` if it fails.
-  - Every other filter throws `UnsupportedOperationException` with "filter" in the message (P7).
-  - Page size comes from the options (which may be null), capped at `MAX_PAGE_SIZE`, defaulting to `pageSizeDefault`.
-  - Decode the cookie into the cursor. Ignore it for `BY_ID`.
-  *Decide after WS0.02:* if the service filter is strictly-after, `GreaterThanOrEqual` must subtract the smallest time unit the service resolves.
-  *Green:* `SearchPlannerSpec`.
-- [ ] **WS4.05 `TypeScoper.matches` (S).** The document matches when its `BaseType` equals the type's kind and its `directArchetypes` contain all of the type's static archetypes. The comparison is case-sensitive and null-safe. Add the `idPattern` fallback only if WS0.08 calls for it.
+  - No filter: enumerate the type's `objectClass`.
+  - `EqualsFilter` on `__UID__` or `__NAME__`: read by ID.
+  - Equals, contains, starts-with, and, or and not on configured attributes: translate into the service's filter tree, if D8 approves them.
+  - Anything else: `UnsupportedOperationException` with "filter" in the message (P7).
+  - Page size from options, capped, defaulting to `pageSizeDefault` (the service's default is 100).
+  *Green:* `SearchPlannerSpec` as revised.
+- [ ] **WS4.05 `TypeScoper` (S).** Scope by `objectClass` in the request, then by the type's archetypes in the results (D6).
   *Green:* `TypeScoperSpec`.
-- [ ] **WS4.06 `SearchOperation` by id (S).** `GET`. A 404 returns an empty `SearchResult`. Otherwise decode, check type scope, and call the handler.
-- [ ] **WS4.07 `SearchOperation` since/enumerate (L).**
-  - Loop over pages. The query is the timestamp parameter plus `cursor.toQuery(pageSize)`.
-  - Map each response with `SEARCH` context. Read items from `items`, or from a top-level array if WS0.03 says so.
-  - Decode each document and skip any that fail, with exactly one WARN carrying no attribute values. Scope each document and call the handler, stopping when it returns false.
-  - If the caller set a page size, return after one page with `SearchResult(cookie, remaining)`. Remaining is `totalCount − consumed`, or −1 when unknown. Otherwise stream every page and return a result without a cookie.
-  - Results are never buffered across pages.
-  *Gotcha:* the toolkit's `handler` binding is a `Closure` in Groovy scripts but may be a `ResultsHandler` elsewhere. Accept both.
-  *Gotcha:* scoping happens after paging, so a page can hand fewer objects to the handler than the page size. Per §9.4, that is expected and correct. The cookie and remaining count still reflect the remote page.
-  *Green:* `SearchOperationSpec`, the search cases of `OperationScriptsSpec`, and `WorkedExampleSpec`. **WorkedExampleSpec green is milestone M2's headline check.**
-- [ ] **WS4.08 Remote document drift (S).** If WS0.06 shows `GET` and search returning different document shapes, cover both in `EntityDecoder`, with a test per shape.
-- [ ] **WS4.09 Contract spec from recordings (M). New test.** Add a `RecordedContractSpec` that replays the WS0.11 WireMock recordings through `RestClientEntityApi`, `EntityDocument.fromWire` and `EntityDecoder`. If the real service drifts from the fake, this spec fails first.
+- [ ] **WS4.06 `SearchOperation` by ID (S).** GET; a 404 is an empty result. Decode the read model, check scope, call the handler.
+  *Gotcha:* GET returned 500 in the first real run (C1). Map a 500 to `ConnectorIOException`, never to "not found".
+- [ ] **WS4.07 `SearchOperation` enumerate (L).** Loop over pages with the cookie. Decode each search item, skip undecodable ones with one WARN and no attribute values, scope, and call the handler, stopping when it returns false. With a caller page size, return one page with the ICF cookie and remaining count. Never buffer across pages.
+  *Gotcha:* the toolkit's `handler` may be a `Closure` or a `ResultsHandler`. Accept both.
+  *Green:* `SearchOperationSpec`, the search cases of `OperationScriptsSpec`, and **`WorkedExampleSpec` (milestone M3)**.
+- [ ] **WS4.08 Reconciliation without relationships (S).** Search items carry no relationships, so IDM sees `entityRelationships` as changed on every reconciliation and re-sends it. The write is idempotent (P15), so this is correct but costly. Document it, and decide with WS8.11's measurements whether to stop returning `entityRelationships` from search. The real fix is WS10.
+- [ ] **WS4.09 Contract spec from real recordings (M).** Replay the WS0.11 recordings through `RestClientEntityApi` and the decoders. If the service drifts from the fake, this spec fails first.
 
-### WS5 — Mapping-side payload library and drift check
+### WS5 — Mapping-side payload library
 
-The library must stay ES5. Its §7 rules must match the Groovy ones exactly.
+The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 
-- [ ] **WS5.01 One source for convention cases (S).** Move the normalisation, passive-detection and pair cases into `fixtures/convention-cases.json` at the repository root. Have both `RelationshipConventionSpec` and the JavaScript tests read that file, so the two implementations cannot drift apart.
-- [ ] **WS5.02 `normalisePropertyName`, `isPassive` and `resolvePair` (S).** Port WS1.07–WS1.09. Errors for blank input must say the name is blank, empty or required.
-- [ ] **WS5.03 `resolveRelationship` (M).** An explicit override wins, then the convention using the entry's `reverseProperty` hint. Failing both, look up `reversePropertyName` in `config/managed`, handling both a direct relationship property and array `items`. `sync: false` returns null. An unresolvable property throws, naming it.
-- [ ] **WS5.04 `loadTypeConfig`, `clearCache` and the config cache (M).**
-  - Read `config/provisioner.openicf/graphentity`.
-  - Take `objectTypes` from `configurationProperties.objectTypes` if present. Otherwise extract it from `customConfiguration`'s `objectTypes='…'` with a minimal parser that handles the `\'` escape.
-  - Cache it, with `reload` and `clearCache`. Attach `name` to the returned type.
-  - An unknown type throws, listing the configured ones.
-  *Gotcha:* a module-level cache lives as long as IDM's script engine keeps the module, which is not documented to survive or expire. Add an optional TTL, defaulting to five minutes, so a provisioner change is picked up without a restart. Have WS8.09 confirm the actual lifetime.
-- [ ] **WS5.05 `buildRelationships` (L).**
-  - Read the source with `["*", "*_ref"]`. A missing source throws, naming it.
-  - Walk the configured synced relationship properties and any relationship-valued property found on the object. Resolve unlisted ones through WS5.03.
-  - For each reference, find the configured type whose `idmResource` matches `_refResourceCollection`. If none matches, log WARN and skip.
-  - Read the related object. If it is missing or lacks the related type's `idProperty`, log WARN and skip.
-  - Emit canonical JSON, remove duplicates and sort.
-  *Gotcha:* some IDM versions return only `_ref` and not `_refResourceCollection`/`_refResourceId`. Fall back to splitting `_ref`.
-  *Gotcha:* this is one read per related object, so recon of a well-connected type is expensive. Cache related reads within one call now. WS8.11 then evaluates field expansion (`fields: ["owns/accountId"]`) to collapse them into a single read.
-- [ ] **WS5.06 `buildArchetypes` (S).** Static archetypes first, then a single or multi-valued `archetypeProperty`, without duplicates. Non-string values throw, naming the property. A null source throws, mentioning the source. Never mutate the type configuration.
+- [ ] **WS5.01 One source for convention cases (S).** Move the normalisation, passive-detection and pair cases into `fixtures/convention-cases.json`, read by both `RelationshipConventionSpec` and the JavaScript tests.
+- [ ] **WS5.02 `normalisePropertyName`, `isPassive`, `resolvePair` (S).** Port WS1.07–WS1.09. Can start now.
+- [ ] **WS5.03 `resolveRelationship` (M).** Override first, then the convention with the entry's hint, then `config/managed`. `sync: false` returns null. Unresolvable throws, naming the property. Can start now.
+- [ ] **WS5.04 `loadTypeConfig`, `clearCache` and the cache (M).** Read the provisioner configuration, take `objectTypes` from `configurationProperties` or from `customConfiguration`, and cache with an optional TTL (default five minutes).
+- [ ] **WS5.05 `buildRelationships` (L).** *After WS0.14a (D2).* Emit the complete set of relationships touching the source entity, as explicit source and target pairs in the D2 format. The §7 convention decides which IDM side is the source. Inbound relationships are included, per Q07.8.
+  *Gotcha:* some IDM versions return only `_ref`; fall back to splitting it.
+  *Gotcha:* one read per related object. Cache within a call; WS8.11 evaluates field expansion.
+- [ ] **WS5.06 `buildArchetypes` (S).** Static archetypes, then a single or multi-valued `archetypeProperty`, without duplicates.
   *Green for WS5.02–WS5.06:* `npm test` in `mapping-lib`.
-- [ ] **WS5.07 Rhino smoke test (M). New test.** Add a Gradle test that evaluates `graphEntityPayload.js` under Mozilla Rhino 1.7.x, with a fake `openidm`, and calls each function. Node's `vm` is close to Rhino but not identical. This catches Rhino-only failures before WS8.
-- [ ] **WS5.08 Incremental drift check script (L). New deliverable, design §11.**
-  - Write `mapping-lib/src/script/graphEntityDriftCheck.js` and a schedule sample `config/schedule-graphentity-drift.json`.
-  - For each mapping, query `system/graphentity/<type>` with `lastUpdated gt "<checkpoint>"`. For each hit, run `recon?_action=reconById` so the mapping's own policies decide whether to `UPDATE` or `REPORT`.
-  - Store the checkpoint, for example in a small managed or config object. Only advance it after a whole page succeeds.
-  - Log counts only.
-  - Write its tests first in `mapping-lib/test/driftCheck.test.js`. Cover: a checkpoint advances only on success; a failure mid-page re-processes that page; and a remote deletion is not seen, which documents the §11 blind spot.
-- [ ] **WS5.09 Library README (S).** Explain how mappings `require` it, its functions, ES5 constraints, and the cache and TTL behaviour.
+- [ ] **WS5.07 Rhino smoke test (M).** A Gradle test that evaluates the library under Mozilla Rhino 1.7.x with a fake `openidm`.
+- [ ] **WS5.08 Library README (S).** How mappings `require` it, its functions, ES5 limits, and the cache.
 
 ### WS6 — Discovery and generation tool
 
@@ -676,7 +665,7 @@ The library must stay ES5. Its §7 rules must match the Groovy ones exactly.
   - A related type that wasn't selected gives a warning.
   - Finally run `ObjectTypesParser` and `RelationshipConvention.validate` on the output and append their errors. The output must be deterministic.
   *Green:* `ObjectTypesGeneratorSpec`.
-- [ ] **WS6.05 `MappingSkeletonGenerator.mapping` (M).** Follow the shape of `config/sync-mapping-user.sample.json`:
+- [ ] **WS6.05 `MappingSkeletonGenerator.mapping` (M).** Target-phase situations stay on `REPORT` (P16); promotion to `DELETE` is WS10. Follow the shape of `config/sync-mapping-user.sample.json`:
   - name it `managed<Type>_system<Connector><Type>`;
   - map `__NAME__` from the `idProperty`, and map every attribute directly;
   - bind library transforms with no `condition`;
@@ -697,72 +686,70 @@ The library must stay ES5. Its §7 rules must match the Groovy ones exactly.
 
 ### WS7 — Packaging and deployment artefacts
 
-- [ ] **WS7.01 Complete `connectorScripts` (S).** Also copy `graphEntityPayload.js` into `script/lib/`, the drift-check script and the schedule sample. Write a `VERSION` file containing the git SHA. Add a `distZip` task.
-- [ ] **WS7.02 Confirm the library deployment model (M).** Verify in IDM 7.5 that the provisioner's `classpath` accepts a directory of Groovy *sources* in packages (P9). If it does not, package the library as a jar and update the task and §8.
-- [ ] **WS7.03 Provisioner generation (S).** Generate the escaped `customConfiguration` string with the WS6.07 tool rather than by hand. Document how the API key stored in `password` gets encrypted on write, and that `defaultAuthMethod` must stay `NONE` (P13).
-- [ ] **WS7.04 Confirm versions (S).** Confirm the Groovy version bundled with IDM 7.5 and the exact Scripted REST bundle version. Update `gradle.properties` and the provisioner's `connectorRef` range.
-- [ ] **WS7.05 ForgeRock flavour in CI (S).** Add a CI job with `-PicfFlavour=forgerock`, with repository credentials as secrets. Fail the build when the two flavours disagree.
-- [ ] **WS7.06 Development IDM container (M).** Build a docker-compose stack with IDM 7.5 and its repository, mounting the build output. Image access needs vendor credentials, so document how to get them.
-- [ ] **WS7.07 Smoke check (S).** Deploy, then check that `system/graphentity?_action=test` succeeds and `system/graphentity?_action=schema` lists `user` and `account`.
-- [ ] **WS7.08 Install section of the runbook (S).** Write the first section of `docs/runbook.md`, following §8 steps 1–3.
+- [ ] **WS7.01 Complete `connectorScripts` (S).** Include `graphEntityPayload.js` under `script/lib/`, a `VERSION` file with the git SHA, and a `distZip` task.
+- [ ] **WS7.02 Confirm the library deployment model (M).** Verify in IDM 7.5 that the provisioner's `classpath` accepts Groovy sources (P9); otherwise package a jar.
+- [ ] **WS7.03 Provisioner generation (S).** Generate `customConfiguration` with the WS6.07 tool. Document the API key in `password` and `defaultAuthMethod: NONE` (P13).
+- [ ] **WS7.04 Confirm versions (S).** IDM 7.5's Groovy version and the Scripted REST bundle version.
+- [ ] **WS7.05 ForgeRock flavour in CI (S).** A CI job with `-PicfFlavour=forgerock`, credentials as secrets.
+- [ ] **WS7.06 Development IDM container (M).** docker-compose with IDM 7.5 and its repository, mounting the build output.
+- [ ] **WS7.07 Smoke check (S).** `system/graphentity?_action=test` succeeds and the schema lists `user` and `account`.
+- [ ] **WS7.08 Install section of the runbook (S).** §8.1 steps 1–3.
 
 ### WS8 — Integration tests against IDM 7.5
 
-- [ ] **WS8.01 Integration project (M).** Create an `integration/` Gradle subproject, with Spock driving IDM's REST API, on the WS7.06 stack. Back it with WireMock seeded from WS0.11, or a test tenant of the real service. It runs on demand and nightly, not on every push.
-- [ ] **WS8.02 Managed schema fixture (S).** Add `managed.json` with `account` and the bidirectional `owns`/`ownedBy` pair. Generate the provisioner and mappings with the discovery tool, not by hand.
-- [ ] **WS8.03 Appendix A through recon (M).** Recon the user mapping, then the account mapping. Assert the remote documents at each step and the dropped-edge WARN in IDM's log.
-- [ ] **WS8.04 Scalar-only update keeps the edge (S).** Change only Sanne's name in IDM. Assert the update script received `entityRelationships`, so the P4 guard did not fire, and that the edge survives. This is the real-world check behind the §8.4 risk.
-- [ ] **WS8.05 Relationship removal (S).** Remove the relationship in IDM. Assert two `PUT`s arrive and the final state has no edge (§9.2).
-- [ ] **WS8.06 Delete (S).** Delete the account in IDM. Assert a `DELETE` followed by Sanne's edge-free `PUT`.
-- [ ] **WS8.07 Target-phase orphan (S).** Seed an entity remotely with no IDM source. Assert the recon REPORTs it and does not delete it.
-- [ ] **WS8.08 Drift repair (M).** Remove an edge remotely. Assert a full recon repairs it, and the WS5.08 script repairs it too. Then delete an entity remotely and assert that only a full recon re-creates it.
-- [ ] **WS8.09 Library under real Rhino (S).** `require` the library in IDM and call `loadTypeConfig` against the real provisioner. Record how long the module cache actually lives (WS5.04).
-- [ ] **WS8.10 Error paths (M).**
-  - A 401 on test.
-  - A 503 during recon is reported against the right object.
-  - A 429 with `Retry-After` under queued sync shows retries.
-  - `deleteMissingTolerated=false` end to end.
-- [ ] **WS8.11 Volume (L).** Enumerate 50,000 entities with page size 200 inside the recon window, with flat memory. Measure `buildRelationships` cost per object and decide on field expansion (WS5.05).
-- [ ] **WS8.12 Concurrency (M).** Run live sync during a recon with `taskThreads` > 1. Once activity quiesces, assert remote state equals IDM state (§10).
-- [ ] **WS8.13 Nightly job (S).** Run the suite nightly, archive results, and alert on failure.
+- [ ] **WS8.01 Integration project (M).** An `integration/` subproject with Spock driving IDM's REST API on the WS7.06 stack, backed by WireMock recordings or a test tenant. Runs on demand and nightly.
+- [ ] **WS8.02 Managed schema fixture (S).** `managed.json` with `account` and the `owns`/`ownedBy` pair; provisioner and mappings generated by the discovery tool.
+- [ ] **WS8.03 Appendix A through reconciliation (M).** Reconcile users, then accounts. Assert the service's documents and relationships at each step, and the dropped-relationship WARN if the service drops them (WS0.07).
+- [ ] **WS8.04 Scalar-only update keeps relationships (S).** Change only a name in IDM; assert the update carried the full relationship set (P4, P15) and the relationship survives.
+- [ ] **WS8.05 Relationship removal (S).** Remove a relationship in IDM; assert both entities' writes omit it and the final state has none.
+- [ ] **WS8.06 Delete (S).** Delete the account in IDM; assert the delete and the user's relationship-free write.
+- [ ] **WS8.07 Orphans are reported, not deleted (S).** Seed an entity directly in the service; assert reconciliation reports it and does not delete it (P16).
+- [ ] **WS8.08 Library under real Rhino (S).** `require` the library in IDM; record the module cache's actual lifetime.
+- [ ] **WS8.09 Error paths (M).** 401 on test; 5xx during reconciliation reported against the right object; 429 under queued sync; `deleteMissingTolerated=false`.
+- [ ] **WS8.10 Concurrency (M).** Live sync during reconciliation with `taskThreads` > 1; once quiet, the service's state equals IDM's.
+- [ ] **WS8.11 Volume and write cost (L).** Enumerate 50,000 entities within the reconciliation window with flat memory. Measure `buildRelationships` cost per entity, and the cost of re-sending relationships on every reconciliation (WS4.08).
+- [ ] **WS8.12 Nightly job (S).** Run nightly, archive results, alert on failure.
 
-### WS9 — Operational readiness and rollout
+### WS9 — Operational readiness and rollout (core)
 
-- [ ] **WS9.01 Complete the runbook (M).** Cover:
-  - recon and drift-check cadence (§11);
-  - onboarding order (§8);
-  - reading the dropped-edge WARN;
-  - the expected doubled write (§9.2) and self-correcting intermediate states (§10);
-  - never running clique recon and live sync together during onboarding;
-  - the A1 erosion watch item.
-- [ ] **WS9.02 Schedules (S).** Write schedule configurations for full recon per type and the hourly drift check. Use conservative `taskThreads`.
-- [ ] **WS9.03 Monitoring (M).** Write queries or alerts for dropped-edge WARN volume, the `ConnectorIOException` rate, recon REPORT counts per situation and drift-check lag.
-- [ ] **WS9.04 REPORT to DELETE checklist (S).** Write the per-type promotion criteria (§8 step 7), with who signs off and how to roll back.
-- [ ] **WS9.05 Mutable `idProperty` guard (M). New tests.** Write an `onUpdate` mapping snippet that detects an `idProperty` change and does an explicit delete then create (§15). Add an integration case to WS8.
-- [ ] **WS9.06 Security review (M).** Cover:
-  - the shared API key: where it is stored, who can read the provisioner configuration, and the rotation runbook agreed with every consumer (T10);
-  - TLS in every non-localhost environment;
-  - the read-only discovery credentials;
-  - a log audit, of a real-log sample, showing that neither the key nor PII appears.
-- [ ] **WS9.07 Non-production dry run (M).** Run against the real service with `REPORT` everywhere. Review the counts with operations.
-- [ ] **WS9.08 Sign-off (S).** Get sign-off from operations, security and the design owner, then record the decision.
-- [ ] **WS9.09 Handover (S).** Walk support through the runbook and the log signals.
+- [ ] **WS9.01 Runbook (M).** Onboarding order (§8.1); reading the dropped-relationship WARN; the doubled write when a relationship changes (§9.2) and self-correcting intermediate states (§10); never running reconciliation and live sync together during onboarding; the A1 watch item; what M5 does *not* detect (P16).
+- [ ] **WS9.02 Reconciliation schedules (S).** Full reconciliation per type, with conservative `taskThreads`.
+- [ ] **WS9.03 Monitoring (M).** Dropped-relationship WARN volume, the `ConnectorIOException` rate, and reconciliation REPORT counts per situation.
+- [ ] **WS9.04 Mutable `idProperty` guard (M).** An `onUpdate` mapping snippet that turns an `idProperty` change into delete then create, with an integration case in WS8.
+- [ ] **WS9.05 Security review (M).** The shared API key (storage, who can read the configuration, rotation with every consumer), TLS everywhere, the discovery tool's read-only credentials, and a log audit for keys and PII.
+- [ ] **WS9.06 Non-production dry run (M).** Against the real service with `REPORT` everywhere; review counts with operations.
+- [ ] **WS9.07 Go-live decision (S).** Sign-off from operations, security and the design owner, including the explicit decision to go live at M5 or wait for M6 (§10).
+- [ ] **WS9.08 Handover (S).** Walk support through the runbook and the log signals.
+
+### WS10 — Drift detection (last)
+
+*Starts after M5.* Scope and prerequisites are in §4 and P16.
+
+- [ ] **WS10.01 Ask the service for what drift detection needs (S).** A last-modified time on entities, and a filter or field for "modified since" (D3). A way to read relationships for many entities at once, or relationships in search results (D4). A working GET by ID (C1).
+- [ ] **WS10.02 Design drift detection against the real API (M).** Rewrite design §11 around the answers. Choose between: comparing relationships in reconciliation through per-entity reads, an incremental "modified since" check, periodic full restatement, or a combination. Record the choice as a decision in §3.
+- [ ] **WS10.03 Relationship comparison in reconciliation (L).** If chosen: return `entityRelationships` from the read model so reconciliation compares them, within the WS8.11 performance budget. This also removes WS4.08's redundant writes.
+- [ ] **WS10.04 Incremental drift check (L).** Only if WS10.01 yields a "modified since" capability. A scheduled script that queries changed entities and runs `recon?_action=reconById` for each, advancing a checkpoint only after a whole page succeeds. Tests first, including the blind spot for entities deleted directly in the service. The timestamp search cases moved out of WS4 (WS0.14d) return here.
+- [ ] **WS10.05 Orphan promotion checklist (S).** Per-type criteria for moving target-phase situations from `REPORT` to `DELETE`, with sign-off and rollback.
+- [ ] **WS10.06 Drift integration tests (M).** A relationship removed directly in the service is restored; an entity deleted directly in the service is re-created by full reconciliation; an orphan is deleted only after promotion; the incremental check, if built.
+- [ ] **WS10.07 Schedules and monitoring (S).** The drift mechanism's schedule, and alerts on its lag and failures.
+- [ ] **WS10.08 Runbook and handover (S).** Drift cadence, reading drift reports, and the promotion process.
+- [ ] **WS10.09 Sign-off (S).** Operations, security and the design owner approve drift detection and each type's promotion.
 
 ### Cross-cutting (every workstream)
 
-- [ ] **X.01 Pull request checklist.** Cite the task ID. Name the specs turned green. Confirm no test expectation changed without a stated reason. Confirm the §8.4 invariant: every update payload carries the full edge set.
-- [ ] **X.02 Keep §2.3 and §6.3 current.** Update the design-to-code map and the test catalogue when classes or specs are added.
-- [ ] **X.03 Decision log.** Record any change to P1–P12, or any new decision, in §3 with the date.
-- [ ] **X.04 Close open questions.** When an answer arrives, remove the item from §10 and link the evidence.
-- [ ] **X.05 Convention parity.** Change a §7 rule only together with `fixtures/convention-cases.json` (WS5.01), so both implementations move together.
-- [ ] **X.06 CI stays meaningful.** Until a workstream completes, its specs are expected to fail. Track per-workstream pass counts in CI output rather than marking specs `@Ignore` or `@PendingFeature`, which would hide regressions in finished workstreams.
+- [ ] **X.01 Pull request checklist.** Cite the task ID. Name the specs turned green. Confirm no test expectation changed without a stated reason. Confirm the full-state write invariant (P4, P15).
+- [ ] **X.02 Keep §2.3 and §6.3 current.**
+- [ ] **X.03 Decision log.** Record new or changed decisions in §3 with the date.
+- [ ] **X.04 Close open questions** in §10 and the service contract when answers arrive, linking the evidence.
+- [ ] **X.05 Convention parity.** Change a §7 rule only together with `fixtures/convention-cases.json` (WS5.01).
+- [ ] **X.06 CI stays meaningful.** Track per-workstream pass counts rather than marking specs `@Ignore`, which would hide regressions.
 
 ---
 
 ## Appendix — Commands
 
 ```bash
-# full Groovy suite (ConnId flavour, works without ForgeRock repository access)
+# full Groovy suite (ConnId flavour); run Gradle on JDK 17 or 21
 ./gradlew test
 
 # ForgeRock flavour (release build; needs maven.forgerock.org access)
@@ -773,6 +760,9 @@ The library must stay ES5. Its §7 rules must match the Groovy ones exactly.
 
 # mapping library
 cd mapping-lib && npm test
+
+# contract probe, read-only (everything for the probe goes inside --args)
+./gradlew :contract-probe:run --args="--base-url URL --api-key KEY"
 
 # packaging
 ./gradlew :connector:connectorScripts

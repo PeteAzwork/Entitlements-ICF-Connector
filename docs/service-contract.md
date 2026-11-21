@@ -1,7 +1,7 @@
 # Service Contract — Graph Entity Service Admin API
 
 **Workstream:** WS0 (delivery plan §4 and §12)
-**Status:** Open. The service's OpenAPI definition arrived on 2026-11-21 and answers much of the register (section 5). It also shows that the design's model of the API is wrong in several places, so the design needs revising before WS1 (section 6).
+**Status:** Open. The service's OpenAPI definition arrived on 2026-11-21 and answers much of the register (section 5). It also shows that the design's model of the API is wrong in several places, so the design needs revising (plan WS0.14, section 6). Relationship writes are confirmed as full-state (P15). Drift detection is deferred to the plan's final workstream (P16).
 **Last updated:** 2026-11-21
 
 This is the record of what the connector may rely on about the remote service. Each question has one of three states:
@@ -100,10 +100,11 @@ Most questions can be answered by observation with the contract probe in `contra
 | Q07.1 | Does POST silently drop edges to missing entities? (A7) | Yes | `edges.postToMissing` | Design §9.1 if not | Open |
 | Q07.2 | Does an inbound edge in a POST link to an existing entity? | Yes (§2.2) | `edges.inboundOnCreate` | Design §9.1 self-healing depends on it | Open |
 | Q07.3 | Does GET show inbound edges as `SourceID`? | Yes | `edges.getShowsInbound` | `EntityDecoder`, recon comparison | Open |
-| Q07.4 | Does a PUT that omits an edge delete it in both directions? | Yes | `edges.putOmissionDeletesInbound` | Design §8 | Open |
+| Q07.4 | Does a write that omits a relationship delete it? | **Answered:** yes. Relationships can be written through the entity's `relationships` collection on create and update, or through `POST /admin/entities/{id}/relationships`. Any relationship missing from the collection is removed | `edges.putOmissionDeletesInbound` | Done: decision P15 keeps the design's full-state model | **Confirmed** by the project owner, 2026-11-21 |
 | Q07.5 | Does an inbound edge in a PUT link the entities? | Yes | `edges.inboundOnPut` | Design §8 | Open |
 | Q07.6 | Is a PUT edge to a missing entity dropped, rejected or kept? | Dropped silently (the fake's behaviour) | `edges.putToMissing` | `FakeGraphService.store`. If dropped, consider a verification GET after PUT | Open |
 | Q07.7 | Does DELETE cascade the entity's edges? | Yes | `edges.deleteCascades` | Design §9.3 | Open |
+| Q07.8 | Does a write of entity A also remove relationships where A is the **target** and that are missing from A's collection? | Yes (design A2 gathers both directions from IDM) | Not yet (WS0.15) | `buildRelationships` (WS5.05): whether each entity's collection must list inbound relationships | Open |
 
 ### WS0.08 — Type discrimination
 
@@ -227,7 +228,7 @@ Also on the read side: `directArchetypes` (assigned directly), `isArchetypes` (a
 | Q06.1 | No last-updated field. `lastEvaluated` and `reconciliationStarted` exist | Answered |
 | Q06.2 | No. Search results and GET use different models (section 5.2) | Answered |
 | Q06.4 | Read relationships carry `source`, `target`, `type`, `sourceType` | Answered |
-| Q07.1 to Q07.7 | Not documented. Relationships carry both ends explicitly, and single-edge add and delete endpoints exist | Open |
+| Q07.1 to Q07.8 | Not documented. Relationships carry both ends explicitly, and single-edge add and delete endpoints exist. Q07.4 is answered by the project owner (P15) | Partly answered |
 | Q08.1 | Enum with five values, 0–4. Create samples: **2 = Subject, 4 = Resource** | Contradicts the design (section 5.5) |
 | Q08.2 | `isArchetypes` and `directArchetypes` both exist | Partly answered |
 | Q09.1 to Q09.3 | Not documented | Open |
@@ -251,10 +252,10 @@ These need a decision before WS1 starts, because the configuration model, payloa
 
 | ID | Design assumption | Real API | Decision needed |
 |---|---|---|---|
-| D1 | Relationships are written in a full-state PUT, which deletes omitted edges (§2.2, §8) | Relationships carry both ends. Single-edge add and delete endpoints exist. Whether PUT replaces relationships is undocumented | Keep full-state PUT (needs Q07.4 confirmed), or manage edges one at a time through the relationship endpoints |
+| D1 | Relationships are written in a full-state PUT, which deletes omitted edges (§2.2, §8) | Relationships carry both ends. They can be written in the entity's `relationships` collection or through the single-relationship endpoint, and the collection is full-state | **Decided 2026-11-21 (P15):** write the full set in the entity's `relationships` collection on every create and update. Q07.8 still decides whether inbound relationships must be listed |
 | D2 | Each edge is expressed from one entity's perspective, as `TargetID` or `SourceID` (§2.2, §7) | Every edge names its source and target explicitly | The §7 convention still decides which IDM side is the source, but `entityRelationships` values change shape |
-| D3 | Incremental drift check by "updated since" search (§11) | No such search | Drop the incremental check and rely on full recon, or ask the service for a last-modified field |
-| D4 | Recon compares edges from search results (§9.4, §11) | Search results carry no relationships | Read each entity by ID during recon (one call per entity, blocked by C1), or don't compare edges in recon |
+| D3 | Incremental drift check by "updated since" search (§11) | No such search | **Deferred 2026-11-21 (P16)** to the final workstream, WS10, which starts by asking the service for a last-modified signal |
+| D4 | Recon compares edges from search results (§9.4, §11) | Search results carry no relationships | **Deferred 2026-11-21 (P16)** to WS10. Until then, reconciliation re-sends relationships it cannot compare (plan WS4.08) |
 | D5 | Numeric `BaseType`, 4 = Subject (§2.1, A4) | Enum 0–4. Samples give 2 = Subject, 4 = Resource. Search returns names | Confirm the numbering (C6) and the three remaining enum values |
 | D6 | Type scoping by archetypes plus BaseType (§9.4, P5) | Search can scope by `objectClass` and filter on attributes | Use `objectClass`, and confirm whether a filter can match `directArchetypes` |
 | D7 | Attributes may be multi-valued (§6) | Write model attributes are string to string | Restrict schema attributes to single values, or encode lists |
@@ -274,6 +275,7 @@ Its **write checks still send the design's document shape** (`ID`, numeric `Base
 | Date | Change |
 |---|---|
 | 2026-11-04 | Register created. Contract probe added. No answers confirmed yet: no instance of the service was reachable from the environment that wrote this. |
+| 2026-11-21 | The project owner confirmed relationship writes: through the entity's `relationships` collection or the single-relationship endpoint, and any relationship missing from the collection is removed (Q07.4, D1 → P15). Q07.8 added. Drift detection deferred to the plan's final workstream (D3, D4 → P16). |
 | 2026-11-21 | OpenAPI definition received. Sections 5 to 7 added. It answers the paging, error-format and timestamp questions, contradicts the design's base-type numbering and relationship model, and exposes seven contradictions with observed behaviour (C1–C7) and nine design decisions (D1–D9). The first full probe run (`20261121-155100`) leaked unscrubbed entity data into the `probe-results` branch; the scrubber is fixed. |
 | 2026-11-21 | Q02.1 answered by the project owner, after the first probe run against the real service got 405 for `GET /admin/entities`: search is `POST /admin/entities/search` with a JSON body, and `{}` returns everything. Folded in as decision P14. The probe now searches that way and accepts `--timestamp-field`. |
 | 2026-11-21 | Q10.1, Q10.2 and T5 answered by the project owner: one shared raw key in `X-API-KEY`, with 401 for a missing or wrong key. Folded into the code as decision P13. Added T10, T11 and H7. |
