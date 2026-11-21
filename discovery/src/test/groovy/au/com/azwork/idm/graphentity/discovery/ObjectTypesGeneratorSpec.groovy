@@ -172,4 +172,33 @@ class ObjectTypesGeneratorSpec extends Specification {
         user.relationships.manager.relatedType == 'user'
         user.relationships.reports.relatedType == 'user'
     }
+
+    def "a relationship to an unselected type, without an override, is excluded with sync:false rather than an error"() {
+        given:
+        opts.selectedTypes = ['user']
+        opts.relationshipOverrides = [user: [manager: [remoteType: 'ReportsTo', direction: 'outbound'], reports: [remoteType: 'ReportsTo', direction: 'inbound']]]
+
+        when:
+        def r = ObjectTypesGenerator.generate(types, opts)
+
+        then:
+        r.valid
+        r.objectTypes.user.relationships.owns.sync == false
+        r.warnings.any { it.contains('user.owns') && it.contains('account') && it.contains('sync: false') }
+    }
+
+    def "a relationship to a non-managed collection (IDM's internal/role) has no relatedType and is excluded"() {
+        given:
+        def withInternal = ManagedSchemaReader.read([objects: [[name: 'user', schema: [properties: [
+            userName  : [type: 'string', policies: [[policyId: 'valid-username']]],
+            authzRoles: [type: 'array', items: [type: 'relationship', reversePropertyName: 'authzMembers', resourceCollection: [[path: 'internal/role']]]]]]]]])
+
+        when:
+        def r = ObjectTypesGenerator.generate(withInternal, new GeneratorOptions(selectedTypes: ['user'], entityKinds: [user: 'subject']))
+
+        then:
+        r.valid
+        r.objectTypes.user.relationships.authzRoles == [sync: false, reverseProperty: 'authzMembers']
+        r.warnings.any { it.contains('authzRoles') && it.contains('internal/role') }
+    }
 }

@@ -9,13 +9,14 @@ Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one 
 
 ## State of this repository
 
-The build is test-first. The complete unit test suite is in place and the production code is thin stubs that throw `UnsupportedOperationException("TODO WSn: …")`. Implementation proceeds workstream by workstream (see the plan, §4) by turning specs green. WS1–WS6 are done: the connector (configuration and schema, model and payload, transport and write operations, search), the mapping-side payload library and the discovery tool. Every unit suite passes; no stub remains. What is left is packaging, integration in a real IDM and rollout (WS7–WS9), then drift detection (WS10).
+The build is test-first. The complete unit test suite is in place and the production code is thin stubs that throw `UnsupportedOperationException("TODO WSn: …")`. Implementation proceeds workstream by workstream (see the plan, §4) by turning specs green. WS1–WS6 are done: the connector (configuration and schema, model and payload, transport and write operations, search), the mapping-side payload library and the discovery tool. WS8 runs them inside a real IDM 7.5 container, and every suite passes. What is left is the rest of packaging (WS7), rollout (WS9) and drift detection (WS10).
 
 | Area | Code | Tests | Run |
 |---|---|---|---|
 | Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 31 Spock specs, 696 executions, all passing | `./gradlew :connector:test` |
 | Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 7 specs, 71 executions, all passing | `./gradlew :discovery:test` |
 | Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 109 tests, all passing; also run under Rhino by `GraphEntityPayloadRhinoSpec` (see `mapping-lib/README.md`) | `cd mapping-lib && npm test` |
+| Integration in IDM 7.5 (WS8) | `integration/src/test/groovy` | 3 specs, 16 tests, plus an opt-in scale spec; needs Docker | `./gradlew :integration:test -Pidm` |
 | Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 126 tests, all passing | `./gradlew :contract-probe:test` |
 | Configuration samples | `config/` | — | — |
 
@@ -45,6 +46,15 @@ The probe sends the service's own shapes (EntityDTO writes, `POST /admin/entitie
 To run without Gradle at run time, build the launcher once with `./gradlew :contract-probe:installDist`, then run `contract-probe/build/install/contract-probe/bin/contract-probe --base-url URL --api-key KEY`.
 
 The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-contract.md` §1.
+
+### Integration tests in IDM 7.5
+
+```bash
+./gradlew :integration:test -Pidm                    # Docker pulls gcr.io/forgerock-io/idm:7.5.0 on first use
+./gradlew :integration:test -Pidm -PidmScale=2000     # adds the volume and concurrency spec; timings in integration/build/scale-report.txt
+```
+
+The suite starts IDM 7.5 in Docker on the host network (port 8080), deploys the connector as the runbook does, and drives it through IDM's REST API against an in-memory stand-in for the service. Deploying by hand, mind what IDM showed (`docs/service-contract.md` §4.1): the library goes in as `graphentity-connector-lib.jar` (`./gradlew :connector:connectorScripts`); the provisioner's object types come from `POST system?_action=createFullConfig`, called *before* the provisioner is saved; and the two library transforms need `"source": ""`.
 
 ### Discovery tool
 
@@ -83,6 +93,7 @@ connector/
 discovery/        ManagedSchemaReader, ObjectTypesGenerator, MappingSkeletonGenerator, DiffSummary,
                   DiscoveryTool (CLI), IdmManagedSource, MappingLint     (§12)
 fixtures/         convention-cases.json, shared by the connector and mapping-lib tests (§7)
+integration/      WS8: IdmStack (IDM 7.5 in Docker + the fake service), IDM specs, fixture managed.json
 contract-probe/   WS0 probe: ContractProbe, ProbeReport, Scrubber, ProbeMain
 mapping-lib/      graphEntityPayload.js + Node tests                     (§8.2)
 config/           provisioner.openicf-graphentity.json, sync-mapping-user.sample.json

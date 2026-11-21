@@ -147,7 +147,7 @@ class DiscoveryToolSpec extends Specification {
         given:
         File bad = tmp.resolve('sync.json').toFile()
         bad.text = JsonOutput.toJson([mappings: [[name: 'm1', source: 'managed/user', target: 'system/graphentity/user',
-            properties: [[target: 'directArchetypes', condition: 'false', transform: [type: 'text/javascript', source: 'x']]]]]])
+            properties: [[source: '', target: 'directArchetypes', condition: 'false', transform: [type: 'text/javascript', source: 'x']]]]]])
 
         when:
         int code = run(['--lint', bad.path])

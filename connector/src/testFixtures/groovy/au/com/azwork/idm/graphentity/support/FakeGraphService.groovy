@@ -77,8 +77,16 @@ class FakeGraphService implements EntityApi {
 
     void tick() { clock = clock.plusSeconds(1) }
 
+    /** Failures for one operation only (e.g. 'PUT'), so a write can fail while the reads before it succeed. */
+    protected final Map<String, Deque<HttpResponse>> injectedByOp = [:].withDefault { new ArrayDeque<HttpResponse>() }
+
+    void failNextOf(String op, int status, Map body = null, Map<String, String> headers = [:]) {
+        injectedByOp[op].add(new HttpResponse(status: status, body: body, rawBody: body ? groovy.json.JsonOutput.toJson(body) : null, headers: headers))
+    }
+
     protected HttpResponse injectedOrNull(String op, Map detail) {
         requests << ([op: op] + detail)
+        if (injectedByOp.containsKey(op) && !injectedByOp[op].isEmpty()) return injectedByOp[op].poll()
         injected.isEmpty() ? null : injected.poll()
     }
 

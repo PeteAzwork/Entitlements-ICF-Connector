@@ -9,8 +9,8 @@ class MappingLintSpec extends Specification {
         [name: 'm', source: 'managed/user', target: target, properties: properties]
     }
 
-    static final Map REL = [target: 'entityRelationships', transform: [type: 'text/javascript', source: 'x']]
-    static final Map ARCH = [target: 'directArchetypes', transform: [type: 'text/javascript', source: 'x']]
+    static final Map REL = [source: '', target: 'entityRelationships', transform: [type: 'text/javascript', source: 'x']]
+    static final Map ARCH = [source: '', target: 'directArchetypes', transform: [type: 'text/javascript', source: 'x']]
 
     def "a mapping with both, unconditional, passes"() {
         expect:
@@ -30,6 +30,11 @@ class MappingLintSpec extends Specification {
     def "a condition on either is reported"() {
         expect:
         MappingLint.check(mapping([REL + [condition: 'x'], ARCH])).any { it.contains('entityRelationships') && it.contains('condition') }
+    }
+
+    def "a transform without source: '' is reported: IDM would hand it an undefined source"() {
+        expect:
+        MappingLint.check(mapping([REL.findAll { it.key != 'source' }, ARCH])).any { it.contains('entityRelationships') && it.contains('source') }
     }
 
     def "mappings to other targets are ignored, and a whole sync.json is checked mapping by mapping"() {

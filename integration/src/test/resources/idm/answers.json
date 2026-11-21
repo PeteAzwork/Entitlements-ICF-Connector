@@ -1,0 +1,33 @@
+{
+  "selectedTypes": [
+    "user",
+    "account"
+  ],
+  "entityKinds": {
+    "user": "subject",
+    "account": "resource"
+  },
+  "idProperties": {
+    "account": "accountId"
+  },
+  "archetypes": {
+    "user": [
+      "Customer"
+    ],
+    "account": [
+      "Account"
+    ]
+  },
+  "relationshipOverrides": {
+    "user": {
+      "manager": {
+        "remoteType": "ReportsTo",
+        "direction": "outbound"
+      },
+      "reports": {
+        "remoteType": "ReportsTo",
+        "direction": "inbound"
+      }
+    }
+  }
+}

@@ -44,6 +44,15 @@ class MappingSkeletonGeneratorSpec extends Specification {
         }
     }
 
+    def "the library transforms receive the whole source object: source is empty, not absent (IDM 7.5, WS8)"() {
+        when:
+        def props = MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).properties
+
+        then:
+        props.find { it.target == 'entityRelationships' }.source == ''
+        props.find { it.target == 'directArchetypes' }.source == ''
+    }
+
     def "relationship and archetype mappings are recomputed on every update (no partial-attribute updates, §8.4)"() {
         when:
         def props = MappingSkeletonGenerator.mapping('user', USER_TYPE, opts).properties
@@ -80,7 +89,9 @@ class MappingSkeletonGeneratorSpec extends Specification {
         policies.find { it.situation == 'ABSENT' }.action == 'CREATE'
         policies.find { it.situation == 'CONFIRMED' }.action == 'UPDATE'
         policies.find { it.situation == 'FOUND' }.action == 'UPDATE'
-        policies.find { it.situation == 'MISSING' }.action == 'DELETE'   // source deleted → remote deleted (one-way authoritative)
+        policies.find { it.situation == 'SOURCE_MISSING' }.action == 'DELETE'   // source deleted in IDM → remote deleted (one-way authoritative; WS8.06)
+        policies.find { it.situation == 'MISSING' }.action == 'CREATE'          // linked remote gone → re-created (design §11)
+        policies.find { it.situation == 'UNASSIGNED' }.action == 'REPORT'       // orphans are reported, not deleted (P16)
     }
 
     def "sync is enabled and the mapping is synchronous by default (§10 per-object serialisation)"() {
