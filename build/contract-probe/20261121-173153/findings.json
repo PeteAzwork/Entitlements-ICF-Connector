@@ -1,0 +1,822 @@
+{
+    "runId": "20261121-173153",
+    "baseUrl": "http://localhost:8080",
+    "generatedAt": "2026-11-21T06:31:54.693703Z",
+    "mode": "read-write",
+    "exchanges": 136,
+    "contract": {
+        "searchPath": "/admin/entities/search",
+        "objectClassSelects": {
+            "4": "Subject",
+            "2": "Resource",
+            "Subject": "Subject",
+            "Resource": "Resource"
+        },
+        "baseTypeNumbering": "P18 (4 = Subject, 2 = Resource)",
+        "idFilterField": "ID",
+        "envelope": "object, items under `results`",
+        "totalKey": "totalResults",
+        "cursorKey": "pagedResultsCookie",
+        "pageSizeParam": "pageSize",
+        "cursorParam": "pagedResultsCookie",
+        "lastEvaluatedFormat": "ISO-8601, no fraction, Z",
+        "getById": "fails (500)",
+        "ambiguousArchetypes": [
+            "ThirdPartyApplication"
+        ]
+    },
+    "findings": [
+        {
+            "detail": "Checked with a GET of an entity ID that does not exist, so a valid key should get 404. The key is sent raw in the `X-API-KEY` header. The service uses one shared key, so a 403 is not expected.",
+            "answer": "No key: 401. Wrong key: 401. Valid key: 500.",
+            "evidence": [
+                1,
+                2,
+                3
+            ],
+            "key": "auth.status",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.10",
+            "question": "How does the service respond to a missing, wrong and valid `X-API-KEY` key?"
+        },
+        {
+            "detail": null,
+            "answer": "`POST /admin/entities/search` with a JSON body. `{}` returned 91 entities.",
+            "evidence": [
+                7
+            ],
+            "key": "search.path",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Which request serves the entity search?"
+        },
+        {
+            "detail": "Search results name the base type, so a numeric objectClass shows its meaning. `4` \u2192 Subject \u00d714; `2` \u2192 Resource \u00d720; `\"Subject\"` \u2192 Subject \u00d714; `\"Resource\"` \u2192 Resource \u00d720",
+            "answer": "4 = Subject, 2 = Resource, as P18 assumes.",
+            "evidence": [
+                8,
+                9,
+                10,
+                11
+            ],
+            "key": "baseType.objectClass",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Which base type does each numeric objectClass select (P18, C6)?"
+        },
+        {
+            "detail": "Filtered on the ID of one sampled entity. `ID` \u2192 1 result(s), exactly the entity",
+            "answer": "`ID`: an EQUALS filter on it returns exactly the entity.",
+            "evidence": [
+                12
+            ],
+            "key": "search.idFilter",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Which filter field matches the entity ID (P21)?"
+        },
+        {
+            "detail": "91 items returned with no paging fields, total reported 91.",
+            "answer": "object, items under `results`; total count: `totalResults`; next-page cursor: `pagedResultsCookie`; `hasMore`: present.",
+            "evidence": [
+                13
+            ],
+            "key": "paging.envelope",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "What does a search response look like?"
+        },
+        {
+            "detail": "First page `hasMore`: true.",
+            "answer": "Yes: `pageSize` is honoured, and sending back `pagedResultsCookie` returns the next page.",
+            "evidence": [
+                14,
+                15
+            ],
+            "key": "paging.params",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Do `pageSize` and `pagedResultsCookie` page through the results?"
+        },
+        {
+            "detail": "Total reported: 91. If fewer items came back than both the request and the total, that is the cap.",
+            "answer": "Asked for 10000: 200, 91 items. Asked for 1000: 200, 91 items.",
+            "evidence": [
+                16,
+                17
+            ],
+            "key": "paging.maxPageSize",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "What is the largest page the service will return?"
+        },
+        {
+            "detail": null,
+            "answer": "Same first page twice: identical order. Order: sorted by ID.",
+            "evidence": [
+                18,
+                19
+            ],
+            "key": "paging.ordering",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Is the result order stable and what is it ordered by?"
+        },
+        {
+            "detail": "From one search result. Only field names are reported.",
+            "answer": "attributes, baseType, directArchetypes, isArchetypes, lastEvaluated, name, uid (as documented).",
+            "evidence": [
+                20
+            ],
+            "key": "document.searchFields",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Which fields does a search item carry?"
+        },
+        {
+            "detail": null,
+            "answer": "ISO-8601, no fraction, Z",
+            "evidence": [
+                20
+            ],
+            "key": "document.lastEvaluated",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "In which format is `lastEvaluated` reported?"
+        },
+        {
+            "detail": null,
+            "answer": "No: 500, no content type, empty body. Reads by ID need `byIdLookup: search` (P21).",
+            "evidence": [
+                21
+            ],
+            "key": "get.existingEntity",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Does GET by ID work for an entity that exists (C1)?"
+        },
+        {
+            "detail": null,
+            "answer": "Cannot tell: GET returned 500.",
+            "evidence": [
+                21
+            ],
+            "key": "document.readModelFields",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Which fields does the read model (GET) carry?"
+        },
+        {
+            "detail": null,
+            "answer": "Cannot tell: GET returned 500.",
+            "evidence": [
+                21
+            ],
+            "key": "document.edgeKeys",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Which keys appear on relationships in the read model?"
+        },
+        {
+            "detail": "Sample of 91 entities over at most 5 pages.",
+            "answer": "Resource: 77, Subject: 14",
+            "evidence": [
+                22
+            ],
+            "key": "types.baseTypes",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.08",
+            "question": "Which base types occur?"
+        },
+        {
+            "detail": "Archetypes read from directArchetypes and isArchetypes together. 91 of 91 entities have no direct archetype, so P19's scope archetype will only appear once the connector writes them. 8 distinct archetype sets: CreditCardApplication \u00d71, Customer \u00d78, Account \u00d747, (none) \u00d72, Company \u00d77, ThirdPartyApplication \u00d76, Publisher \u00d71, Ws0Probe \u00d719",
+            "answer": "Not on their own: ThirdPartyApplication appear with more than one base type.",
+            "evidence": [
+                22
+            ],
+            "key": "types.archetypes",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.08",
+            "question": "Do archetypes discriminate types?"
+        },
+        {
+            "detail": null,
+            "answer": "Cannot tell: 200, application/json, JSON object with keys [paths].",
+            "evidence": [
+                23
+            ],
+            "key": "manifests.archetypes",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Which archetypes do the manifests define (P22)?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                24
+            ],
+            "key": "errors.getMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does GET of a missing entity return?"
+        },
+        {
+            "detail": null,
+            "answer": "400: application/problem+json, JSON object with keys [errors, status, title, traceId, type]",
+            "evidence": [
+                25
+            ],
+            "key": "errors.badFilter",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a search with an unknown filter operation return?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                26
+            ],
+            "key": "errors.badObjectClass",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a search with an unknown objectClass return?"
+        },
+        {
+            "detail": null,
+            "answer": "The create itself failed: base type 4 \u2192 500, base type 2 \u2192 500. no content type, empty body.",
+            "evidence": [
+                27,
+                28
+            ],
+            "key": "baseType.create",
+            "confidence": "error",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Is an entity created with base type 4 a Subject (P18)?"
+        },
+        {
+            "detail": null,
+            "answer": "The POST itself failed: 500, no content type, empty body.",
+            "evidence": [
+                29
+            ],
+            "key": "edges.postToMissing",
+            "confidence": "error",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "What happens to a relationship to a missing entity on POST (A7)?"
+        },
+        {
+            "detail": null,
+            "answer": "A write failed: POST 500, PUT 500.",
+            "evidence": [
+                30,
+                31
+            ],
+            "key": "attributes.omission",
+            "confidence": "error",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Does an update that omits an attribute remove it (P20)?"
+        },
+        {
+            "detail": null,
+            "answer": "Not tested: it needs two Resource archetypes, from the manifests or --archetypes.",
+            "evidence": [
+                
+            ],
+            "key": "archetypes.replace",
+            "confidence": "not-tested",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Does an update replace directArchetypes in full (P22)?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                32
+            ],
+            "key": "errors.postWithoutId",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a POST without an ID return (C4)?"
+        },
+        {
+            "detail": null,
+            "answer": "400: application/problem+json, JSON object with keys [errors, status, title, traceId, type]",
+            "evidence": [
+                33
+            ],
+            "key": "errors.malformedJson",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a malformed JSON body return?"
+        },
+        {
+            "detail": null,
+            "answer": "400: application/problem+json, JSON object with keys [errors, status, title, traceId, type]",
+            "evidence": [
+                34
+            ],
+            "key": "errors.nonStringAttribute",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a POST with a non-string attribute value return (P20)?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                35
+            ],
+            "key": "errors.putMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a PUT to a missing entity return (C2)?"
+        },
+        {
+            "detail": null,
+            "answer": "200: no content type, empty body",
+            "evidence": [
+                36
+            ],
+            "key": "errors.deleteMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a DELETE of a missing entity return (C3)?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                37
+            ],
+            "key": "ids.space",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with space accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                38
+            ],
+            "key": "ids.slash",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with slash accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                39
+            ],
+            "key": "ids.question",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with question accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                40
+            ],
+            "key": "ids.hash",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with hash accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                41
+            ],
+            "key": "ids.plus",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with plus accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                42
+            ],
+            "key": "ids.percent",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with percent accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                43
+            ],
+            "key": "ids.unicode",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with unicode accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                44
+            ],
+            "key": "ids.dot",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with dot accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                45
+            ],
+            "key": "ids.length 64",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 64 accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                46
+            ],
+            "key": "ids.length 255",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 255 accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                47
+            ],
+            "key": "ids.length 256",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 256 accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Rejected on create: 500, no content type, empty body.",
+            "evidence": [
+                48
+            ],
+            "key": "ids.length 1024",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 1024 accepted?"
+        },
+        {
+            "detail": null,
+            "answer": "Could not create the test entity: 500.",
+            "evidence": [
+                49,
+                50,
+                51
+            ],
+            "key": "ids.caseSensitivity",
+            "confidence": "error",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Are IDs case-sensitive?"
+        },
+        {
+            "detail": null,
+            "answer": "Could not create the four test entities.",
+            "evidence": [
+                52,
+                53,
+                54,
+                55
+            ],
+            "key": "paging.updateDuringEnumeration",
+            "confidence": "error",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Can an entity updated mid-enumeration be skipped or returned twice?"
+        },
+        {
+            "detail": "The probe does not try to trigger throttling. A 429 policy must come from the service team.",
+            "answer": "No rate-limit or Retry-After headers were seen in 55 responses.",
+            "evidence": [
+                
+            ],
+            "key": "limits.headers",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.10",
+            "question": "Does the service advertise rate limits?"
+        }
+    ],
+    "cleanupProblems": [
+        
+    ]
+}

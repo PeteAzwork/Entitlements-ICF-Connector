@@ -1,0 +1,330 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"pageSize\":20}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "CC-12345",
+                    "name": "CC-12345",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card Application",
+                        "Recipient": "Piet"
+                    },
+                    "isArchetypes": [
+                        "CreditCardApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "Cor",
+                    "name": "Cor",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "Cor Jette"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "Credit-Card-1",
+                    "name": "Credit-Card-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-10",
+                    "name": "Credit-Card-10",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-11",
+                    "name": "Credit-Card-11",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-12",
+                    "name": "Credit-Card-12",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-13",
+                    "name": "Credit-Card-13",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-14",
+                    "name": "Credit-Card-14",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-15",
+                    "name": "Credit-Card-15",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-16",
+                    "name": "Credit-Card-16",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-17",
+                    "name": "Credit-Card-17",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-18",
+                    "name": "Credit-Card-18",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-19",
+                    "name": "Credit-Card-19",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-2",
+                    "name": "Credit-Card-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-3",
+                    "name": "Credit-Card-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-4",
+                    "name": "Credit-Card-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-5",
+                    "name": "Credit-Card-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-6",
+                    "name": "Credit-Card-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-7",
+                    "name": "Credit-Card-7",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "Credit-Card-8",
+                    "name": "Credit-Card-8",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                }
+            ],
+            "pagedResultsCookie": "20",
+            "totalResults": 72,
+            "hasMore": true
+        }
+    },
+    "metadata": {
+        "probeExchange": 47,
+        "check": "WS0.06",
+        "runId": "20261121-155100"
+    }
+}

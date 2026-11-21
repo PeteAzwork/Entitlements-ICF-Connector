@@ -1,0 +1,330 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"objectClass\":\"Resource\",\"pageSize\":20}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "scrubbed-1",
+                    "name": "scrubbed-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>",
+                        "Recipient": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "CreditCardApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-3",
+                    "name": "scrubbed-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-4",
+                    "name": "scrubbed-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-5",
+                    "name": "scrubbed-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-6",
+                    "name": "scrubbed-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-7",
+                    "name": "scrubbed-7",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-8",
+                    "name": "scrubbed-8",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-9",
+                    "name": "scrubbed-9",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-10",
+                    "name": "scrubbed-10",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-11",
+                    "name": "scrubbed-11",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-12",
+                    "name": "scrubbed-12",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-13",
+                    "name": "scrubbed-13",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-14",
+                    "name": "scrubbed-14",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-15",
+                    "name": "scrubbed-15",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-16",
+                    "name": "scrubbed-16",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-17",
+                    "name": "scrubbed-17",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-18",
+                    "name": "scrubbed-18",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-19",
+                    "name": "scrubbed-19",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-20",
+                    "name": "scrubbed-20",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-21",
+                    "name": "scrubbed-21",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                }
+            ],
+            "pagedResultsCookie": "20",
+            "totalResults": 77,
+            "hasMore": true
+        }
+    },
+    "metadata": {
+        "probeExchange": 11,
+        "check": "WS0.15",
+        "runId": "20261121-173153"
+    }
+}

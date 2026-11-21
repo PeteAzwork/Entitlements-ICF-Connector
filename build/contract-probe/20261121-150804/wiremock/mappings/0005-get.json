@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/entities/"
+    },
+    "response": {
+        "status": 405
+    },
+    "metadata": {
+        "probeExchange": 5,
+        "check": "WS0.02",
+        "runId": "20261121-150804"
+    }
+}

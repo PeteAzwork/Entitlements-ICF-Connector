@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"id\":\"ws0-probe-20261121-173153-stab-1\",\"baseType\":2,\"attributes\":{\"probe\":\"ws0\"},\"relationships\":[],\"directArchetypes\":[]}"
+            }
+        ]
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 52,
+        "check": "WS0.03",
+        "runId": "20261121-173153"
+    }
+}

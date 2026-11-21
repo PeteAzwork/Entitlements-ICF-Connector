@@ -1,0 +1,31 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/"
+    },
+    "response": {
+        "status": 400,
+        "headers": {
+            "Content-Type": "application/problem+json; charset=utf-8"
+        },
+        "jsonBody": {
+            "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+            "title": "One or more validation errors occurred.",
+            "status": 400,
+            "errors": {
+                "$": [
+                    "'n' is an invalid start of a property name. Expected a '\"'. Path: $ | LineNumber: 0 | BytePositionInLine: 1."
+                ],
+                "entity": [
+                    "The entity field is required."
+                ]
+            },
+            "traceId": "00-6d9e130b493929ca9679167b635f275c-0ea87e1e8597ca8a-00"
+        }
+    },
+    "metadata": {
+        "probeExchange": 67,
+        "check": "WS0.05",
+        "runId": "20261121-155100"
+    }
+}

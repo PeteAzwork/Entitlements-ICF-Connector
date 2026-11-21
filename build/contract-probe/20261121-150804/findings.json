@@ -1,0 +1,162 @@
+{
+    "runId": "20261121-150804",
+    "baseUrl": "http://localhost:8080",
+    "generatedAt": "2026-11-21T04:08:04.240234Z",
+    "mode": "read-only",
+    "exchanges": 5,
+    "contract": {
+        
+    },
+    "findings": [
+        {
+            "detail": "The key is sent raw in the `X-API-KEY` header. The service uses one shared key, so a 403 (authenticated but not permitted) is not expected.",
+            "answer": "No key: 405. Wrong key: 405. Valid key: 405.",
+            "evidence": [
+                1,
+                2,
+                3
+            ],
+            "key": "auth.status",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.10",
+            "question": "How does the service respond to a missing, wrong and valid `X-API-KEY` key?"
+        },
+        {
+            "detail": "GET /admin/entities \u2192 405, no content type, empty body; GET /admin/entities/ \u2192 405, no content type, empty body",
+            "answer": "Neither candidate returned a list of entities.",
+            "evidence": [
+                4,
+                5
+            ],
+            "key": "search.path",
+            "confidence": "error",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Which path serves the entity search?"
+        },
+        {
+            "detail": null,
+            "answer": "Not tested: needs --allow-writes against a test instance.",
+            "evidence": [
+                
+            ],
+            "key": "create.duplicate",
+            "confidence": "not-tested",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.04",
+            "question": "What does a duplicate POST return?"
+        },
+        {
+            "detail": null,
+            "answer": "Not tested: needs --allow-writes against a test instance.",
+            "evidence": [
+                
+            ],
+            "key": "edges",
+            "confidence": "not-tested",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Edge semantics on POST, PUT, GET and DELETE"
+        },
+        {
+            "detail": null,
+            "answer": "Not tested: needs --allow-writes against a test instance.",
+            "evidence": [
+                
+            ],
+            "key": "ids",
+            "confidence": "not-tested",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "ID characters, length and case sensitivity"
+        },
+        {
+            "detail": null,
+            "answer": "Not tested: needs --allow-writes against a test instance.",
+            "evidence": [
+                
+            ],
+            "key": "search.boundary",
+            "confidence": "not-tested",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Is the timestamp filter strictly-after or inclusive?"
+        },
+        {
+            "detail": null,
+            "answer": "Not tested: needs --allow-writes against a test instance.",
+            "evidence": [
+                
+            ],
+            "key": "paging.updateDuringEnumeration",
+            "confidence": "not-tested",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Can an entity updated mid-enumeration be skipped or returned twice?"
+        },
+        {
+            "detail": "The probe does not try to trigger throttling. A 429 policy must come from the service team.",
+            "answer": "No rate-limit or Retry-After headers were seen in 5 responses.",
+            "evidence": [
+                
+            ],
+            "key": "limits.headers",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.10",
+            "question": "Does the service advertise rate limits?"
+        }
+    ],
+    "cleanupProblems": [
+        
+    ]
+}

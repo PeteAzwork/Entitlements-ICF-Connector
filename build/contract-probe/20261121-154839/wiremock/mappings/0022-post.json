@@ -1,0 +1,45 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"pageSize\":1,\"offset\":1}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "CC-12345",
+                    "name": "CC-12345",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "Credit Card Application",
+                        "Recipient": "Piet"
+                    },
+                    "isArchetypes": [
+                        "CreditCardApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                }
+            ],
+            "pagedResultsCookie": "1",
+            "totalResults": 72,
+            "hasMore": true
+        }
+    },
+    "metadata": {
+        "probeExchange": 22,
+        "check": "WS0.03",
+        "runId": "20261121-154839"
+    }
+}
