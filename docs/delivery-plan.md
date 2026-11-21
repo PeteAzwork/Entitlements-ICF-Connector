@@ -290,8 +290,9 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `ops/ScriptSupportSpec` | §4, P13 | 8 | 8 |
 | `scripts/OperationScriptsSpec` | §4 | 13 | 13 |
 | `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
+| `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **350** | **619** |
+| **Connector total** | | **360** | **629** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
@@ -304,7 +305,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **859** |
+| **Grand total** | | | **869** |
 
 Current result (2026-11-21, after WS0.11): connector 18 pass / 596 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality, and `RecordedShapesSpec`'s seven checks that the fake matches the recorded service shapes. The passing mapping-library tests check the library's exports and ES5 syntax.
 
