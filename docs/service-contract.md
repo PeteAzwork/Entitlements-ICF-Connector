@@ -238,7 +238,7 @@ Also on the read side: `directArchetypes` (in search, always empty), `isArchetyp
 
 ### 5.5 Contradictions to raise with the service team
 
-Runs: `20261121-155100` (the first write run, design-shaped documents), `20261121-173141` (read-only), `20261121-173153` (write, EntityDTO) and `20261121-190350` (write, with the create-shape diagnosis) and `20261121-211859` (write, with a 10 s settle window), all against a test instance. Evidence numbers refer to each run's `exchanges.jsonl`.
+Runs: `20261121-155100` (the first write run, design-shaped documents), `20261121-173141` (read-only), `20261121-173153` (write, EntityDTO) and `20261121-190350` (write, with the create-shape diagnosis) `20261121-211859` (write, with a 10 s settle window) and `20261121-214027` (write, settled writes read on the written entity, with leftover removal), all against a test instance. Evidence numbers refer to each run's `exchanges.jsonl`.
 
 | ID | Definition says | Probe observed |
 |---|---|---|
@@ -255,8 +255,9 @@ Runs: `20261121-155100` (the first write run, design-shaped documents), `2026112
 | C11 | `GET /admin/manifests` returns a list of manifests | 200 with `{paths: [{entities: {}, entityRelationships: [], policies: {}, manifests: {4 fields}}]}` (`190350` #31): an export bundle, with the manifests nested inside. Where the archetype names sit inside `manifests` is not yet known |
 | C13 | Writes are applied in the order sent | **Not always.** A PUT sent straight after its POST never took effect: for 10 s+ search showed the POST's attributes, and `lastEvaluated` did not move (`211859` #176–#199). Where the probe waited for the create to show before updating, the update applied within about 1 s (#200–#205). Rapid successive writes to one entity can be lost |
 | C14 | A search lists each entity once, and `totalResults` counts them | Search listed the same entity twice in one result list (`211859` #180–#199). `totalResults` said 91 while 99 items came back (#22) |
-| C15 | GET shows every relationship touching the entity, current | An entity's read model is refreshed when the entity itself is re-evaluated. When A's write changed the A → B relationship, B's `lastEvaluated` did not move, and its read model still listed the relationship (`211859` #81–#102). Relationship changes must be read on the entity that was written |
+| C15 | GET shows every relationship touching the entity, current | **Withdrawn (run `214027`).** Relationships in GET are current at both ends: A listed A → B although only B had been written (`214027` #141). The `211859` observation, where B still listed A → B after A was written without it, was not a stale read. A's write had an empty `relationships` list, and that removes nothing (see P15 below) |
 | C16 | Archetypes are defined in manifests (P22) | The manifests define Subject archetypes Account Owner, Developer and Legal Representative, and Resource archetypes Credit Card, Current Account, Financing, Insurance, Savings Account, Third Party Application and User Access Requests (`211859` #29). The existing entities carry Customer, Account, Company, ThirdPartyApplication, Publisher and CreditCardApplication, none of which a manifest defines. The service also accepts undefined names (the probe's `Ws0Probe`). P22's Test-operation check would reject configurations that use the names on the existing data |
+| C17 | A write replaces the entity's relationships and attributes (P15, P20) | **Attributes: no.** An update that omits an attribute keeps it (`214027` #229–#234). **Relationships: disputed.** The service owner states that an empty `relationships` list purges all of the entity's relationships (2026-11-21). Run `214027` read the entity once, as soon as the write's marker showed, and still saw the relationship (#142–#145, #150–#153). The likeliest explanation is that removal is applied after the attribute change. The probe now waits for the removal itself (WS0.15g). `directArchetypes` *is* replaced in full (#235–#240) |
 | C12 | An invalid search request: 400 | 500 for an unknown `objectClass` (`173141` #23); 400 with problem details for an unknown filter operation (#22) |
 
 ## 6. What this changes in the design
@@ -342,6 +343,23 @@ Not answered:
 
 New: C13–C16.
 
+**Write run `20261121-214027`** (settled writes, read on the written entity, `--remove-leftovers`), checked before being kept: no entity data.
+
+Answered:
+- **P20: no, omitted attributes are kept.** An update merges attributes rather than replacing them.
+- **P15, with an empty list: not observed in one read.** Writing an entity with `relationships: []` still showed its relationships when the write's marker appeared (C17). The service owner states that an empty list purges all relationships, so removal is probably applied later. WS0.15g waits for it.
+- **Q07.8: no.** Writing the target without the relationship keeps it.
+- **C15: withdrawn.** GET's relationships are current at both ends.
+- **Leftovers:** 18 of the 21 earlier probe entities were removed. The four with `/` in their IDs (one per write run) cannot be addressed and need the service team.
+- **Confirmed again:** P22 replaced in full, P18, C2 upsert, Q04.1 duplicate replaces, Q09.3 case-sensitive, deletes after about 0.5 s.
+
+Still open (WS0.15g adds the checks):
+- whether relationship removal appears once the probe waits for it (P15);
+- whether a non-empty `relationships` list replaces the old one (P15);
+- whether an empty string clears an attribute (P20);
+- whether the single-relationship endpoints work;
+- whether DELETE removes the relationships touching the entity. GET of the other end failed within the window for the last two.
+
 **Next:**
 - **Probe (plan WS0.15f):**
   - wait for each write to apply (its `lastEvaluated` advances, or a marker shows) before writing that entity again;
@@ -362,6 +380,8 @@ New: C13–C16.
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Service owner: an empty `relationships` list purges all of the entity's relationships (P15). C17's relationship half is reframed as probable delayed removal. Probe WS0.15g waits for removals, and adds checks for non-empty replacement, clearing an attribute with an empty string, and the endpoints and delete cascade on entities of their own. |
+| 2026-11-21 | Folded in write run `20261121-214027`. P20 answered: omitted attributes are kept (merge). An empty `relationships` list removes nothing (C17), which challenges P15 as stated. Q07.8 answered (no). C15 withdrawn: GET's relationships are current at both ends. 18 leftovers removed; four IDs containing `/` remain for the service team. |
 | 2026-11-21 | Owner decisions: IDs containing `/` are rejected by the connector (P23, from Q09.1), and the Test operation's manifest check warns rather than fails (P22 amended, from C16). Probe WS0.15f: settled writes with revision markers (C13), relationship outcomes read on the written entity (C15), and `--remove-leftovers`. |
 | 2026-11-21 | Folded in write run `20261121-211859`. Answered P22 (replaced in full), C10 (deletes work after about 0.5 s), Q04.1 (duplicate POST replaces), Q09.1 (`/` not addressable) and Q09.3 (case-sensitive). Added C13 (rapid writes can be lost), C14 (duplicate search items), C15 (relationship changes refresh only the written entity) and C16 (manifest archetype names differ from those on existing entities). P15 and P20 still open. |
 | 2026-11-21 | Probe WS0.15e: read-backs wait within a settle window (`--settle-seconds`, default 10) for writes to show. Archetypes are read from either field, probe archetypes are used when none are given, and manifest archetype names are found inside the export bundle. |

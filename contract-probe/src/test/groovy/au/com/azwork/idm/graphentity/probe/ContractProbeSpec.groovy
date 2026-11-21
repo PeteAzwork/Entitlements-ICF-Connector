@@ -487,7 +487,9 @@ class ContractProbeSpec extends Specification {
         f(p, 'edges.inboundOnPut').answer.startsWith('Yes')
         f(p, 'edges.targetOmission').answer.startsWith('Yes')   // the fake assumes both directions (Q07.8)
         f(p, 'edges.putToMissing').answer.startsWith('Dropped silently')
-        f(p, 'edges.relationshipEndpoints').answer.startsWith('DELETE 200: removed. POST 200: added back.')
+        f(p, 'edges.relationshipEndpoints').answer.startsWith('DELETE 200: removed. POST 200: added.')
+        f(p, 'edges.replaceNonEmpty').answer.startsWith('Yes: R, rewritten with only R → T2, lists R → T2 and no longer R → T1')
+        f(p, 'attributes.clear').answer.startsWith('Stored as an empty string')   // the fake stores attributes as given
         f(p, 'edges.deleteCascades').answer.startsWith('Yes')
     }
 
@@ -624,6 +626,88 @@ class ContractProbeSpec extends Specification {
         }
     }
 
+    /** Relationship removals show in the written entity's read model only {@code lag} reads after the write. */
+    static class DelayedRemovalService extends FakeGraphService {
+        final int lag
+        final Map<String, Map> pending = [:]
+
+        DelayedRemovalService(int lag) { this.lag = lag }
+
+        @Override HttpResponse replace(String id, Map<String, Object> d) {
+            List before = edges.findAll { it[0] == id || it[1] == id }.collect { new ArrayList(it) }
+            def r = super.replace(id, d)
+            if (r.status == 200) pending[id] = [left: lag, rels: before]
+            r
+        }
+
+        @Override Map<String, Object> renderEntity(String id) {
+            def e = super.renderEntity(id)
+            Map p = pending[id]
+            if (p && (p.left as int) > 0) {
+                p.left = (p.left as int) - 1
+                List now = e.relationships as List
+                List old = (p.rels as List).collect { [source: it[0], target: it[1], type: it[2], sourceType: 'Resource'] }
+                e.relationships = (now + old).unique()   // additions show at once; removals lag
+            }
+            e
+        }
+    }
+
+    /** Attributes merged on update, and an attribute written as an empty string removed: one way the service may work. */
+    static class MergingAttributesService extends FakeGraphService {
+        @Override HttpResponse replace(String id, Map<String, Object> d) {
+            def old = entities[id]
+            if (old == null) return super.replace(id, d)
+            Map merged = ((old.attributes as Map) + [ID: id] + (d.attributes as Map)).findAll { k, v -> v != '' }
+            super.replace(id, d + [attributes: merged])
+        }
+    }
+
+    def "WS0.15g: a relationship removal that shows a few reads late is waited for, not reported as 'not removed'"() {
+        given:
+        server.close()
+        def delayed = new DelayedRemovalService(3)
+        seedForeign(delayed)
+        server = new FakeGraphHttpServer(delayed).start()
+
+        when:
+        def settled = probe(allowWrites: true, settleSeconds: 2, pollMillis: 5)
+
+        then:
+        f(settled, 'edges.sourceOmission').answer.startsWith('Yes')
+        f(settled, 'edges.targetOmission').answer.startsWith('Yes')
+        f(settled, 'edges.replaceNonEmpty').answer.startsWith('Yes')
+    }
+
+    def "WS0.15g: the same delayed removal, read once, gives the 'No' of run 214027"() {
+        given:
+        server.close()
+        def delayed = new DelayedRemovalService(3)
+        seedForeign(delayed)
+        server = new FakeGraphHttpServer(delayed).start()
+
+        when:
+        def once = probe(allowWrites: true, settleSeconds: 0)
+
+        then:
+        f(once, 'edges.sourceOmission').answer.startsWith('No')
+    }
+
+    def "WS0.15g: with merged attributes, omission keeps an attribute and an empty string clears it"() {
+        given:
+        server.close()
+        def merging = new MergingAttributesService()
+        seedForeign(merging)
+        server = new FakeGraphHttpServer(merging).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'attributes.omission').answer.startsWith('No: once the update was visible, the omitted attribute was still there')
+        f(p, 'attributes.clear').answer.startsWith('Yes: the attribute is gone')
+    }
+
     def "WS0.15f: every write in the relationship and attribute checks carries an increasing revision marker"() {
         when:
         probe(allowWrites: true)
@@ -645,7 +729,7 @@ class ContractProbeSpec extends Specification {
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'edges.sourceOmission').answer.startsWith('Yes: A, written without A → B, no longer lists it.')
+        f(p, 'edges.sourceOmission').answer.startsWith('Yes: A, written with no relationships, no longer lists A → B')
         f(p, 'edges.inboundOnCreate').answer.startsWith('Yes')
         f(p, 'edges.otherEndRefreshed').answer.startsWith('No')
     }
