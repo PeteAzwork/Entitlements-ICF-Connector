@@ -12,6 +12,9 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 import java.nio.file.Files
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * WS8.01: one real IDM 7.5 container per test run, with the connector deployed the way the runbook deploys it,
@@ -44,6 +47,8 @@ class IdmStack {
 
     final FakeGraphService service = new FakeGraphService()
     final FakeGraphHttpServer server = new FakeGraphHttpServer(service, API_KEY).start()
+    /** The private CA imported into IDM's trust store, and the certificates it issued (NetworkInIdmSpec). */
+    final TestPki pki = new TestPki()
     final IdmClient idm = new IdmClient('http://localhost:8080/openidm')
     final Map provisioner
     /** The provisioner as saved: {@link #provisioner} plus the object types from createFullConfig. */
@@ -79,11 +84,12 @@ class IdmStack {
 
     /** createFullConfig first, then one save of its result, which carries the object types. */
     void loadProvisioner(Map config) {
+        awaitProvisionerSettled()   // createFullConfig alongside an initialisation in progress races (H11)
         Map full = idm.action('system', 'createFullConfig', config)
         if (!(full.objectTypes as Map)?.keySet()?.containsAll(['user', 'account'])) {
             throw new IllegalStateException("createFullConfig returned no user/account object types: ${full.objectTypes?.keySet()}")
         }
-        idm.put('config/provisioner.openicf/graphentity', full)
+        putProvisioner(full)
         fullProvisioner = full
         awaitConnector()
     }
@@ -91,21 +97,72 @@ class IdmStack {
     /** Saves a variant of the working provisioner as is, without createFullConfig (which runs the Test operation). */
     void saveProvisioner(Map changes) {
         Map props = (fullProvisioner.configurationProperties as Map) + (changes.configurationProperties as Map ?: [:])
-        Map saved = fullProvisioner + changes + [configurationProperties: props]
-        idm.put('config/provisioner.openicf/graphentity', saved)
-        // IDM applies it asynchronously; wait until the stored configuration is the one in use.
-        idm.awaitTrue(30, 'the provisioner change to apply') {
-            (idm.get('config/provisioner.openicf/graphentity').configurationProperties as Map).customConfiguration == props.customConfiguration
+        putProvisioner(fullProvisioner + changes + [configurationProperties: props])
+    }
+
+    /**
+     * One provisioner save that is known to be in effect when this returns (H21). IDM acknowledges a save that arrives
+     * while it is still applying the previous one, then discards it: the stored configuration and the connector stay
+     * on the earlier save. So this waits for IDM to settle before saving, marks the save so that it always changes the
+     * stored configuration (an identical save is not applied at all), waits for the connector to be reactivated, and
+     * checks that the stored configuration is this save, saving again if it is not.
+     */
+    void putProvisioner(Map config) {
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            awaitProvisionerSettled()
+            String marker = "it-save-${System.nanoTime()}".toString()
+            Instant sent = Instant.now()
+            idm.put('config/provisioner.openicf/graphentity', config + [_itSave: marker])
+            idm.awaitTrue(180, 'the provisioner save to be applied') {
+                provisionerEvents(sent.minusSeconds(1)).any { it[1] == 'activated' } && provisionerSettled(sent)
+            }
+            if (idm.get('config/provisioner.openicf/graphentity')._itSave == marker) return
+            System.err.println("IdmStack: IDM discarded provisioner save ${attempt} (H21); saving again")
         }
-        Thread.sleep(3000)
+        throw new IllegalStateException('IDM discarded the provisioner save three times (H21)')
+    }
+
+    /** Waits until IDM is not applying a provisioner change. */
+    void awaitProvisionerSettled() {
+        idm.awaitTrue(180, 'IDM to finish applying provisioner changes') { provisionerSettled(Instant.now().minusSeconds(300)) }
+    }
+
+    /** No provisioner event in the last 3 s, and the last one since {@code since}, if any, is an activation. */
+    private boolean provisionerSettled(Instant since) {
+        List<List> events = provisionerEvents(since)
+        if (!events) return true
+        List last = events[-1]
+        last[1] == 'activated' && (last[0] as Instant) < Instant.now().minusSeconds(3)
+    }
+
+    /** IDM's log timestamps (java.util.logging, the image's UTC zone), as in {@code [191] Nov 21, 2026 9:07:49.055 PM}. */
+    private static final DateTimeFormatter IDM_LOG_TIME =
+        DateTimeFormatter.ofPattern('MMM d, yyyy h:mm:ss.SSS a', Locale.ENGLISH).withZone(ZoneOffset.UTC)
+
+    /**
+     * The provisioner's lifecycle since {@code since}, as [instant, 'updated' | 'deactivated' | 'activated'], from the
+     * end of IDM's log file. The console carries WARNING and above only, so these INFO lines are only in the file.
+     */
+    private static List<List> provisionerEvents(Instant since) {
+        List<List> events = []
+        Instant stamp = null
+        docker('exec', CONTAINER, 'tail', '-n', '5000', '/opt/openidm/logs/openidm0.log.0').eachLine { String line ->
+            def m = line =~ /^\[\d+\] (\w{3} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2}\.\d{3} [AP]M) /
+            if (m.find()) { stamp = Instant.from(IDM_LOG_TIME.parse(m.group(1))); return }
+            if (stamp == null || stamp < since) return
+            if (line.contains('component graphentity is activated')) events << [stamp, 'activated']
+            else if (line.contains('component graphentity is deactivated')) events << [stamp, 'deactivated']
+            else if (line =~ /Updating configuration file: .*provisioner\.openicf-graphentity/) events << [stamp, 'updated']
+        }
+        events
     }
 
     /**
      * The generated mappings, with implicit sync on or off. IDM applies configuration asynchronously, so this waits
      * until the sync service reports the mappings with the requested setting.
      */
-    void setMappings(boolean enableSync) {
-        List<Map> wanted = mappings.collect { new LinkedHashMap(it) + [enableSync: enableSync] }
+    void setMappings(boolean enableSync, Map<String, Map> extras = [:]) {
+        List<Map> wanted = mappings.collect { new LinkedHashMap(it) + [enableSync: enableSync] + (extras[it.name] ?: [:]) }
         idm.put('config/sync', [mappings: wanted])
         idm.awaitTrue(30, "the mappings with enableSync=${enableSync}") {
             List<Map> active = idm.query('sync/mappings')
@@ -168,7 +225,12 @@ class IdmStack {
         }
         File lib = new File(stage, 'lib')
         copyTree(new File(ROOT, 'mapping-lib/src/lib'), lib)
-        dockerChecked('create', '--name', CONTAINER, '--network', 'host', '-e', 'JAVA_OPTS=-Xmx2g -Xms1g', IMAGE)
+        String cpus = System.getProperty('idm.cpus', '')
+        List<String> create = ['create', '--name', CONTAINER, '--network', 'host',
+                               '-e', "JAVA_OPTS=${System.getProperty('idm.javaOpts', '-Xmx2g -Xms1g')}".toString()]
+        if (cpus) create += ['--cpus', cpus]
+        dockerChecked(*(create + [IMAGE]))
+        pki.trustIn(CONTAINER)   // the private CA the TLS specs' service certificates are signed by (guide §5)
         dockerChecked('cp', connector.path, "${CONTAINER}:/opt/openidm/connectors/graphentity")
         dockerChecked('cp', lib.path + '/.', "${CONTAINER}:/opt/openidm/script/lib/")
         dockerChecked('start', CONTAINER)
@@ -192,7 +254,7 @@ class IdmStack {
         out
     }
 
-    private static String dockerChecked(String... args) {
+    static String dockerChecked(String... args) {
         Process p = new ProcessBuilder(['docker'] + (args as List)).redirectErrorStream(true).start()
         String out = p.inputStream.getText('UTF-8')
         if (p.waitFor() != 0) throw new IllegalStateException("docker ${args.join(' ')} failed: ${out}")

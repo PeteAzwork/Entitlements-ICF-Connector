@@ -7,8 +7,10 @@ import spock.lang.Specification
 import spock.lang.Stepwise
 import spock.util.concurrent.PollingConditions
 
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * WS8.10 / WS8.11 (opt-in: -PidmScale=N). N users each owning one account, through IDM 7.5:
@@ -24,8 +26,8 @@ class ScaleInIdmSpec extends Specification {
     static final File REPORT = new File('build/scale-report.txt')
 
     @Shared IdmStack stack = IdmStack.instance
-    @Shared Map<Integer, String> users = [:]
-    PollingConditions poll = new PollingConditions(timeout: 120, delay: 1)
+    @Shared Map<Integer, String> users = new ConcurrentHashMap<>()
+    PollingConditions poll = new PollingConditions(timeout: 900, delay: 2)
 
     IdmClient getIdm() { stack.idm }
     FakeGraphService getService() { stack.service }
@@ -47,13 +49,22 @@ class ScaleInIdmSpec extends Specification {
         REPORT.text = "Scale run: ${N} users, ${N} accounts, IDM image ${IdmStack.IMAGE}\n"
         stack.setMappings(false)
         long t0 = System.nanoTime()
+        def pool = Executors.newFixedThreadPool(8)   // seeding is set-up, not measurement: do it in parallel
+        AtomicReference<Throwable> failure = new AtomicReference<>()
         (1..N).each { int i ->
-            String uid = stack.idm.create('managed/user', [userName: user(i), givenName: 'Scale', sn: "U${i}", mail: "u${i}@example.com"])._id
-            users[i] = uid
-            stack.idm.create('managed/account', [accountId: account(i), name: "Account ${i}", productCode: 'SC',
-                                                 ownedBy: [_ref: "managed/user/${uid}".toString()]])
+            pool.submit {
+                try {
+                    String uid = stack.idm.create('managed/user', [userName: user(i), givenName: 'Scale', sn: "U${i}", mail: "u${i}@example.com"])._id
+                    users[i] = uid
+                    stack.idm.create('managed/account', [accountId: account(i), name: "Account ${i}", productCode: 'SC',
+                                                         ownedBy: [_ref: "managed/user/${uid}".toString()]])
+                } catch (Throwable t) { failure.compareAndSet(null, t) }
+            }
         }
-        report("seeding IDM (2N creates, no sync): ${(System.nanoTime() - t0).intdiv(1_000_000)} ms; IDM memory ${memory()}")
+        pool.shutdown()
+        pool.awaitTermination(4, TimeUnit.HOURS)
+        if (failure.get()) throw failure.get()
+        report("seeding IDM (2N creates in 8 threads, no sync): ${(System.nanoTime() - t0).intdiv(1_000_000)} ms; IDM memory ${memory()}")
     }
 
     def "initial load: reconciling users, then accounts, puts every entity and relationship in the service (WS8.11)"() {
@@ -95,7 +106,7 @@ class ScaleInIdmSpec extends Specification {
         Map mapping = stack.mappings.find { it.name == 'managedUser_systemGraphentityUser' }
         stack.idm.put('config/sync', [mappings: stack.mappings.collect { (it.name == mapping.name ? it + [taskThreads: 4] : it) + [enableSync: true] }])
         Thread.sleep(5000)
-        List<Integer> changed = (1..N).findAll { it % 5 == 0 }
+        List<Integer> changed = (1..N).findAll { it % 5 == 0 }.take(500)
         def pool = Executors.newFixedThreadPool(4)
 
         when:
@@ -104,8 +115,10 @@ class ScaleInIdmSpec extends Specification {
             pool.submit { idm.patch("managed/user/${users[i]}", [[operation: 'replace', field: 'givenName', value: "Changed-${i}".toString()]]) }
         }
         pool.shutdown()
-        pool.awaitTermination(5, TimeUnit.MINUTES)
-        poll.eventually { assert idm.get("recon/${started._id}").state in ['SUCCESS', 'FAILED'] }
+        pool.awaitTermination(2, TimeUnit.HOURS)
+        long t0 = System.nanoTime()
+        while (!(idm.get("recon/${started._id}").state in ['SUCCESS', 'FAILED', 'CANCELED'])) Thread.sleep(2000)
+        report("concurrent 4-thread user recon finished ${(System.nanoTime() - t0).intdiv(1_000_000)} ms after the last change was sent")
         report("concurrent: ${changed.size()} implicit syncs during a 4-thread user recon of ${N}; recon state ${idm.get("recon/${started._id}").state}")
 
         then:

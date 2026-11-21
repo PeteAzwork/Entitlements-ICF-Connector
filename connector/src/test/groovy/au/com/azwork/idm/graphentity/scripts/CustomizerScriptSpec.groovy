@@ -6,6 +6,8 @@ import org.apache.http.HttpHost
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.protocol.BasicHttpContext
+import org.identityconnectors.common.security.GuardedString
+import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import spock.lang.Shared
@@ -156,5 +158,80 @@ class CustomizerScriptSpec extends Specification {
         !src.contains(Fixtures.API_KEY)
         !src.contains('Authorization')
         src.contains('configuration')
+    }
+
+    def "proxyAddress sends every request through the proxy, with the API key (deployment guide §5.2)"() {
+        given: 'the service host does not exist; only the proxy can answer for it'
+        wm.stubFor(get(urlEqualTo('/admin/entities/x')).willReturn(ok()))
+        def config = ScriptHarness.fakeConfiguration('https://service.invalid')
+        config.proxyAddress = new URI("http://localhost:${wm.port()}")
+        def captured = evaluate(config)
+        def builder = HttpClientBuilder.create()
+
+        when:
+        captured.init(builder)
+        int status = builder.build().execute(new HttpHost('service.invalid', 80), new HttpGet('/admin/entities/x'), new BasicHttpContext())
+            .withCloseable { it.statusLine.statusCode }
+
+        then:
+        status == 200
+        wm.verify(getRequestedFor(urlEqualTo('/admin/entities/x')).withHeader('X-API-KEY', equalTo(Fixtures.API_KEY)))
+    }
+
+    def "proxy credentials answer the proxy's 407 only, from the encrypted proxyPassword"() {
+        given:
+        String expected = 'Basic ' + 'proxy-user:proxy-secret'.bytes.encodeBase64().toString()
+        wm.stubFor(get(urlEqualTo('/admin/entities/x')).atPriority(2)
+            .willReturn(aResponse().withStatus(407).withHeader('Proxy-Authenticate', 'Basic realm="proxy"')))
+        wm.stubFor(get(urlEqualTo('/admin/entities/x')).atPriority(1).withHeader('Proxy-Authorization', equalTo(expected))
+            .willReturn(ok()))
+        def config = ScriptHarness.fakeConfiguration('http://service.invalid')
+        config.proxyAddress = new URI("http://localhost:${wm.port()}")
+        config.proxyUsername = 'proxy-user'
+        config.proxyPassword = new GuardedString('proxy-secret'.toCharArray())
+        def captured = evaluate(config)
+        def builder = HttpClientBuilder.create()
+
+        when:
+        captured.init(builder)
+        int status = builder.build().execute(new HttpHost('service.invalid', 80), new HttpGet('/admin/entities/x'), new BasicHttpContext())
+            .withCloseable { it.statusLine.statusCode }
+
+        then: 'answered after the challenge; never as Authorization, which would reach the service'
+        status == 200
+        wm.verify(getRequestedFor(urlEqualTo('/admin/entities/x')).withHeader('Proxy-Authorization', equalTo(expected)))
+        wm.verify(0, getRequestedFor(anyUrl()).withHeader('Authorization', matching('.*')))
+    }
+
+    def "a proxyAddress that carries credentials, or is not an http URL, is refused without repeating it"() {
+        given:
+        def config = ScriptHarness.fakeConfiguration('http://localhost:5276')
+        config.proxyAddress = address
+        def captured = evaluate(config)
+
+        when:
+        captured.init(HttpClientBuilder.create())
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains(expected)
+        !e.message.contains('s3cret')
+
+        where:
+        address                                    | expected
+        'http://user:s3cret@proxy.example.com:3128' | 'must not contain credentials'
+        'socks://proxy.example.com:1080'           | 'must be an http or https URL'
+    }
+
+    def "no proxyAddress, no proxy"() {
+        given:
+        def captured = evaluate(ScriptHarness.fakeConfiguration('http://localhost:5276'))
+        def builder = HttpClientBuilder.create()
+
+        when:
+        captured.init(builder)
+
+        then:
+        builder.@proxy == null
     }
 }

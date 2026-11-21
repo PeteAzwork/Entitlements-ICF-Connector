@@ -4,6 +4,7 @@
   "source": "managed/user",
   "target": "system/graphentity/user",
   "enableSync": true,
+  "taskThreads": 4,
   "correlationQuery": {
     "type": "text/javascript",
     "source": "var qry = { '_queryFilter': '__NAME__ eq \"' + source.userName + '\"' }; qry;"

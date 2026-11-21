@@ -3,11 +3,14 @@ package au.com.azwork.idm.graphentity.support
 import au.com.azwork.idm.graphentity.http.HttpResponse
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import com.sun.net.httpserver.HttpsConfigurator
+import com.sun.net.httpserver.HttpsServer
 import groovy.json.JsonException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
 import java.nio.charset.StandardCharsets
+import javax.net.ssl.SSLContext
 
 /**
  * Real HTTP front-end for {@link FakeGraphService}, so tools that speak HTTP (the contract probe, and later
@@ -38,18 +41,28 @@ class FakeGraphHttpServer implements Closeable {
     final String apiKeyHeader
     private final HttpServer server
 
-    FakeGraphHttpServer(FakeGraphService service, String apiKey = DEFAULT_API_KEY, String apiKeyHeader = DEFAULT_API_KEY_HEADER) {
+    /** With {@code ssl}, serves https with that context's certificate (the deployment guide's TLS tests). */
+    FakeGraphHttpServer(FakeGraphService service, String apiKey = DEFAULT_API_KEY, String apiKeyHeader = DEFAULT_API_KEY_HEADER,
+                        InetSocketAddress bind = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), SSLContext ssl = null) {
         this.service = service
         this.apiKey = apiKey
         this.apiKeyHeader = apiKeyHeader
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        if (ssl) {
+            HttpsServer https = HttpsServer.create(bind, 0)
+            https.httpsConfigurator = new HttpsConfigurator(ssl)
+            this.server = https
+        } else {
+            this.server = HttpServer.create(bind, 0)
+        }
         server.createContext(PREFIX) { HttpExchange ex -> handle(ex) }
         server.createContext(MANIFESTS) { HttpExchange ex -> handle(ex) }
     }
 
     FakeGraphHttpServer start() { server.start(); this }
 
-    String getBaseUrl() { "http://127.0.0.1:${server.address.port}" }
+    String getBaseUrl() { "${server instanceof HttpsServer ? 'https' : 'http'}://127.0.0.1:${server.address.port}" }
+
+    int getPort() { server.address.port }
 
     @Override
     void close() { server.stop(0) }

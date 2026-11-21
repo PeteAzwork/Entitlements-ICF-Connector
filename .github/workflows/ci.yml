@@ -21,6 +21,20 @@ jobs:
         run: ./gradlew --no-daemon :discovery:lintMappings
       - name: Compile with IDM 7.5's Groovy 3.0.9 (scripts deployment, script_vs_jar.md)
         run: ./gradlew --no-daemon :connector:compileWithIdmGroovy
+      - name: Build the release zips (docs/deployment-guide.md §3)
+        run: |
+          ./gradlew --no-daemon :connector:distZip :discovery:distZip
+          (cd connector/build/distributions && sha256sum *.zip) > SHA256SUMS
+          (cd discovery/build/distributions && sha256sum *.zip) >> SHA256SUMS
+          cat SHA256SUMS
+      - name: Publish the release zips
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zips
+          path: |
+            connector/build/distributions/*.zip
+            discovery/build/distributions/*.zip
+            SHA256SUMS
       - name: Publish test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -31,6 +45,34 @@ jobs:
             discovery/build/reports/tests/test
             connector/build/test-results/test
             discovery/build/test-results/test
+
+  forgerock-flavour:
+    # WS7.05: the connector and discovery suites against ForgeRock's own ICF framework (-PicfFlavour=forgerock), the
+    # API IDM ships. Needs FORGEROCK_MAVEN_USERNAME and FORGEROCK_MAVEN_PASSWORD as repository secrets; without them
+    # the job reports that it was skipped rather than failing.
+    name: Connector and discovery (ForgeRock ICF flavour)
+    runs-on: ubuntu-latest
+    env:
+      FORGEROCK_MAVEN_USERNAME: ${{ secrets.FORGEROCK_MAVEN_USERNAME }}
+      FORGEROCK_MAVEN_PASSWORD: ${{ secrets.FORGEROCK_MAVEN_PASSWORD }}
+    steps:
+      - name: Credentials present?
+        run: |
+          if [ -z "$FORGEROCK_MAVEN_USERNAME" ]; then
+            echo "::notice::ForgeRock flavour skipped: set FORGEROCK_MAVEN_USERNAME and FORGEROCK_MAVEN_PASSWORD secrets to enable it"
+          fi
+      - uses: actions/checkout@v4
+        if: env.FORGEROCK_MAVEN_USERNAME != ''
+      - uses: actions/setup-java@v4
+        if: env.FORGEROCK_MAVEN_USERNAME != ''
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.FORGEROCK_MAVEN_USERNAME != ''
+      - name: Test with the ForgeRock flavour
+        if: env.FORGEROCK_MAVEN_USERNAME != ''
+        run: ./gradlew --no-daemon --continue -PicfFlavour=forgerock :connector:test :discovery:test
 
   mapping-lib:
     name: Mapping library (Node test runner)

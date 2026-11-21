@@ -58,10 +58,10 @@ class FakeGraphService implements EntityApi {
     static final Set<String> FILTER_OPERATIONS = ['EQUALS', 'CONTAINS', 'STARTSWITH', 'AND', 'OR'] as Set
     static final int DEFAULT_PAGE_SIZE = 100
 
-    /** Relationship store: [sourceId, targetId, type]. */
-    final Set<List<String>> edges = new LinkedHashSet<>()
-    /** id → [id, baseType (int), attributes (string → string), directArchetypes, isArchetypes]. */
-    final Map<String, Map<String, Object>> entities = new LinkedHashMap<>()
+    /** Relationship store: [sourceId, targetId, type], indexed by entity (EdgeSet). */
+    final EdgeSet edges = new EdgeSet()
+    /** id → [id, baseType (int), attributes (string → string), directArchetypes, isArchetypes]. Sorted by ID, as search pages them. */
+    final Map<String, Map<String, Object>> entities = new TreeMap<>()
     final Map<String, Instant> lastEvaluated = [:]
     /** Manifests as the service returns them; an empty list makes GET /admin/manifests a 404. */
     final List<Map<String, Object>> manifests = []
@@ -135,7 +135,7 @@ class FakeGraphService implements EntityApi {
         def invalid = validate(document, id)
         if (invalid) return problem(400, invalid)
         if (!entities.containsKey(id)) return problem(404, 'Not Found')
-        edges.removeAll { it[0] == id || it[1] == id }   // assumption: both directions (Q07.8)
+        edges.removeTouching(id)   // assumption: both directions (Q07.8)
         store(id, document)
         new HttpResponse(status: 200)
     }
@@ -146,7 +146,7 @@ class FakeGraphService implements EntityApi {
         if (!entities.containsKey(id)) return problem(404, 'Not Found')
         def deleted = renderEntity(id)
         entities.remove(id); lastEvaluated.remove(id)
-        edges.removeAll { it[0] == id || it[1] == id }
+        edges.removeTouching(id)
         new HttpResponse(status: 200, body: deleted, headers: json())
     }
 
@@ -171,9 +171,9 @@ class FakeGraphService implements EntityApi {
             return problem(400, 'Invalid paging')
         }
         if (pageSize < 1 || offset < 0) return problem(400, 'Invalid paging')
-        def ids = entities.keySet().findAll { id ->
+        def ids = entities.keySet().findAll { id ->   // entities is a TreeMap, so already in ID order
             (objectClass == null || entities[id].baseType == objectClass) && (filter == null || matches(filter, id))
-        }.sort()
+        }
         def page = ids.drop(offset).take(pageSize).collect { renderSearchItem(it) }
         int next = offset + page.size()
         boolean more = next < ids.size()
@@ -203,7 +203,7 @@ class FakeGraphService implements EntityApi {
     /** DELETE /admin/entities/{source}/relationships/{target}[/{type}]. */
     HttpResponse deleteRelationship(String sourceId, String targetId, String type) {
         def r = injectedOrNull('DELETE_RELATIONSHIP', [source: sourceId, target: targetId, type: type]); if (r) return r
-        edges.removeAll { it[0] == sourceId && it[1] == targetId && (type == null || it[2] == type) }
+        edges.touching(sourceId).findAll { it[1] == targetId && (type == null || it[2] == type) }.each { edges.remove(it) }
         new HttpResponse(status: 200)
     }
 
@@ -218,7 +218,7 @@ class FakeGraphService implements EntityApi {
          baseType             : e.baseType,
          Attributes           : (e.attributes as Map).collectEntries { k, v -> [(k): [name: k, type: 'string', value: v]] },
          compoundAttributes   : [:],
-         relationships        : edges.findAll { it[0] == id || it[1] == id }.collect {
+         relationships        : edges.touching(id).collect {
              [source: it[0], target: it[1], type: it[2], sourceType: baseTypeName(entities[it[0]]?.baseType)]
          }]
     }

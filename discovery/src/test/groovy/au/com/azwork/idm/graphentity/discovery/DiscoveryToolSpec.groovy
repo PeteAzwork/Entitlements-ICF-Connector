@@ -90,6 +90,37 @@ class DiscoveryToolSpec extends Specification {
         new ConfigSlurper().parse(custom).pageSizeDefault == 50
     }
 
+    def "with --current, a complete provisioner is written: its customConfiguration replaced, objectTypes left to createFullConfig (WS7.03)"() {
+        given:
+        File current = new File('../config/provisioner.openicf-graphentity.json')
+
+        when:
+        int code = run(['--managed', MANAGED, '--types', 'user,account', '--answers', answers().path, '--current', current.path, '--out', outDir().path])
+
+        then:
+        code == DiscoveryTool.OK
+        def written = new JsonSlurper().parse(new File(outDir(), 'provisioner.openicf-graphentity.json')) as Map
+        def original = new JsonSlurper().parse(current) as Map
+        written.connectorRef == original.connectorRef
+        written.configurationProperties.classpath == original.configurationProperties.classpath
+        written.configurationProperties.customConfiguration == new File(outDir(), 'customConfiguration.txt').text.trim()
+        written.objectTypes.keySet() == ['_comment'] as Set
+        out.contains('createFullConfig')
+    }
+
+    def "--report-only writes dry-run mappings: every situation REPORT, implicit sync off (WS9.06)"() {
+        when:
+        int code = run(['--managed', MANAGED, '--types', 'user,account', '--answers', answers().path, '--report-only', '--out', outDir().path])
+        def mapping = new JsonSlurper().parse(new File(outDir(), 'sync-user.json')) as Map
+
+        then:
+        code == DiscoveryTool.OK
+        mapping.policies.size() == 13
+        mapping.policies.every { it.action == 'REPORT' }
+        mapping.enableSync == false
+        MappingLint.check(mapping) == []
+    }
+
     def "generation errors exit 1 and write nothing"() {
         when:
         int code = run(['--managed', MANAGED, '--types', 'user,account', '--answers', answers([entityKinds: [user: 'subject']]).path, '--out', outDir().path])
