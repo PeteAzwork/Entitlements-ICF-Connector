@@ -9,11 +9,11 @@ Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one 
 
 ## State of this repository
 
-The build is test-first. The complete unit test suite is in place and the production code is thin stubs that throw `UnsupportedOperationException("TODO WSn: …")`. Implementation proceeds workstream by workstream (see the plan, §4) by turning specs green. WS1 (configuration, convention and schema), WS2 (model, codec and payload) and WS3 (transport, error mapping, write and test operations, customizer) are done.
+The build is test-first. The complete unit test suite is in place and the production code is thin stubs that throw `UnsupportedOperationException("TODO WSn: …")`. Implementation proceeds workstream by workstream (see the plan, §4) by turning specs green. WS1–WS4 are done: configuration and schema, model and payload, transport and write operations, and search. The connector library has no stubs left, and every connector spec passes (milestone M3).
 
 | Area | Code | Tests | Run |
 |---|---|---|---|
-| Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 30 Spock specs, 639 executions (all but WS4's search specs green) | `./gradlew :connector:test` |
+| Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 30 Spock specs, 647 executions, all passing | `./gradlew :connector:test` |
 | Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 4 specs, 45 executions | `./gradlew :discovery:test` |
 | Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 69 tests | `cd mapping-lib && npm test` |
 | Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 126 tests, all passing | `./gradlew :contract-probe:test` |
