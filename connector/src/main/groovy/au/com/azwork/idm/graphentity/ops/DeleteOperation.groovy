@@ -1,5 +1,10 @@
 package au.com.azwork.idm.graphentity.ops
 
+import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
+import au.com.azwork.idm.graphentity.http.HttpErrorMapper
+import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.graphentity.http.OpContext
+import au.com.azwork.idm.graphentity.payload.EntityPayloadBuilder
 import org.identityconnectors.framework.common.objects.ObjectClass
 import org.identityconnectors.framework.common.objects.OperationOptions
 import org.identityconnectors.framework.common.objects.Uid
@@ -13,8 +18,15 @@ class DeleteOperation {
 
     DeleteOperation(OperationContext ctx) { this.ctx = ctx }
 
-    /** TODO WS3. */
+    /** The response body (the deleted entity) is not used, so nothing of it is logged. */
     void execute(ObjectClass objectClass, Uid uid, OperationOptions options) {
-        throw new UnsupportedOperationException('TODO WS3: DeleteOperation.execute')
+        ObjectTypeConfig type = ObjectClassResolver.resolve(objectClass, ctx.config)
+        String id = EntityPayloadBuilder.checkId(uid?.uidValue, 'Uid')
+        HttpResponse response = Transport.call { ctx.api.delete(id) }
+        if (HttpErrorMapper.raise(response, OpContext.DELETE, ctx.config)) {
+            Logs.info(ctx.log, "delete of ${type.name} '${id}': already absent (HTTP 404), treated as deleted")
+        } else {
+            Logs.ok(ctx.log, "deleted ${type.name} '${id}'")
+        }
     }
 }

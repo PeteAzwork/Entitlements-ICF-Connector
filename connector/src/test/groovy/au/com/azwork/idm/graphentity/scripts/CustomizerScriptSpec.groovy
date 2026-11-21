@@ -103,6 +103,51 @@ class CustomizerScriptSpec extends Specification {
         captured.release(HttpClientBuilder.create()) == null
     }
 
+    def "decorate wraps the configured client in a RESTClient for the service that returns non-2xx rather than throwing (WS3.01)"() {
+        given:
+        wm.stubFor(get(urlEqualTo('/admin/entities/x')).willReturn(aResponse().withStatus(404)))
+        def captured = evaluate(ScriptHarness.fakeConfiguration("http://localhost:${wm.port()}"))
+        def builder = HttpClientBuilder.create()
+        captured.init(builder)
+
+        when:
+        def client = captured.decorate(builder.build())
+        def status = new au.com.azwork.idm.graphentity.http.RestClientEntityApi(client).get('x').status
+
+        then:
+        client instanceof groovyx.net.http.RESTClient
+        status == 404
+        wm.verify(getRequestedFor(urlEqualTo('/admin/entities/x')).withHeader('X-API-KEY', equalTo(Fixtures.API_KEY)))
+    }
+
+    def "init takes the configuration from its delegate, as the harness provides it"() {
+        given:
+        wm.stubFor(get(urlEqualTo('/admin/entities/x')).willReturn(ok()))
+        def captured = evaluate(null)
+        def builder = HttpClientBuilder.create()
+        def init = captured.init.rehydrate(ScriptHarness.fakeConfiguration("http://localhost:${wm.port()}"), captured.init.owner, captured.init.thisObject)
+
+        when:
+        init(builder)
+        builder.build().execute(new HttpHost('localhost', wm.port()), new HttpGet('/admin/entities/x'), new BasicHttpContext()).close()
+
+        then:
+        wm.verify(getRequestedFor(urlEqualTo('/admin/entities/x')).withHeader('X-API-KEY', equalTo(Fixtures.API_KEY)))
+    }
+
+    def "timeouts can be set through connectTimeoutMs and socketTimeoutMs in customConfiguration"() {
+        given:
+        def captured = evaluate(ScriptHarness.fakeConfiguration('http://localhost:5276', [connectTimeoutMs: '1500', socketTimeoutMs: '2500']))
+        def builder = HttpClientBuilder.create()
+
+        when:
+        captured.init(builder)
+
+        then:
+        builder.@defaultRequestConfig.connectTimeout == 1500
+        builder.@defaultRequestConfig.socketTimeout == 2500
+    }
+
     def "the script source does not embed credentials and references the configuration for them"() {
         given:
         def src = new File(ScriptHarness.SCRIPT_DIR, 'CustomizerScript.groovy').text

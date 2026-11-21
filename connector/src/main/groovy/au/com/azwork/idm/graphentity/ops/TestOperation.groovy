@@ -1,5 +1,10 @@
 package au.com.azwork.idm.graphentity.ops
 
+import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
+import au.com.azwork.idm.graphentity.http.HttpErrorMapper
+import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.graphentity.http.OpContext
+import au.com.azwork.idm.graphentity.config.EntityKind
 /**
  * Test (design §9.5): an authenticated search (POST /admin/entities/search, P14) with page size 1, where any 2xx
  * is healthy; then the manifest check of decision P22, as amended 2026-11-21: every configured archetype should be
@@ -14,8 +19,48 @@ class TestOperation {
 
     TestOperation(OperationContext ctx) { this.ctx = ctx }
 
-    /** TODO WS3. */
     void execute() {
-        throw new UnsupportedOperationException('TODO WS3: TestOperation.execute')
+        HttpResponse search = Transport.call { ctx.api.search([pageSize: 1]) }
+        HttpErrorMapper.raise(search, OpContext.TEST, ctx.config)
+        checkManifests()
+        null
+    }
+
+    private void checkManifests() {
+        HttpResponse response = Transport.call { ctx.api.manifests() }
+        if (response.status == 404) {
+            Logs.warn(ctx.log, 'The service has no manifests, so no configured archetype could be checked (P22)')
+            return
+        }
+        HttpErrorMapper.raise(response, OpContext.TEST, ctx.config)
+        Map<String, Set<String>> defined = [subjectArchetypes: new HashSet<String>(), resourceArchetypes: new HashSet<String>()]
+        collect(response.body, defined)
+        ctx.config.objectTypes.values().each { ObjectTypeConfig type ->
+            String key = type.entityKind == EntityKind.SUBJECT ? 'subjectArchetypes' : 'resourceArchetypes'
+            String kind = type.entityKind == EntityKind.SUBJECT ? 'subject' : 'resource'
+            type.archetypes.each { String archetype ->
+                if (!(archetype in defined[key])) {
+                    Logs.warn(ctx.log, "Archetype '${archetype}' of ${type.name} is not defined as a ${kind} archetype in any manifest; the service accepts it, but no policy will refer to it (P22, C16)")
+                }
+            }
+        }
+    }
+
+    /** Walks the response, list or export bundle alike (C11), collecting archetype names (strings or {name}). */
+    private static void collect(Object node, Map<String, Set<String>> defined) {
+        if (node instanceof Map) {
+            (node as Map).each { k, v ->
+                if (defined.containsKey(k as String) && v instanceof Collection) {
+                    (v as Collection).each { a ->
+                        Object name = a instanceof Map ? (a as Map).name : a
+                        if (name != null) defined[k as String] << name.toString()
+                    }
+                } else {
+                    collect(v, defined)
+                }
+            }
+        } else if (node instanceof Collection) {
+            (node as Collection).each { collect(it, defined) }
+        }
     }
 }

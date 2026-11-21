@@ -8,16 +8,17 @@ import au.com.azwork.idm.graphentity.model.Edge
  */
 class EdgeVerifier {
 
-    /** Edges in {@code submitted} that are absent from {@code returned}, compared as a set. TODO WS3. */
+    /** Edges in {@code submitted} that are absent from {@code returned}, compared as a set. */
     static List<Edge> dropped(Collection<Edge> submitted, Collection<Edge> returned) {
-        throw new UnsupportedOperationException('TODO WS3: EdgeVerifier.dropped')
+        Set<Edge> present = new HashSet<>(returned ?: [])
+        new ArrayList<Edge>(new LinkedHashSet<Edge>((submitted ?: []).findAll { !(it in present) }))
     }
 
     /**
      * WARN message of the form {@code dropped edge Sanne -Owns-> Current-Account-1-Sanne}: source, type,
-     * target, whichever end is being written. Contains IDs and type only, never attributes. TODO WS3.
+     * target, whichever end is being written. Contains IDs and type only, never attributes.
      */
     static String warnMessage(Edge edge) {
-        throw new UnsupportedOperationException('TODO WS3: EdgeVerifier.warnMessage')
+        "dropped edge ${edge.sourceId} -${edge.type}-> ${edge.targetId}"
     }
 }

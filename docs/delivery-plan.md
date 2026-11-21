@@ -2,7 +2,7 @@
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
-**Plan status:** Proposed, **v2.15 — 2026-11-21** (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
+**Plan status:** Proposed, **v2.16 — 2026-11-21** (WS3 done: transport, error mapping, write and test operations, the customizer; the harness contract settled from Ping's documentation, which showed the schema script must use the `builder` DSL). v2.15: (WS2 done: the three document models, the relationship codec, the payload builder and the decoder). v2.14: (WS1 done: configuration, convention and schema implemented; `lastEvaluated` returned by default; the schema built from a fixed operation list). v2.13: (WS0.11: real recordings kept, and the fake checked against them). v2.12: (P20 amended: `""` clears and reads as absent; the empty-list purge is a service bug; WS0.15h starting-state checks). v2.11: (write run `215954`: an empty relationship list removed nothing even after waiting, a replaced relationship resurfaced (C18), and `""` stores an empty value). v2.10: (WS0.15g: the probe waits for relationship removal and checks replacement and clearing; the owner confirms an empty relationship list purges all relationships). v2.9: write run `214027` folded in. v2.8: (WS0.15f: settled writes, read on the written entity, leftover removal; P23: IDs containing `/` rejected; P22 amended: the manifest check warns). v2.7: write run `211859` folded in. v2.6: WS0.15e, the probe waits for writes to settle. v2.5: (P19 amended to scope on `isArchetypes`; C8 and C9 folded into the specs, fakes and probe). v2.4: write run `190350` folded in. The service owner confirmed C8, `attributes.ID` required, and C9, direct archetypes reported in `isArchetypes`, as by design, and reports that deletes work. Base type 4 is a Subject (P18)). v2.3: first realigned runs; P19 challenged (C9). v2.2: WS0.14 and WS0.15 done. v2.1: design decisions P17–P22 recorded. v2.0, 2026-11-21: Rewritten after the service's OpenAPI definition arrived. Relationship writes are confirmed as full-state (P15), and drift detection is scheduled last (P16).
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. The repository holds the unit test suite and thin stubs; implementation turns specs green workstream by workstream.
 
@@ -61,7 +61,7 @@ The design document says *what* the connector is. This plan says *in what order*
 
 ### 2.3 Design → code map
 
-The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes and are still stubs. WS1's classes (configuration, convention, schema, `ObjectClassResolver`) and WS2's (`Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`) are implemented.
+The map below is the current one. The classes marked † were revised in WS0.14 to the real API's shapes and are still stubs. WS1's classes (configuration, convention, schema, `ObjectClassResolver`) and WS2's (`Edge`, `EntityDocument`, `EdgeCodec`, `EntityPayloadBuilder`, `EntityDecoder`) and WS3's (transport, error mapping, `ScriptSupport`, `ClientCustomizer`, the write and test operations, the scripts) are implemented.
 
 | Design section | Library class(es) | Spec(s) |
 |---|---|---|
@@ -73,13 +73,13 @@ The map below is the current one. The classes marked † were revised in WS0.14 
 | §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js` |
 | §8.3 ICF encoding | `codec.EdgeCodec` | `EdgeCodecSpec` |
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
-| §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` † | `CreateOperationSpec`, `EdgeVerifierSpec` |
+| §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` | `CreateOperationSpec`, `EdgeVerifierSpec` |
 | §9.3 delete | `ops.DeleteOperation` | `DeleteOperationSpec` |
 | §9.4 search, get, scoping, paging | `search.SearchPlanner` †, `search.TypeScoper` †, `search.PageCursor` †, `ops.SearchOperation`, `payload.EntityDecoder` | `SearchPlannerSpec`, `TypeScoperSpec`, `PageCursorSpec`, `SearchOperationSpec`, `EntityDecoderSpec` |
 | §9.5 test and schema | `ops.TestOperation`, `ops.SchemaOperation` | `TestAndSchemaOperationSpec` |
 | §13 exception mapping | `http.HttpErrorMapper` | `HttpErrorMapperSpec` |
-| §2/§14 transport and auth | `http.RestClientEntityApi`, `CustomizerScript` | `RestClientEntityApiSpec`, `CustomizerScriptSpec` |
-| §4 scripts as the harness runs them | `ops.ScriptSupport`, scripts | `OperationScriptsSpec`, `ScriptSupportSpec` |
+| §2/§14 transport and auth | `http.RestClientEntityApi`, `ops.ClientCustomizer`, `CustomizerScript` | `RestClientEntityApiSpec`, `CustomizerScriptSpec` |
+| §4 scripts as the harness runs them | `ops.ScriptSupport`, `schema.SchemaDsl`, scripts | `OperationScriptsSpec`, `ScriptSupportSpec` |
 | §12 discovery | `discovery.*` | `ManagedSchemaReaderSpec`, `ObjectTypesGeneratorSpec`, `MappingSkeletonGeneratorSpec`, `DiffSummarySpec` |
 | Appendix A | all operations against `FakeGraphService` † | `WorkedExampleSpec` |
 
@@ -167,6 +167,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 **Implement:** `HttpErrorMapper`, `RestClientEntityApi`, `ScriptSupport`, `EdgeVerifier`, `CreateOperation`, `UpdateOperation`, `DeleteOperation`, `TestOperation`, and the `CustomizerScript` body.
 **Acceptance:** `HttpErrorMapperSpec`, `RestClientEntityApiSpec`, `ScriptSupportSpec`, `EdgeVerifierSpec`, `CreateOperationSpec`, `UpdateOperationSpec`, `DeleteOperationSpec`, `TestAndSchemaOperationSpec`, `CustomizerScriptSpec`, and the create, update, delete and test cases of `OperationScriptsSpec`.
 **Estimate:** 5 days.
+**Status:** Done 2026-11-21. All acceptance specs green; only `OperationScriptsSpec`'s two search cases remain, for WS4.
 
 ### WS4 — Search, scoping and paging
 
@@ -290,11 +291,11 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `ops/SearchOperationSpec` | §9.4 | 21 | 21 |
 | `ops/TestAndSchemaOperationSpec` | §9.5 | 15 | 15 |
 | `ops/ScriptSupportSpec` | §4, P13 | 8 | 8 |
-| `scripts/OperationScriptsSpec` | §4 | 13 | 13 |
-| `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
+| `scripts/OperationScriptsSpec` | §4, WS3.01, WS3.10 | 18 | 19 |
+| `scripts/CustomizerScriptSpec` | §4, §14, P13, WS3.01 | 8 | 8 |
 | `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **361** | **630** |
+| **Connector total** | | **369** | **639** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 10 | 10 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 18 | 18 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2 | 10 | 10 |
@@ -307,11 +308,11 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `contract-probe/RealShapedServiceSpec` | WS0.16 | 13 | 13 |
 | `contract-probe/ProbeMainSpec` | WS0 | 11 | 31 |
 | **Contract probe total** | | **106** | **126** |
-| **Grand total** | | | **870** |
+| **Grand total** | | | **879** |
 
-Current result (2026-11-21, after WS2): connector 320 pass / 305 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub (connector: WS3 225, WS4 80; discovery: WS6 45), with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are WS1's and WS2's specs in full (`EntityKindSpec`, `DirectionSpec`, `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `RelationshipConventionSpec`, `ObjectClassResolverSpec`, `SchemaFactorySpec` and the three schema cases of `TestAndSchemaOperationSpec`; `EdgeSpec`, `EntityDocumentSpec`, `EdgeCodecSpec`, `EntityPayloadBuilderSpec`, `EntityDecoderSpec`), all ten of `RecordedShapesSpec`'s checks of the fake and `EntityDocument` against the recorded service shapes, and the structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, and the response helpers. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21, after WS3): connector 554 pass / 83 fail / 2 skipped (the `@Stepwise` scenario stops at its first search step); discovery 0 / 45; mapping library 3 pass / 66 fail. Every failure is a `TODO WSn` stub (connector: WS4 83; discovery: WS6 45), with no failures caused by the test harness. The contract probe's 126 tests all pass, because the probe is finished code rather than a stub. Every connector spec except WS4's (`SearchPlannerSpec`, `PageCursorSpec`, `TypeScoperSpec`, `SearchOperationSpec`, the two search cases of `OperationScriptsSpec` and the search steps of `WorkedExampleSpec`) is green. The passing mapping-library tests check the library's exports and ES5 syntax.
 
-Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413.
+Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305.
 
 ### 6.4 Tests still to write
 
@@ -631,7 +632,7 @@ Do these in order; later tasks reuse earlier ones.
 
 ### WS3 — Transport, error mapping and write operations
 
-- [ ] **WS3.01 Verify the Scripted REST harness contract for toolkit 1.5.20.x (M). Do this first.**
+- [x] **WS3.01 Verify the Scripted REST harness contract for toolkit 1.5.20.x (M). Do this first.**
   Ping's connector reference says the customizer script implements `init` and `decorate` closures. Operation scripts receive the *output of `decorate`* as their connection, and ForgeRock's samples use `customizedConnection as RESTClient`. Our scripts currently read `connection` and our customizer has no `decorate` closure. Settle the following from the connector bundle's own sample scripts or the vendor docs:
   - the binding name for the decorated client;
   - the signatures of `init`, `decorate` and `release`;
@@ -643,27 +644,34 @@ Do these in order; later tasks reuse earlier ones.
   - add a `decorate` closure that returns a `RESTClient` configured for JSON, whose failure handler does not throw;
   - make the scripts and `ScriptSupport` read the confirmed binding;
   - update `ScriptHarness`, `CustomizerScriptSpec` and `OperationScriptsSpec` to match.
+  *Done 2026-11-21* from Ping's ICF documentation (the vendor host was allowed for this session; the bundle's samples are on customer-only Stash). Results in `docs/service-contract.md` §4:
+  - **Bindings.** `connection` is the Apache `HttpClient` built from `init`; `customizedConnection` is what `decorate` returns. The scripts take `ScriptSupport.connectionOf(binding)`, which prefers `customizedConnection`, and `ScriptSupport` wraps a bare `HttpClient` in a `RESTClient` itself, so the key header from `init` is sent either way.
+  - **Customizer.** `init`'s configuration is its closure delegate. `decorate` wraps the built client with `HTTPBuilder.setClient` and returns non-2xx rather than throwing. The work is in `ops.ClientCustomizer`.
+  - **Create** receives `id` (the `__NAME__`), restored into the attributes when absent. **Search** may return a `SearchResult` or a cookie string. **Update** receives `operation`.
+  - **Schema: a real defect fixed.** The script receives `builder` (an `ICFObjectBuilder`), must call `builder.schema { }` and returns nothing; there is no `connectorClass` binding, which the previous script read. `schema.SchemaDsl` hands `SchemaFactory`'s schema to the DSL and disables Sync, Authenticate and ResolveUsername per class.
+  - **Still assumed, with fallbacks:** `decorate`'s argument type and `disable`'s parameter type. Confirm both on a real IDM (WS8).
+  - `ScriptHarness` now runs the real `CustomizerScript` as the harness does and binds both clients; `FakeSchemaBuilder` stands in for the DSL.
   *Note:* `docs.pingidentity.com` was outside the network allow-list of the session that wrote this plan, so the vendor page could not be read in full.
-- [ ] **WS3.02 `HttpErrorMapper.raise` (M).** Implement the §13 table exactly as `HttpErrorMapperSpec` encodes it. Messages read like "HTTP 400 during CREATE: <redacted body>". A 429 message carries the `Retry-After` value. A tolerated 404 returns true.
+- [x] **WS3.02 `HttpErrorMapper.raise` (M).** Implement the §13 table exactly as `HttpErrorMapperSpec` encodes it. Messages read like "HTTP 400 during CREATE: <redacted body>". A 429 message carries the `Retry-After` value. A tolerated 404 returns true.
   *Gotcha:* `CreateOperationSpec` expects the 400 body to appear in an ERROR log line, but `raise` has no logger. Either the operations log before calling `raise`, or `raise` takes a `Log`. Choose one approach for all operations.
-- [ ] **WS3.03 `HttpErrorMapper.retryAfterSeconds` (S).** Accept non-negative delta-seconds, or an RFC 1123 HTTP-date converted to seconds from now and clamped at zero. Anything else returns null. Header lookup ignores case.
-- [ ] **WS3.04 `HttpErrorMapper.redact` (S).** Mask `X-API-KEY` values as a header, JSON field or query parameter, in any case, along with `apiKey` and `api_key` fields, `Authorization` values (Basic and Bearer) and JSON `password` fields. Leave other text untouched and accept null. Separately, `raise` must strip the configured key's literal value from any message, because the service may echo the key without a recognisable label, and one leaked key exposes every consumer (P13).
-  *Green:* `HttpErrorMapperSpec`.
-- [ ] **WS3.05 `RestClientEntityApi` (L).** Implement the five calls over `RESTClient`. `search` is a POST to `SEARCH_PATH` with the fields as a JSON body. An empty map sends `{}` (P14). Convert responses to `HttpResponse`, carrying the status, the parsed body (Map or List, or null for a non-JSON body), the raw body and the headers. Never throw for a non-2xx status. Let transport failures propagate as `IOException`.
+- [x] **WS3.03 `HttpErrorMapper.retryAfterSeconds` (S).** Accept non-negative delta-seconds, or an RFC 1123 HTTP-date converted to seconds from now and clamped at zero. Anything else returns null. Header lookup ignores case.
+- [x] **WS3.04 `HttpErrorMapper.redact` (S).** Mask `X-API-KEY` values as a header, JSON field or query parameter, in any case, along with `apiKey` and `api_key` fields, `Authorization` values (Basic and Bearer) and JSON `password` fields. Leave other text untouched and accept null. Separately, `raise` must strip the configured key's literal value from any message, because the service may echo the key without a recognisable label, and one leaked key exposes every consumer (P13).
+  *Green:* `HttpErrorMapperSpec`. *Done 2026-11-21.* `raise` takes no logger: the operations log a 400's redacted body at ERROR themselves, through `HttpErrorMapper.message`. Redaction covers JSON fields, headers and query parameters; `raise` also strips the configured key's literal value.
+- [x] **WS3.05 `RestClientEntityApi` (L).** Implement the five calls over `RESTClient`. `search` is a POST to `SEARCH_PATH` with the fields as a JSON body. An empty map sends `{}` (P14). Convert responses to `HttpResponse`, carrying the status, the parsed body (Map or List, or null for a non-JSON body), the raw body and the headers. Never throw for a non-2xx status. Let transport failures propagate as `IOException`.
   *Gotcha:* `RESTClient` parses bodies by content type and consumes the stream, so the raw body is lost unless you take control. Request text and parse JSON with `JsonSlurper` yourself, or register a buffering parser.
   *Gotcha:* the path encoding. `RESTClient` and `URIBuilder` can re-encode `%` as `%25`. The spec requires `GET` of `a/b` to hit `/admin/entities/a%2Fb` exactly, so build the request URI from the already-encoded segment.
   *Gotcha:* `URLEncoder` encodes a space as `+`, but a path segment needs `%20`.
-  *Green:* `RestClientEntityApiSpec`.
-- [ ] **WS3.06 `ScriptSupport` (M).**
+  *Green:* `RestClientEntityApiSpec`. *Done 2026-11-21.* Every request asks HTTP Builder for text and parses JSON itself, with one handler for success and failure, and the request URI is built from the already-encoded path. `EntityApi` now declares `throws IOException`, as its documentation said, so transport failures are not wrapped in `UndeclaredThrowableException`.
+- [x] **WS3.06 `ScriptSupport` (M).**
   - `propertiesFrom` converts the `serviceAddress` URI to a string. It reads the `GuardedString` `password`, which holds the API key (P13), through `access()`, returns it as `apiKey` and does not mutate the configuration. It never returns `password` or `username`.
   - It copies the property bag keys. When the bag lacks `objectTypes`, it parses `customConfiguration` with `ConfigSlurper`.
   - `contextFrom` builds the `OperationContext`. A null connection is allowed for Schema.
   - It logs the config's validation warnings at WARN.
   - Cache the parsed `ConnectorConfig`, keyed by a hash of the `objectTypes` text. Recon calls the scripts thousands of times, and re-parsing and re-validating each time is waste.
-  *Green:* `ScriptSupportSpec`.
-- [ ] **WS3.07 `EdgeVerifier` (S).** Edges use the P17 shape. It depends and on C1 (GET by ID) to be useful against the real service. If GET stays broken, verification logs a WARN and the create still succeeds (P11). `dropped` compares as sets, treating null as empty. `warnMessage` uses `-T->` for outbound and `<-T-` for inbound edges, with IDs and type only.
+  *Green:* `ScriptSupportSpec`. *Done 2026-11-21.* The cache is keyed by a SHA-256 of the whole property set, so it never holds the key readably; warnings are logged once, when a configuration is first built.
+- [x] **WS3.07 `EdgeVerifier` (S).** Edges use the P17 shape. It depends and on C1 (GET by ID) to be useful against the real service. If GET stays broken, verification logs a WARN and the create still succeeds (P11). `dropped` compares as sets, treating null as empty. `warnMessage` uses `-T->` for outbound and `<-T-` for inbound edges, with IDs and type only. *As built (2026-11-21), following `EdgeVerifierSpec`:* always `source -T-> target`, which reads the same whichever end is written.
   *Green:* `EdgeVerifierSpec`.
-- [ ] **WS3.08 `CreateOperation` (M).** Create is `POST /admin/entities` with an EntityDTO body (`id`, `baseType`, `attributes`, `relationships`, `directArchetypes`), carrying the full relationship set (P15).
+- [x] **WS3.08 `CreateOperation` (M).** Create is `POST /admin/entities` with an EntityDTO body (`id`, `baseType`, `attributes`, `relationships`, `directArchetypes`), carrying the full relationship set (P15).
   1. Resolve the type, get the id from `idForCreate`, and build the document. Malformed input fails here, before any HTTP call.
   2. `POST`, then map the outcome, logging a 400 body at ERROR.
   3. Run the verification `GET`. If it fails, log WARN "verification GET failed for <id>" and still return the Uid (P11).
@@ -672,23 +680,25 @@ Do these in order; later tasks reuse earlier ones.
   6. Convert any `IOException` to `ConnectorIOException`.
   7. Return `new Uid(id)`.
   Never log attribute values above `OK`.
-  *Green:* `CreateOperationSpec`.
-- [ ] **WS3.09 `UpdateOperation` (M).** The service removes every relationship missing from the collection (P15), so the P4 guard is essential, not defensive. Resolve the type. Require `entityRelationships` and `directArchetypes` to be present (P4), or throw `InvalidAttributeValueException` naming the missing one. Build from `uid.uidValue`, `PUT`, and map the outcome. Never `GET`.
+  *Green:* `CreateOperationSpec`. *Done 2026-11-21.* Verification is skipped when `byIdLookup` is `search` or there are no relationships. A failed re-PUT in aggressive mode is a WARN; it does not undo the create.
+- [x] **WS3.09 `UpdateOperation` (M).** The service removes every relationship missing from the collection (P15), so the P4 guard is essential, not defensive. Resolve the type. Require `entityRelationships` and `directArchetypes` to be present (P4), or throw `InvalidAttributeValueException` naming the missing one. Build from `uid.uidValue`, `PUT`, and map the outcome. Never `GET`.
   *Green:* `UpdateOperationSpec`.
-- [ ] **WS3.10 Reject partial-value updates in `UpdateScript` (S). New test needed.** The Groovy toolkit routes `ADD_ATTRIBUTE_VALUES` and `REMOVE_ATTRIBUTE_VALUES` through the update script with a different `operation` binding. Those carry deltas, not the full state, so turning them into a `PUT` would delete edges. Throw `UnsupportedOperationException` for them, and add an `OperationScriptsSpec` case for each.
-- [ ] **WS3.11 `DeleteOperation` (S).** `DELETE`, then map the outcome. The definition documents 404 for a missing entity, but the probe saw 200 (C3); either way the outcome is "gone". A tolerated 404 logs INFO with the id. Never `GET`.
+  *Spec correction (2026-11-21):* the first case expected `attributes` without `ID` and without the `""` values; it now expects every configured attribute, `""` when empty, and `attributes.ID` (C8 and P20 amended, both confirmed). `CreateOperationSpec`'s account case gained `attributes.ID` for the same reason.
+- [x] **WS3.10 Reject partial-value updates in `UpdateScript` (S). New test needed.** The Groovy toolkit routes `ADD_ATTRIBUTE_VALUES` and `REMOVE_ATTRIBUTE_VALUES` through the update script with a different `operation` binding. Those carry deltas, not the full state, so turning them into a `PUT` would delete edges. Throw `UnsupportedOperationException` for them, and add an `OperationScriptsSpec` case for each.
+- [x] **WS3.11 `DeleteOperation` (S).** `DELETE`, then map the outcome. The definition documents 404 for a missing entity, but the probe saw 200 (C3); either way the outcome is "gone". A tolerated 404 logs INFO with the id. Never `GET`.
   *Green:* `DeleteOperationSpec`.
-- [ ] **WS3.12 `TestOperation` (S).** Run a search POST with `pageSize: 1` using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
-  *Green:* the test cases in `TestAndSchemaOperationSpec`.
-- [ ] **WS3.13 `CustomizerScript` (M).**
+- [x] **WS3.12 `TestOperation` (S).** Run a search POST with `pageSize: 1` using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
+  *Green:* the test cases in `TestAndSchemaOperationSpec`. *Done 2026-11-21.* The search sends `{pageSize: 1}` directly, because `PageCursor` is WS4's. Archetype names are collected from any `subjectArchetypes`/`resourceArchetypes` list, as strings or `{name}` objects, in the list or the export bundle (C11). *Spec correction:* `service.entities.empty` read a map key named `empty`; it is now `isEmpty()`.
+- [x] **WS3.13 `CustomizerScript` (M).**
   - `init` reads the API key from the `GuardedString` `password` property and adds it, raw, as a default `X-API-KEY` header, or under the `apiKeyHeader` override from the property bag. It never sends an `Authorization` header (P13).
   - It sets connect, socket and connection-request timeouts on a `RequestConfig`. Defaults come from constants and can be overridden through property bag keys `connectTimeoutMs` and `socketTimeoutMs`. Document both keys in the provisioner sample.
   - It uses the system trust store for https, and logs WARN when the address is http on a host other than localhost (§14).
   - `release` stays safe to call.
   - Add `decorate` as decided in WS3.01.
   *Green:* `CustomizerScriptSpec`.
-- [ ] **WS3.14 Scripts end to end through WireMock (S).** The create, update, delete and test cases of `OperationScriptsSpec` pass, including the new WS3.10 cases.
-- [ ] **WS3.15 Logging review (S).** Grep every `log.` call. Above `OK` level, a message may contain IDs, edge shapes, statuses and redacted bodies, never attribute values or credentials (§13, §14).
+- [x] **WS3.14 Scripts end to end through WireMock (S).** The create, update, delete and test cases of `OperationScriptsSpec` pass, including the new WS3.10 cases.
+- [x] **WS3.15 Logging review (S).** Grep every `log.` call. Above `OK` level, a message may contain IDs, edge shapes, statuses and redacted bodies, never attribute values or credentials (§13, §14).
+  *Done 2026-11-21.* Every message above `OK` carries IDs, type and archetype names, edges, statuses, exception class names or a redacted, key-stripped body. ICF's `Log` treats its first argument as a `MessageFormat` pattern, so a JSON body (braces) threw and a quoted ID lost its quotes; every call now passes the message as the argument to `'{0}'` (`ops.Logs`).
 
 ### WS4 — Search, scoping and paging
 

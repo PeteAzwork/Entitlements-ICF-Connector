@@ -88,7 +88,8 @@ class EntityPayloadBuilder {
         checkId(value.toString(), source.name)
     }
 
-    private static String checkId(String id, String what) {
+    /** Rejects a blank id or one containing {@code /} (P23), naming {@code what}; returns the id. */
+    static String checkId(String id, String what) {
         if (id == null || !id.trim()) throw new InvalidAttributeValueException("The entity ${what} is blank")
         if (id.contains('/')) {
             throw new InvalidAttributeValueException("The entity ${what} '${id}' contains '/', which the service stores but cannot address by path, so the entity could never be updated or deleted (P23)")

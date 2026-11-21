@@ -2,5 +2,5 @@
 import au.com.azwork.idm.graphentity.ops.ScriptSupport
 import au.com.azwork.idm.graphentity.ops.TestOperation
 
-def ctx = ScriptSupport.contextFrom(configuration, connection, log)
+def ctx = ScriptSupport.contextFrom(configuration, ScriptSupport.connectionOf(binding), log)
 new TestOperation(ctx).execute()
