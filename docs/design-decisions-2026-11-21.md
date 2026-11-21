@@ -63,7 +63,7 @@ Each decision below gives the context, the decision, its consequences, what must
 - **Enumeration** sends the type's `objectClass`. It also sends a filter on the scope archetype if the service supports filtering on `directArchetypes`; otherwise the connector filters the results itself.
 - **Validation:** two types with the same base type must have different scope archetypes, or the configuration is rejected with `ConfigurationException`.
 - **Reads by ID** check only the base type. An existing entity without the scope archetype is still found when IDM correlates it, and receives the archetype on its next update.
-- `isArchetypes` is never used for scoping, because the connector does not control it.
+- `isArchetypes` is never used for scoping, because the connector does not control it. *Amendment pending (plan WS0.18): search reports archetypes assigned through `directArchetypes` in `isArchetypes`, by design, and leaves `directArchetypes` empty (C9). Scoping must therefore read `isArchetypes`.*
 
 **Consequences.**
 - `TypeScoper` matches on the scope archetype within `directArchetypes`; the base type is already enforced by `objectClass`.
@@ -148,6 +148,6 @@ The first realigned probe runs (`20261121-173141`, `20261121-173153`) bear on th
 | Decision | Finding | Effect |
 |---|---|---|
 | P18 | `objectClass: 4` returns only Subjects (C6), and an entity created with base type 4 is a Subject (run `190350` #41, #45) | **Confirmed** |
-| P17, P20, P22 | Creates need `attributes.ID` equal to `id` (C8, run `190350`). With it, the P17 relationship form is accepted, and so is the design's. Writing the target without a relationship leaves it (Q07.8 answered: no) | P20 gains a requirement: mirror the ID into `attributes.ID` (plan WS0.19). Attribute removal (P20) and archetype replacement (P22) are still unobserved, because the probe read back before the service caught up (WS0.15e) |
-| P19 | Search shows `directArchetypes` empty on every entity; archetypes written as direct appear in `isArchetypes` (C9) | Scoping on a direct scope archetype would find nothing. To be revisited (plan WS0.18) |
-| §9.3 delete | DELETE answers 200 and removes nothing; so does the single-relationship DELETE (C10) | Delete cannot work as designed until the service is fixed. Raise with the service team |
+| P17, P20, P22 | Creates and updates need `attributes.ID` equal to `id`. This is **by design**, confirmed by the service owner (C8, run `190350`). With it, the P17 relationship form is accepted, and so is the design's. Writing the target without a relationship leaves it (Q07.8 answered: no) | P20 gains a requirement: mirror the ID into `attributes.ID` (plan WS0.19). Attribute removal (P20) and archetype replacement (P22) are still unobserved, because the probe read back before the service caught up (WS0.15e) |
+| P19 | By design, search reports archetypes assigned through `directArchetypes` in `isArchetypes`, and leaves `directArchetypes` empty (C9, confirmed by the service owner) | The scope archetype must be matched in `isArchetypes`. Proposed amendment, pending the owner's confirmation (plan WS0.18). Residual risk: a policy could assign one type's scope archetype to other entities |
+| §9.3 delete | The service owner reports deletes work. The probe saw deleted entities still readable straight afterwards (C10) | No design change. Probably a delayed deletion; the probe re-checks with a settle window (plan WS0.15e) |

@@ -111,7 +111,7 @@ Most questions can be answered by observation with the contract probe in `contra
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
 | Q08.1 | Is BaseType only ever 2 or 4? | Yes. Anything else decodes to null (`EntityKind.fromBaseType`) | `types.baseTypes` | `EntityKind` | **Confirmed on this instance:** 77 Resources and 14 Subjects, nothing else (run `20261121-173141` #19) |
-| Q08.2 | Do archetypes, with BaseType, discriminate IDM types? | A scope archetype in `directArchetypes` (P19) | `types.archetypes` | `TypeScoper`, P19 | **No, not as P19 assumes:** directly assigned archetypes are reported in `isArchetypes`, and `directArchetypes` is always empty (C9). `ThirdPartyApplication` occurs with both base types (`173141` #19) |
+| Q08.2 | Do archetypes, with BaseType, discriminate IDM types? | A scope archetype per type (P19) | `types.archetypes` | `TypeScoper`, P19 | **Partly:** search reports directly assigned archetypes in `isArchetypes`, by design (C9), so scoping must read it (P19 amendment pending, WS0.18). `ThirdPartyApplication` occurs with both base types (`173141` #19) |
 
 ### WS0.09 — ID constraints
 
@@ -203,7 +203,7 @@ Out of scope for the connector: `/entitlements`, `/policy-information`, `/admin/
 | Entity (read) | GET, DELETE, bulk | `id` | `baseType`, enum 0–4 | `Attributes`: name → `{name, type, value}`; plus `compoundAttributes` | `relationships`: `{source, target, type, sourceType}` |
 | EntitySearchResultItem | search | `uid` and `name` | `baseType` (observed as `"Subject"`, `"Resource"`) | `attributes`: name → any value | **none** |
 
-Also on the read side: `directArchetypes` (assigned directly), `isArchetypes` (assigned by policy rules, search only), `lastEvaluated` ("last evaluation timestamp") and `reconciliationStarted` (Entity only).
+Also on the read side: `directArchetypes` (in search, always empty), `isArchetypes` (search only: the entity's archetypes, both those assigned through `directArchetypes` and those assigned by policy; C9), `lastEvaluated` ("last evaluation timestamp") and `reconciliationStarted` (Entity only).
 
 ### 5.3 Search
 
@@ -247,9 +247,9 @@ Runs: `20261121-155100` (the first write run, design-shaped documents), `2026112
 | C5 | Create returns 200 | **Search lags behind writes.** An entity created at `190350` #41 was not found at #43 but was at #45. Six entities created at #4–#14 were missing from the total at #15 (91) and present at #21 (97). The lag is short but real, so a single search straight after a write proves nothing |
 | C6 | Create samples: 2 = Subject, 4 = Resource | **The design's numbering holds:** an entity created with base type 4 is returned by a Subject search (`objectClass: 4`) as a `Subject` (`190350` #41, #45). `objectClass` reads agree (`173141` #5–#8) |
 | C7 | DELETE's summary reads "Retrieves an entity by ID" | Probably a copy-paste slip; DELETE returns the deleted entity |
-| C8 | Create takes EntityDTO: `id`, `baseType`, `attributes`, `relationships`, `directArchetypes`; 200 | **The service requires `attributes.ID` equal to `id`.** Of 8 variants, only the 3 carrying `attributes.ID` were accepted (`190350` #4–#11). Without it, every create and update gets 500. Reads do not return it: the read model's `Attributes` and the search item's `attributes` omit `ID` (#35, #60) |
-| C9 | Search items carry `directArchetypes` (assigned) and `isArchetypes` (from policy) | **Direct archetypes are reported under `isArchetypes`.** `shape-4` was created with `directArchetypes: ["Ws0Probe"]` in the EntityDTO (`190350` #7), and search shows `directArchetypes: []`, `isArchetypes: ["Ws0Probe"]` (#35). All real entities show `directArchetypes` empty. P19 scopes on `directArchetypes` and must be revisited |
-| C10 | DELETE removes the entity | **DELETE answers 200 and removes nothing.** After `DELETE edge-B` (`190350` #67), GET still returns edge-B and its relationship (#68, #69). The 19 entities `155100` deleted are still there hours later (#35). The single-relationship DELETE has no effect either (#63, #64). Neither the connector nor the probe can remove anything |
+| C8 | Create takes EntityDTO: `id`, `baseType`, `attributes`, `relationships`, `directArchetypes`; 200 | **By design** (confirmed by the service owner 2026-11-21): every create and update must carry `attributes.ID` equal to `id`. Without it the write gets 500. Of 8 body variants, only the 3 carrying it were accepted (`190350` #4–#11). Reads do not return it (#35, #60). Design §2.1 and §8.3–§8.4 updated; connector change is plan WS0.19 |
+| C9 | Search items carry `directArchetypes` (assigned) and `isArchetypes` (from policy) | **By design** (confirmed by the service owner 2026-11-21): a search item reports archetypes assigned through `directArchetypes` in `isArchetypes`, and its own `directArchetypes` field is empty. Seen with `shape-4` (`190350` #7, #35). Scoping must read `isArchetypes` (design §9.4; P19 amendment pending, plan WS0.18) |
+| C10 | DELETE removes the entity | **The service owner reports deletes work** (2026-11-21). The probe saw otherwise: straight after `DELETE edge-B` (`190350` #67), GET still returned it (#68, #69), the single-relationship DELETE showed no effect (#63, #64), and `155100`'s deleted entities were still found by search at #35. The likeliest explanation is that deletion is applied after a delay, like the search lag (C5) and GET's failures during re-evaluation (C1). WS0.15e re-checks with a settle window; the next run's `probe.leftovers` will show whether earlier runs' entities are gone |
 | C11 | `GET /admin/manifests` returns a list of manifests | 200 with `{paths: [{entities: {}, entityRelationships: [], policies: {}, manifests: {4 fields}}]}` (`190350` #31): an export bundle, with the manifests nested inside. Where the archetype names sit inside `manifests` is not yet known |
 | C12 | An invalid search request: 400 | 500 for an unknown `objectClass` (`173141` #23); 400 with problem details for an unknown filter operation (#22) |
 
@@ -314,17 +314,19 @@ The timestamp checks are gone: the service has no timestamp search (P16). Cleanu
 - **Q07.8:** writing the target without a relationship does not delete it.
 - **C2:** a PUT to a missing entity creates it.
 
-It also showed that **DELETE removes nothing (C10)** and that **search reports direct archetypes under `isArchetypes` (C9)**. Several answers came back "cannot tell" because the probe read once, straight after a write: search lags slightly (C5), and GET fails while an entity is being re-evaluated after a write (C1).
+It also showed that search reports directly assigned archetypes under `isArchetypes`, which the service owner confirms is by design (C9). C8 is also by design. The probe's readings suggested DELETE removes nothing, but the service owner reports deletes work (C10). The readings were probably taken before a delayed deletion applied. Several answers came back "cannot tell" because the probe read once, straight after a write: search lags slightly (C5), and GET fails while an entity is being re-evaluated after a write (C1).
 
 **Next:**
 - **Probe (plan WS0.15e):** wait for a write to show up before reading it back. Poll search, retry GET within a short settle window, and read archetypes from either field. Find the archetype names inside the manifests bundle (C11). When the manifests give none, use probe archetypes for the P22 check, since the service does not validate archetype names.
-- **Hold further write runs** until C10 is understood. Every run leaves about 35 entities behind, and none can be deleted. The test instance now holds 19 from `155100` and the entities from `190350`.
-- **Service team:** raise C1, C8, C9 and C10 first.
+- **Connector (plan WS0.19):** send `attributes.ID` on every write (C8, by design). Read archetypes from `isArchetypes` (C9, by design; P19 amendment pending, WS0.18).
+- **Leftovers:** the next run's `probe.leftovers` will show whether the entities from `155100` and `190350` have been deleted (C10).
+- **Service team:** raise C1 first. C8 and C9 are by design. C10 is reported as working.
 
 ## 8. Change log
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Service owner's clarifications: C8 (`attributes.ID` required) and C9 (directly assigned archetypes reported in `isArchetypes`) are by design. Deletes work, so C10 is re-framed as delayed deletion, to be re-checked. Design §2.1, §8.3, §8.4, §9.4, §13 and Appendix A updated. |
 | 2026-11-21 | Folded in write run `20261121-190350`. C8 answered (`attributes.ID` required); C6/P18 confirmed on create; C2 is an upsert; C10 is a DELETE that removes nothing; C9 confirmed (direct archetypes reported in `isArchetypes`); C5 is search lag; C1 refined (GET fails during re-evaluation and for some long-standing entities); C11 is a wrapped export bundle. Answered Q03.6, Q05.3, Q07.6 and Q07.8, and partly answered Q04.1, Q09.1 and Q09.2. |
 | 2026-11-21 | Folded in runs `20261121-173141` and `20261121-173153`. Answered Q03.5 and Q08.1, and partly answered Q03.4, Q05.1 and Q08.2. Updated C1–C6 and added C8–C12 (section 5.5). The probe gained `create.shape`, `create.relationshipShape`, `search.reflectsDelete` and `probe.leftovers`, and no longer treats a search miss as proof of deletion. Runs `20261121-154839` and `20261121-155100` were made before the scrubber fix and contain real entity data. They were committed to `main` and are removed from the branch tip; removing them from history needs a rewrite of `main`. |
 | 2026-11-21 | Probe realigned to the OpenAPI definition and P17–P22 (plan WS0.15): EntityDTO writes, search read-backs while GET fails, and new checks for P18, P20, P22, C5 and Q07.8 (section 7). The timestamp questions Q02.2–Q02.5 are answered by the definition (no timestamp search) and deferred to WS10. `--timestamp-field` is removed; `--archetypes` added. |
