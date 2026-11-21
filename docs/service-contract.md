@@ -184,6 +184,9 @@ Running the connector inside the real IDM 7.5.0 image (`gcr.io/forgerock-io/idm:
 | H14 | **Configuration applies asynchronously.** A `PUT` of `config/sync` or of the provisioner returns before the change is in effect; `sync/mappings` reports a change before implicit sync acts on it. | `IdmStack` waits on evidence: a canary write for implicit sync, three consecutive passing Tests for the connector. |
 | H15 | **A relationship changed from one end does not re-sync the other end** (even with `notify` or `notifySelf` on the relationship). | Harmless by design: both ends emit the same relationship, so the changed end's full-state write updates the service for both, and the other end's next write is derived from IDM's current state. |
 | H16 | **IDM refuses to reconcile from an empty source** (*"Cannot reconcile from an empty data source, unless allowEmptySourceSet is true"*). | A safeguard against mass deletion; the generated mappings leave it at its default. |
+| H18 | **IDM loads a `require`d script module afresh for each script evaluation.** Module-level state, such as the mapping library's configuration cache, does not survive between evaluations, nor between the entities of one reconciliation (WS8.08). | The library reads the configuration per evaluation; the cost is in the measured times. `RuntimeInIdmSpec` pins it. |
+| H19 | **Queued sync retries refused writes.** With `queuedSync` on a mapping, updates the service answered with 429 were retried by IDM, on its own `retryDelay`, until they succeeded; each refusal was logged with its `Retry-After` hint (WS8.09). Whether IDM honours `Retry-After` itself was not observed. | `RuntimeInIdmSpec`. Runbook §4 describes queued sync for high-churn types. |
+| H20 | **Timing note.** The test stand-in's JDK HTTP server leaves Nagle's algorithm on unless `sun.net.httpserver.nodelay` is set, which adds about 40 ms to each exchange with Apache HttpClient. The WS8 timings (68 ms per user) included it; with it off, the same run took 14 ms per user. A stand-in artefact, not a property of the connector or of the service. | `integration/build.gradle` sets the property; the runbook's figures come from runs with it set. |
 | H17 | **Through `system/graphentity`, a delete reads the object first**, so a missing entity is a 404 before the connector is called; `deleteMissingTolerated` applies when the service answers the DELETE itself with 404. | `ErrorPathsInIdmSpec` tests it that way. |
 
 ---
@@ -414,6 +417,7 @@ Answered:
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | H18–H20: IDM loads modules per script evaluation; queued sync retries 429s; the WS8 timings were inflated by the stand-in's Nagle delay and are re-measured. |
 | 2026-11-21 | H9 corrected: the library deploys as Groovy sources after all; the compile failure was H11's race. Scripts are the default deployment again, with the jar as an option (`script_vs_jar.md`). |
 | 2026-11-21 | WS8: the connector run inside IDM 7.5.0. H2 and H5 behave; section 4.1 adds what only a real IDM showed (H8–H17): generate the provisioner's object types with `createFullConfig` before saving it, `"source": ""` on the library transforms, and `SOURCE_MISSING` is the situation a delete raises. |
 | 2026-11-21 | WS3.01: harness contract answered from Ping's ICF documentation (section 4). H1, H3, H4, H6 answered; H2 and H5 answered with one assumed argument type each; H7 open. The schema script must use the `builder` DSL, which the previous script did not. |

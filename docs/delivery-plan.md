@@ -314,7 +314,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `discovery/IdmManagedSourceSpec` | WS6.08, §14 | 4 | 4 |
 | `discovery/MappingLintSpec` | WS6.09, §8.4, H12 | 6 | 7 |
 | **Discovery total** | | **72** | **77** |
-| `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6, WS5.01, WS9.04 | — | **116** |
+| `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6, WS5.01, WS9.04, WS8.08 | — | **117** |
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 56 | 56 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
 | `contract-probe/ScrubberSpec` | §13 | 16 | 16 |
@@ -325,9 +325,10 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `integration/AppendixAInIdmSpec` | WS8.03–8.07, Appendix A | 8 | 8 |
 | `integration/ErrorPathsInIdmSpec` | WS8.09 | 3 | 3 |
 | `integration/OperationsInIdmSpec` | WS9.02, WS9.04 | 2 | 2 |
+| `integration/RuntimeInIdmSpec` | WS8.08, WS8.09 | 3 | 3 |
 | `integration/ScaleInIdmSpec` (opt-in, `-PidmScale=N`) | WS8.10, WS8.11 | 3 | 3 |
-| **Integration total** (needs Docker; `./gradlew :integration:test -Pidm`) | | **18 (+3)** | **18 (+3)** |
-| **Grand total** | | | **1033 (+3 opt-in)** |
+| **Integration total** (needs Docker; `./gradlew :integration:test -Pidm`) | | **21 (+3)** | **21 (+3)** |
+| **Grand total** | | | **1037 (+3 opt-in)** |
 
 Current result (2026-11-21, after WS7/WS9 work): **every suite is green**: connector 696 / 696, discovery 77 / 77, mapping library 116 / 116, contract probe 126 / 126, `:discovery:lintMappings`, `:connector:compileWithIdmGroovy`, and **integration 18 / 18 inside IDM 7.5** (library as sources; the jar mode passes too), plus the opt-in scale spec. No `TODO WSn` stub remains in the code.
 
@@ -853,9 +854,9 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 - [x] **WS8.07 Orphans are reported, not deleted (S).** Seed an entity directly in the service; assert reconciliation reports it and does not delete it (P16).
   *Done 2026-11-21.* An entity seeded directly in the service is reported (`UNASSIGNED`) and never deleted.
 - [x] **WS8.08 Library under real Rhino (S).** `require` the library in IDM; record the module cache's actual lifetime.
-  *Done 2026-11-21.* `require('lib/graphEntityPayload')` works in IDM's Rhino (`ConnectorInIdmSpec`), and `buildRelationships` builds edges from IDM's real wrapped relationship objects (Appendix A). **Found:** the two library transforms need `"source": ""` (H12). The module cache's lifetime is not measured.
+  *Done 2026-11-21.* `require('lib/graphEntityPayload')` works in IDM's Rhino (`ConnectorInIdmSpec`), and `buildRelationships` builds edges from IDM's real wrapped relationship objects (Appendix A). **Found:** the two library transforms need `"source": ""` (H12). **Module lifetime measured (2026-11-21, `RuntimeInIdmSpec`):** IDM loads a `require`d module afresh for each script evaluation, so the library's cache lasts one evaluation and each transform reads the configuration again (H18). The cost is in the measured times, and configuration changes apply at once.
 - [x] **WS8.09 Error paths (M).** 401 on test; 5xx during reconciliation reported against the right object; 429 under queued sync; `deleteMissingTolerated=false`.
-  *Done 2026-11-21, except 429 under queued sync.* `ErrorPathsInIdmSpec`: a wrong key fails Test without logging it; a 503 on a write during implicit sync is logged against that entity and the next reconciliation repairs it; a DELETE answered 404 is tolerated by default and a 404 error with `deleteMissingTolerated=false` (H17). Queued sync is not configured, so its 429 behaviour remains.
+  *Done 2026-11-21.* `ErrorPathsInIdmSpec`: a wrong key fails Test without logging it; a 503 on a write during implicit sync is logged against that entity and the next reconciliation repairs it; a DELETE answered 404 is tolerated by default and a 404 error with `deleteMissingTolerated=false` (H17). Under queued sync (`RuntimeInIdmSpec`), updates answered with 429 are retried by IDM until they succeed, each refusal logged with its `Retry-After` hint (H19).
 - [x] **WS8.10 Concurrency (M).** Live sync during reconciliation with `taskThreads` > 1; once quiet, the service's state equals IDM's.
   *Done 2026-11-21 at 300 users* (`ScaleInIdmSpec`, opt-in): 60 implicit syncs racing a 4-thread reconciliation converge to IDM's state.
 - [x] **WS8.11 Volume and write cost (L).** Enumerate 50,000 entities within the reconciliation window with flat memory. Measure `buildRelationships` cost per entity, and the cost of re-sending relationships on every reconciliation (WS4.08).

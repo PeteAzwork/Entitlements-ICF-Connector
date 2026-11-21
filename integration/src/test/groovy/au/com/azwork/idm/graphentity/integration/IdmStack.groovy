@@ -104,8 +104,8 @@ class IdmStack {
      * The generated mappings, with implicit sync on or off. IDM applies configuration asynchronously, so this waits
      * until the sync service reports the mappings with the requested setting.
      */
-    void setMappings(boolean enableSync) {
-        List<Map> wanted = mappings.collect { new LinkedHashMap(it) + [enableSync: enableSync] }
+    void setMappings(boolean enableSync, Map<String, Map> extras = [:]) {
+        List<Map> wanted = mappings.collect { new LinkedHashMap(it) + [enableSync: enableSync] + (extras[it.name] ?: [:]) }
         idm.put('config/sync', [mappings: wanted])
         idm.awaitTrue(30, "the mappings with enableSync=${enableSync}") {
             List<Map> active = idm.query('sync/mappings')
@@ -168,7 +168,7 @@ class IdmStack {
         }
         File lib = new File(stage, 'lib')
         copyTree(new File(ROOT, 'mapping-lib/src/lib'), lib)
-        dockerChecked('create', '--name', CONTAINER, '--network', 'host', '-e', 'JAVA_OPTS=-Xmx2g -Xms1g', IMAGE)
+        dockerChecked('create', '--name', CONTAINER, '--network', 'host', '-e', "JAVA_OPTS=${System.getProperty('idm.javaOpts', '-Xmx2g -Xms1g')}", IMAGE)
         dockerChecked('cp', connector.path, "${CONTAINER}:/opt/openidm/connectors/graphentity")
         dockerChecked('cp', lib.path + '/.', "${CONTAINER}:/opt/openidm/script/lib/")
         dockerChecked('start', CONTAINER)

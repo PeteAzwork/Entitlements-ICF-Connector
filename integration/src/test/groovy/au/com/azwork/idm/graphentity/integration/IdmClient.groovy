@@ -24,10 +24,19 @@ class IdmClient {
         (call('GET', "${resource}?_queryFilter=${URLEncoder.encode(filter, 'UTF-8')}", null) as Map).result as List<Map>
     }
 
-    /** Runs a reconciliation to completion and returns its summary. */
-    Map recon(String mapping) {
-        Map started = call('POST', "recon?_action=recon&mapping=${mapping}&waitForCompletion=true", [:]) as Map
-        get("recon/${started._id}")
+    /**
+     * Runs a reconciliation to completion and returns its summary. It is started without waitForCompletion and polled,
+     * because a large reconciliation outlasts IDM's request timeout.
+     */
+    Map recon(String mapping, int timeoutSeconds = 7200) {
+        Map started = call('POST', "recon?_action=recon&mapping=${mapping}", [:]) as Map
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L
+        while (System.currentTimeMillis() < deadline) {
+            Map r = get("recon/${started._id}")
+            if (r.state in ['SUCCESS', 'FAILED', 'CANCELED']) return r
+            Thread.sleep(1000)
+        }
+        throw new IllegalStateException("Reconciliation ${started._id} of ${mapping} did not finish within ${timeoutSeconds}s")
     }
 
     /** Polls until {@code condition} holds (exceptions count as false), or fails naming {@code what}. */

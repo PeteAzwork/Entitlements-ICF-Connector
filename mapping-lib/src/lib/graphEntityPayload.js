@@ -252,6 +252,14 @@
         return withName(typeName, types[typeName]);
     };
 
+    /**
+     * Diagnostics: when the configuration cache was loaded (0 when empty) and its lifetime. Shows whether IDM keeps
+     * the module between script evaluations (plan WS8.08; runbook section 4).
+     */
+    exports.cacheInfo = function () {
+        return { loadedAt: cache.loadedAt, ttlMs: DEFAULT_TTL_MS };
+    };
+
     /** Clears the configuration cache (tests, and after a provisioner update). */
     exports.clearCache = function () {
         cache.objectTypes = null;

@@ -154,6 +154,13 @@ describe('loadTypeConfig (§8.2 single source of truth)', () => {
         lib.loadTypeConfig('user', { reload: true });
         assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/graphentity').length, 2);
     });
+    test('cacheInfo reports when the cache was loaded, for diagnosing module lifetime (WS8.08)', () => {
+        const { lib } = load(fakeOpenidm({}));
+        assert.equal(lib.cacheInfo().loadedAt, 0);
+        lib.loadTypeConfig('user');
+        assert.ok(lib.cacheInfo().loadedAt > 0);
+        assert.equal(lib.cacheInfo().ttlMs, 300000);
+    });
     test('clearCache forces a re-read', () => {
         const openidm = fakeOpenidm({});
         const { lib } = load(openidm);

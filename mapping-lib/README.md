@@ -50,9 +50,11 @@ Both properties must always be mapped, even when empty. `UpdateOperation` refuse
 
 ## Cache
 
-- The provisioner configuration, and managed.json when needed, are cached in the module for five minutes by default.
-- How long IDM keeps a `require`d module, and whether it is shared across mappings, is confirmed on a real IDM in plan WS8.08.
-- After changing `objectTypes`, call `clearCache()` or wait out the TTL.
+- The library caches the provisioner configuration and managed.json in its module, for five minutes by default.
+- **In IDM 7.5, though, the module lasts one script evaluation** (plan WS8.08, `RuntimeInIdmSpec`). IDM loads `require`d modules afresh for each evaluation, so each transform reads the configuration again, through IDM's in-memory configuration service.
+  - **The cost is small.** It is included in the measured reconciliation times (runbook §4).
+  - **A configuration change takes effect at once** in IDM. `clearCache()` only matters outside IDM, for example in tests.
+- `cacheInfo()` reports when the cache was loaded, for diagnosing exactly this.
 
 ## Tests
 
