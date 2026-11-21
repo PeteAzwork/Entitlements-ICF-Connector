@@ -45,7 +45,7 @@ subprojects {
         useJUnitPlatform()
         testLogging {
             events 'failed', 'skipped'
-            exceptionFormat 'short'
+            exceptionFormat = 'short'
             showStandardStreams = false
         }
         // Keep running every spec even when stubs make most of them fail.
