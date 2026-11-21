@@ -10,9 +10,10 @@ import org.identityconnectors.framework.common.objects.Attribute
  *   <li>{@code id} from the uid or name (A3). An id containing {@code /} is rejected: the service stores it but
  *       cannot address it by path, so it could never be updated or deleted (decision P23, Q09.1);</li>
  *   <li>{@code baseType} from the type's entityKind (P18);</li>
- *   <li>{@code attributes}: every configured attribute that has a value, as a string (P20). Numbers and booleans
- *       become their text; a multi-valued attribute is rejected; an empty one is omitted. {@code ID} is not a
- *       domain attribute: {@link EntityDocument#toWire} adds it (C8);</li>
+ *   <li>{@code attributes}: every configured attribute, as a string (P20). Numbers and booleans become their text;
+ *       a multi-valued attribute is rejected. An attribute that is absent or empty in IDM is sent as {@code ""}: the
+ *       service keeps an attribute an update omits, so this is how it is cleared (P20 amended, C17). {@code ID} is
+ *       not a domain attribute: {@link EntityDocument#toWire} adds it (C8);</li>
  *   <li>{@code directArchetypes}: the type's static archetypes first (the first is the scope archetype, P19), then
  *       delivered ones, without duplicates;</li>
  *   <li>{@code relationships}: parsed from {@code entityRelationships} (P17). Every edge must name the entity as

@@ -352,7 +352,7 @@ class ContractProbeSpec extends Specification {
         f(p, 'create.shape').answer.contains('the first variant that is: EntityDTO with attributes.ID and a direct archetype')
         f(p, 'create.shape').answer.contains('tell the service team')
         f(p, 'baseType.create').answer.startsWith('Yes')
-        f(p, 'attributes.omission').answer.startsWith('Yes')
+        f(p, 'attributes.omission').answer.startsWith('No')   // merged, as the service does (C17)
         p.cleanupProblems == []
     }
 
@@ -504,12 +504,12 @@ class ContractProbeSpec extends Specification {
         bodies.every { b -> b.relationships.every { r -> r.keySet() == ['sourceID', 'targetID', 'type'] as Set && b.id in [r.sourceID, r.targetID] } }
     }
 
-    def "WS0.15: an update that omits an attribute removes it, and one that lists fewer archetypes replaces them (P20, P22)"() {
+    def "WS0.15: an update that omits an attribute keeps it, and one that lists fewer archetypes replaces them (P20, P22)"() {
         when:
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'attributes.omission').answer.startsWith('Yes: once the update was visible')
+        f(p, 'attributes.omission').answer.startsWith('No: once the update was visible, the omitted attribute was still there')   // the fake merges, as the service does (C17)
         f(p, 'archetypes.replace').answer == 'Yes: Created with both; after an update listing only `Card`, only `Card` remains.'
     }
 
@@ -562,7 +562,7 @@ class ContractProbeSpec extends Specification {
         then:
         f(p, 'baseType.create').answer.startsWith('Yes')
         f(p, 'search.createdVisible').answer.startsWith('Yes: both created entities were found by a search on their ID within')
-        f(p, 'attributes.omission').answer.startsWith('Yes: once the update was visible')
+        f(p, 'attributes.omission').answer.startsWith('No: once the update was visible, the omitted attribute was still there')   // the fake merges, as the service does (C17)
         f(p, 'archetypes.replace').answer.startsWith('Yes')
         ['edges.postToMissing', 'edges.inboundOnCreate', 'edges.getShowsInbound', 'edges.sourceOmission', 'edges.inboundOnPut',
          'edges.targetOmission', 'edges.putToMissing', 'edges.relationshipEndpoints', 'edges.deleteCascades'].every { f(p, it).confidence == 'observed' }
@@ -653,14 +653,93 @@ class ContractProbeSpec extends Specification {
         }
     }
 
-    /** Attributes merged on update, and an attribute written as an empty string removed: one way the service may work. */
+    /** Attributes merged on update (as the fake does, C17), and an attribute written as an empty string removed. */
     static class MergingAttributesService extends FakeGraphService {
         @Override HttpResponse replace(String id, Map<String, Object> d) {
-            def old = entities[id]
-            if (old == null) return super.replace(id, d)
-            Map merged = ((old.attributes as Map) + [ID: id] + (d.attributes as Map)).findAll { k, v -> v != '' }
-            super.replace(id, d + [attributes: merged])
+            def r = super.replace(id, d)
+            if (r.status == 200) (entities[id].attributes as Map).removeAll { k, v -> v == '' }
+            r
         }
+    }
+
+    /** Stores no relationships at all: every relationship check's starting state is missing. */
+    static class NoRelationshipsService extends FakeGraphService {
+        @Override HttpResponse create(Map<String, Object> d) { super.create(d + [relationships: []]) }
+        @Override HttpResponse replace(String id, Map<String, Object> d) { super.replace(id, d + [relationships: []]) }
+        @Override HttpResponse addRelationship(String id, Map<String, Object> rel) { requests << [op: 'ADD_RELATIONSHIP', id: id, body: rel]; new HttpResponse(status: 200) }
+    }
+
+    /**
+     * C18 as run 20261121-215954 saw it: a relationship a write replaces is only hidden. It comes back once a
+     * relationship of the same entity is deleted through the single-relationship endpoint.
+     */
+    static class ResurfacingService extends FakeGraphService {
+        final Set<List<String>> hidden = new LinkedHashSet<>()
+
+        @Override HttpResponse replace(String id, Map<String, Object> d) {
+            Set<List<String>> before = edges.findAll { it[0] == id || it[1] == id }.collect { new ArrayList(it) } as Set
+            def r = super.replace(id, d)
+            if (r.status == 200) {
+                Set<List<String>> gone = before - edges
+                hidden.addAll(gone)
+                edges.addAll(gone)
+            }
+            r
+        }
+
+        @Override HttpResponse deleteRelationship(String sourceId, String targetId, String type) {
+            def r = super.deleteRelationship(sourceId, targetId, type)
+            hidden.removeAll { it[0] == sourceId }
+            r
+        }
+
+        @Override Map<String, Object> renderEntity(String id) {
+            def e = super.renderEntity(id)
+            e.relationships = (e.relationships as List).findAll { Map rel -> !hidden.contains([rel.source, rel.target, rel.type]) }
+            e
+        }
+    }
+
+    def "WS0.15h: with the default fake, each relationship check confirms its starting state and answers"() {
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'edges.replaceNonEmpty').answer.contains('and still so on a later read')
+        f(p, 'edges.reassertSame').answer == 'Yes: R lists the same relationships as before.'
+        f(p, 'edges.deleteCascades').answer == 'Yes: R listed R → T2 before T2 was deleted, and no longer does.'
+        f(p, 'edges.relationshipEndpoints').detail.contains('{sourceID}/relationships/{targetID}/{type}')
+    }
+
+    def "WS0.15h: when the starting state never shows, every relationship check says so instead of a void answer"() {
+        given:
+        server.close()
+        def none = new NoRelationshipsService()
+        seedForeign(none)
+        server = new FakeGraphHttpServer(none).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        ['edges.sourceOmission', 'edges.targetOmission', 'edges.replaceNonEmpty', 'edges.reassertSame', 'edges.relationshipEndpoints', 'edges.deleteCascades'].every {
+            f(p, it).confidence == 'inconclusive' && f(p, it).answer.contains('starting state never showed')
+        }
+    }
+
+    def "WS0.15h: a replaced relationship that resurfaces after an endpoint DELETE is reported (C18)"() {
+        given:
+        server.close()
+        def resurfacing = new ResurfacingService()
+        seedForeign(resurfacing)
+        server = new FakeGraphHttpServer(resurfacing).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'edges.replaceNonEmpty').answer.startsWith('Yes')
+        f(p, 'edges.relationshipEndpoints').answer.contains('R → T1, replaced earlier, reappeared (C18)')
     }
 
     def "WS0.15g: a relationship removal that shows a few reads late is waited for, not reported as 'not removed'"() {
@@ -718,7 +797,7 @@ class ContractProbeSpec extends Specification {
         revs.size() >= 5
     }
 
-    def "WS0.15f: relationship outcomes are read on the written entity, so a stale other end cannot mislead them (C15)"() {
+    def "WS0.15f/h: with a stale other end (C15, since withdrawn), outcomes are read on the written entity, and a missing starting state is reported"() {
         given:
         server.close()
         def stale = new StaleOtherEndService()
@@ -729,7 +808,7 @@ class ContractProbeSpec extends Specification {
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'edges.sourceOmission').answer.startsWith('Yes: A, written with no relationships, no longer lists A → B')
+        f(p, 'edges.sourceOmission').answer.startsWith('Cannot tell: the starting state never showed: A did not list A → B')
         f(p, 'edges.inboundOnCreate').answer.startsWith('Yes')
         f(p, 'edges.otherEndRefreshed').answer.startsWith('No')
     }
@@ -745,7 +824,7 @@ class ContractProbeSpec extends Specification {
         def p = probe(allowWrites: true, settleSeconds: 2, pollMillis: 5)
 
         then:
-        f(p, 'attributes.omission').answer.startsWith('Yes: once the update was visible')
+        f(p, 'attributes.omission').answer.startsWith('No: once the update was visible, the omitted attribute was still there')   // the fake merges, as the service does (C17)
         f(p, 'edges.sourceOmission').answer.startsWith('Yes')
         f(p, 'archetypes.replace').answer.startsWith('Yes')
         !losing.requests.any { it.lost && !((it.id as String).contains('-stab-') || (it.id as String).contains('never-created')) }

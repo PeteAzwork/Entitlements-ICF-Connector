@@ -1001,12 +1001,16 @@ class ContractProbe {
                 (hasEdge(gA.body as Map, A, B) ? 'Yes: A lists A → B, although only B was written.' : 'No: A, last written without B existing, does not list A → B until A is written again.'),
             gA.success ? 'observed' : 'inconclusive', 'Read once, straight after B\'s write was applied.', [gA])
 
-        Map wA0 = settledWrite(probeDoc(A, []))
-        Map rA0 = readWrittenUntil(A, wA0, { Map d -> !hasEdge(d, A, B) })
+        // WS0.15h: the check means something only if A lists A → B before the empty write.
+        def preA = getSettled(A, { Map d -> hasEdge(d, A, B) })
+        boolean aLinked = preA.success && hasEdge(preA.body as Map, A, B)
+        Map wA0 = aLinked ? settledWrite(probeDoc(A, [])) : null
+        Map rA0 = aLinked ? readWrittenUntil(A, wA0, { Map d -> !hasEdge(d, A, B) }) :
+            [ok: false, why: "the starting state never showed: A did not list A → B ${window()}".toString(), ex: preA]
         addFromWritten('WS0.07', 'edges.sourceOmission', 'Does writing the source with an empty relationship list delete the relationship (P15)?', rA0, { Map d ->
             rA0.matched ? "Yes: A, written with no relationships, no longer lists A → B (after ${rA0.waitedMs} ms)." :
                 "No: A, written with no relationships, still lists A → B ${window()}, although B also asserts it."
-        }, w + ' Waits for the removal, not only for the write.', [wA0.write, wA0.search, rA0.ex])
+        }, w + ' Waits for the removal, not only for the write.', [preA, wA0?.write, wA0?.search, rA0.ex])
 
         Map wB1 = settledWrite(probeDoc(B, [ab]))
         Map rB1 = readWritten(B, wB1)
@@ -1014,13 +1018,15 @@ class ContractProbe {
             hasEdge(d, A, B) ? 'Yes: B, written with A → B, lists it.' : 'No: B, written with A → B, does not list it.'
         }, w, [wB1.write, wB1.search, rB1.ex])
 
-        Map wB0 = settledWrite(probeDoc(B, []))
-        Map rB0 = readWrittenUntil(B, wB0, { Map d -> !hasEdge(d, A, B) })
+        boolean bLinked = rB1.ok && hasEdge(rB1.doc as Map, A, B)
+        Map wB0 = bLinked ? settledWrite(probeDoc(B, [])) : null
+        Map rB0 = bLinked ? readWrittenUntil(B, wB0, { Map d -> !hasEdge(d, A, B) }) :
+            [ok: false, why: "the starting state never showed: B did not list A → B ${window()}".toString(), ex: rB1.ex]
         addFromWritten('WS0.07', 'edges.targetOmission', 'Does writing the target with an empty relationship list delete the relationship (Q07.8)?', rB0, { Map d ->
             rB0.matched ?
                 "Yes: B, written with no relationships, no longer lists A → B (after ${rB0.waitedMs} ms). Every write must list the relationships where the entity is the target, as design A2 provides." :
                 "No: B, written with no relationships, still lists A → B ${window()}."
-        }, w + ' Waits for the removal, not only for the write.', [wB0.write, wB0.search, rB0.ex])
+        }, w + ' Waits for the removal, not only for the write.', [wB0?.write, wB0?.search, rB0.ex])
 
         Map wAC = settledWrite(probeDoc(A, [ab, edge(A, C)]))
         if (!wAC.write.success) {
@@ -1044,38 +1050,85 @@ class ContractProbe {
     void checkRelationshipReplacement() {
         String R = pid('rep-R'), T1 = pid('rep-T1'), T2 = pid('rep-T2')
         String w = "Settled writes; read on the written entity ${window()}, waiting for the outcome."
+        Closure<String> list = { Map d -> relationshipsOf(d).collect { Map r -> (r.target ?: r.targetID) == T1 ? 'R → T1' : ((r.target ?: r.targetID) == T2 ? 'R → T2' : 'other') }.sort().join(', ') ?: 'nothing' }
         Map t1 = settledWrite(probeDoc(T1), true), t2 = settledWrite(probeDoc(T2), true)
         Map r1 = settledWrite(probeDoc(R, [edge(R, T1)]), true)
         Map rr1 = readWrittenUntil(R, r1, { Map d -> hasEdge(d, R, T1) })
+        boolean replaced = false
         if (!(t1.applied && t2.applied && rr1.matched)) {
             add('WS0.07', 'edges.replaceNonEmpty', 'Does a non-empty relationship list replace the old one (P15)?',
                 "Cannot tell: the starting state never showed ${window()} (R → T1 ${rr1.matched ? 'shown' : 'not shown'}).", 'inconclusive', null, [t1.write, t2.write, r1.write, rr1.ex])
         } else {
             Map r2 = settledWrite(probeDoc(R, [edge(R, T2)]))
             Map rr2 = readWrittenUntil(R, r2, { Map d -> hasEdge(d, R, T2) && !hasEdge(d, R, T1) })
+            replaced = rr2.matched as boolean
+            // C18: in run 20261121-215954 the replaced relationship came back later. Re-read after a pause.
+            Exchange again = null
+            if (replaced) {
+                sleep(Math.min(opts.settleSeconds * 1000L, 2000L))
+                again = http.get(entityPath(R))
+            }
+            boolean resurfaced = again?.success && hasEdge(again.body as Map, R, T1)
             addFromWritten('WS0.07', 'edges.replaceNonEmpty', 'Does a non-empty relationship list replace the old one (P15)?', rr2, { Map d ->
-                rr2.matched ? "Yes: R, rewritten with only R → T2, lists R → T2 and no longer R → T1 (after ${rr2.waitedMs} ms)." :
-                    "No: R, rewritten with only R → T2, lists ${relationshipsOf(d).collect { (it.target ?: it.targetID) == T1 ? 'R → T1' : ((it.target ?: it.targetID) == T2 ? 'R → T2' : 'other') }.join(', ') ?: 'nothing'} ${window()}."
-            }, w, [r2.write, r2.search, rr2.ex])
+                !replaced ? "No: R, rewritten with only R → T2, lists ${list(d)} ${window()}." :
+                    (resurfaced ? "Only for a while: R listed only R → T2 after ${rr2.waitedMs} ms, but R → T1 was back on a later read (C18)." :
+                        "Yes: R, rewritten with only R → T2, lists R → T2 and no longer R → T1 (after ${rr2.waitedMs} ms)${again?.success ? ', and still so on a later read' : ''}.")
+            }, w, [r2.write, r2.search, rr2.ex, again])
+        }
+
+        // Re-asserting the relationship R already has should change nothing (the service owner, 2026-11-21).
+        def pre = getSettled(R, { Map d -> hasEdge(d, R, T2) })
+        boolean hasT2 = pre.success && hasEdge(pre.body as Map, R, T2)
+        if (!hasT2) {
+            add('WS0.07', 'edges.reassertSame', 'Does rewriting an entity with the relationship it already has change nothing?',
+                "Cannot tell: the starting state never showed: R did not list R → T2 ${window()}.", 'inconclusive', null, [pre])
+        } else {
+            List before = relationshipsOf(pre.body as Map).collect { [it.source ?: it.sourceID, it.target ?: it.targetID, it.type] }.sort()
+            Map same = settledWrite(probeDoc(R, [edge(R, T2)]))
+            Map rs = readWritten(R, same)
+            addFromWritten('WS0.07', 'edges.reassertSame', 'Does rewriting an entity with the relationship it already has change nothing?', rs, { Map d ->
+                List after = relationshipsOf(d).collect { [it.source ?: it.sourceID, it.target ?: it.targetID, it.type] }.sort()
+                after == before ? 'Yes: R lists the same relationships as before.' : "No: before, R listed ${list(pre.body as Map)}; after, ${list(d)}."
+            }, w, [pre, same.write, same.search, rs.ex])
         }
 
         // The endpoints carry no attributes, so there is no marker: GET of R is retried until the outcome shows.
-        Map rel = edge(R, T2)
-        String relPath = entityPath(R) + '/relationships'
-        def del = http.delete(relPath + '/' + ProbeHttp.encodeSegment(T2) + '/' + EDGE_TYPE)
-        def gDel = getSettled(R, { Map d -> !hasEdge(d, R, T2) })
-        def addRel = http.post(relPath, rel)
-        def gAdd = getSettled(R, { Map d -> hasEdge(d, R, T2) })
-        addFromReads('WS0.07', 'edges.relationshipEndpoints', 'Do the relationship endpoints remove and add one relationship?', [gDel, gAdd], {
-            "DELETE ${del.status}: ${hasEdge(gDel.body as Map, R, T2) ? "R still lists R → T2 ${window()}" : 'removed'}. POST ${addRel.status}: ${hasEdge(gAdd.body as Map, R, T2) ? 'added' : "not added ${window()}"}. The connector does not use them (P15)."
-        }, null, [del, gDel, addRel, gAdd])
+        // Starting state: R lists R → T2. Establish it with a settled write if it does not.
+        Map sw = null
+        if (!hasT2) { sw = settledWrite(probeDoc(R, [edge(R, T2)])); hasT2 = readWrittenUntil(R, sw, { Map d -> hasEdge(d, R, T2) }).matched }
+        if (!hasT2) {
+            add('WS0.07', 'edges.relationshipEndpoints', 'Do the relationship endpoints remove and add one relationship?',
+                "Cannot tell: the starting state never showed: R did not list R → T2 ${window()}.", 'inconclusive', null, [pre, sw?.write])
+        } else {
+            String relPath = entityPath(R) + '/relationships'
+            def del = http.delete(relPath + '/' + ProbeHttp.encodeSegment(T2) + '/' + EDGE_TYPE)
+            def gDel = getSettled(R, { Map d -> !hasEdge(d, R, T2) })
+            boolean t1Back = gDel.success && replaced && hasEdge(gDel.body as Map, R, T1)
+            def addRel = http.post(relPath, edge(R, T2))
+            def gAdd = getSettled(R, { Map d -> hasEdge(d, R, T2) })
+            addFromReads('WS0.07', 'edges.relationshipEndpoints', 'Do the relationship endpoints remove and add one relationship?', [gDel, gAdd], {
+                "DELETE ${del.status}: ${hasEdge(gDel.body as Map, R, T2) ? "R still lists R → T2 ${window()}" : 'removed'}${t1Back ? ', and R → T1, replaced earlier, reappeared (C18)' : ''}. " +
+                    "POST ${addRel.status}: ${hasEdge(gAdd.body as Map, R, T2) ? 'added' : "not added ${window()}"}. The connector does not use them (P15)."
+            }, 'DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}, as the service documents.', [del, gDel, addRel, gAdd])
+        }
 
-        // Deleting T2: is R → T2 gone from R? R is not rewritten, so this is the delete's own effect.
+        // Deleting T2: is R → T2 gone from R? Starting state: R lists R → T2. R is not rewritten after the delete.
+        def preCascade = getSettled(R, { Map d -> hasEdge(d, R, T2) })
+        if (!(preCascade.success && hasEdge(preCascade.body as Map, R, T2))) {
+            Map sc = settledWrite(probeDoc(R, [edge(R, T2)]))
+            Map rc = readWrittenUntil(R, sc, { Map d -> hasEdge(d, R, T2) })
+            preCascade = rc.ex as Exchange
+            if (!rc.matched) {
+                add('WS0.07', 'edges.deleteCascades', 'Does DELETE remove the relationships touching the entity?',
+                    "Cannot tell: the starting state never showed: R did not list R → T2 ${window()}.", 'inconclusive', null, [sc.write, rc.ex])
+                return
+            }
+        }
         def delT2 = http.delete(entityPath(T2))
         def gCascade = getSettled(R, { Map d -> !hasEdge(d, R, T2) })
         addFromReads('WS0.07', 'edges.deleteCascades', 'Does DELETE remove the relationships touching the entity?', [gCascade], {
-            hasEdge(gCascade.body as Map, R, T2) ? "No: R still lists R → T2 ${window()} after T2 was deleted." : 'Yes: R no longer lists R → T2.'
-        }, "DELETE T2 ${delT2.status}.", [delT2, gCascade])
+            hasEdge(gCascade.body as Map, R, T2) ? "No: R still lists R → T2 ${window()} after T2 was deleted." : 'Yes: R listed R → T2 before T2 was deleted, and no longer does.'
+        }, "DELETE T2 ${delT2.status}.", [preCascade, delT2, gCascade])
     }
 
     /**

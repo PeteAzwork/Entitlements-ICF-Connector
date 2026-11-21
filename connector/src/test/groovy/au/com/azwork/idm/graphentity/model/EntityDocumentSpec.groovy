@@ -29,7 +29,7 @@ class EntityDocumentSpec extends Specification {
 
     def "toWire adds attributes.ID equal to the id, which the service requires by design (C8)"() {
         expect:
-        Fixtures.sanneDoc().toWire().attributes == [ID: 'Sanne', name: 'Sanne Groen']
+        Fixtures.sanneDoc().toWire().attributes == [ID: 'Sanne', name: 'Sanne Groen', mail: '', telephoneNumber: '']
         !Fixtures.sanneDoc().attributes.containsKey('ID')
     }
 

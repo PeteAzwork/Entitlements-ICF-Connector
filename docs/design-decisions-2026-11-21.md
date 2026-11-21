@@ -82,7 +82,7 @@ Each decision below gives the context, the decision, its consequences, what must
 **Decision.**
 - Domain attributes in the ICF schema are single-valued strings. Numbers and booleans are sent as their text form.
 - The discovery tool leaves multi-valued IDM properties out of generated configuration, with a warning.
-- Every write sends every configured attribute that has a value in IDM. An attribute that is empty in IDM is omitted, on the assumption that the service removes omitted attributes, as it removes omitted relationships.
+- ~~Every write sends every configured attribute that has a value in IDM. An attribute that is empty in IDM is omitted, on the assumption that the service removes omitted attributes, as it removes omitted relationships.~~ **Amended 2026-11-21 by the owner (option a):** every write sends every configured attribute; one that is empty in IDM is sent as `""`. The service keeps an attribute an update omits, and stores `""` as an empty value (C17), so `""` is how an attribute is cleared. On reads, `""` is treated as absent, so reconciliation sees no difference.
 
 **Consequences.**
 - `SchemaFactory` declares domain attributes single-valued, and `EntityPayloadBuilder` converts values to strings.
@@ -172,3 +172,5 @@ The first realigned probe runs (`20261121-173141`, `20261121-173153`) bear on th
 | P15 | Run `214027` read once after an update with an empty `relationships` list, and still saw the relationships (C17). The service owner states that an empty list purges all of the entity's relationships. C15 is withdrawn: GET's relationships are current at both ends | **Stands, on the owner's statement.** The run's reading is probably a removal applied after the attribute change. The probe now waits for it, and checks non-empty replacement (plan WS0.15g) |
 | P15 | Run `215954` waited 10 s after empty-list writes at both ends, and the relationship remained (C17). A replaced relationship resurfaced after its replacement was deleted (C18) | **Conflicts with the owner's statement.** Needs the service team or the service's storage to explain (plan WS0.23) |
 | P20 | An attribute written as `""` is stored with an empty value, not removed (run `215954`) | Clearing is only possible as an empty value. Decision pending (plan WS0.22) |
+| P20 (amended) | Option (a), adopted by the owner: send `""` for attributes empty in IDM; read `""` as absent | `EntityPayloadBuilderSpec`, `EntityDecoderSpec`, `UpdateOperationSpec`, `Fixtures` and the fake (which now merges attributes) updated |
+| P15 | The owner: an empty `relationships` list should purge all relationships, and the service's current behaviour is a bug to be fixed. Rewriting an entity with a relationship it already has should change nothing. Relationships are deleted singly with `DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}` | P15 stands. The probe checks both rules on every run (`edges.sourceOmission`, `edges.reassertSame`) |
