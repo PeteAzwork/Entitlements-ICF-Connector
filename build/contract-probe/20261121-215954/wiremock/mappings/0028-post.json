@@ -1,0 +1,1301 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"pageSize\":200}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "scrubbed-1",
+                    "name": "scrubbed-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>",
+                        "Recipient": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "CreditCardApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-2",
+                    "name": "scrubbed-2",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-3",
+                    "name": "scrubbed-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-4",
+                    "name": "scrubbed-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-5",
+                    "name": "scrubbed-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-6",
+                    "name": "scrubbed-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-7",
+                    "name": "scrubbed-7",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-8",
+                    "name": "scrubbed-8",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-9",
+                    "name": "scrubbed-9",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-10",
+                    "name": "scrubbed-10",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-11",
+                    "name": "scrubbed-11",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-12",
+                    "name": "scrubbed-12",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-13",
+                    "name": "scrubbed-13",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-14",
+                    "name": "scrubbed-14",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-15",
+                    "name": "scrubbed-15",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-16",
+                    "name": "scrubbed-16",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-17",
+                    "name": "scrubbed-17",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-18",
+                    "name": "scrubbed-18",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-19",
+                    "name": "scrubbed-19",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-20",
+                    "name": "scrubbed-20",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-21",
+                    "name": "scrubbed-21",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-22",
+                    "name": "scrubbed-22",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-23",
+                    "name": "scrubbed-23",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-24",
+                    "name": "scrubbed-24",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-25",
+                    "name": "scrubbed-25",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-26",
+                    "name": "scrubbed-26",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-27",
+                    "name": "scrubbed-27",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-28",
+                    "name": "scrubbed-28",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-29",
+                    "name": "scrubbed-29",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-30",
+                    "name": "scrubbed-30",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-31",
+                    "name": "scrubbed-31",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-32",
+                    "name": "scrubbed-32",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-33",
+                    "name": "scrubbed-33",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-34",
+                    "name": "scrubbed-34",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-35",
+                    "name": "scrubbed-35",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-36",
+                    "name": "scrubbed-36",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-37",
+                    "name": "scrubbed-37",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-38",
+                    "name": "scrubbed-38",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:11Z"
+                },
+                {
+                    "uid": "scrubbed-39",
+                    "name": "scrubbed-39",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-40",
+                    "name": "scrubbed-40",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:09Z"
+                },
+                {
+                    "uid": "scrubbed-41",
+                    "name": "scrubbed-41",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-42",
+                    "name": "scrubbed-42",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-43",
+                    "name": "scrubbed-43",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-44",
+                    "name": "scrubbed-44",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-45",
+                    "name": "scrubbed-45",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-46",
+                    "name": "scrubbed-46",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-47",
+                    "name": "scrubbed-47",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-48",
+                    "name": "scrubbed-48",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-49",
+                    "name": "scrubbed-49",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-50",
+                    "name": "scrubbed-50",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-51",
+                    "name": "scrubbed-51",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:09Z"
+                },
+                {
+                    "uid": "scrubbed-52",
+                    "name": "scrubbed-52",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:11Z"
+                },
+                {
+                    "uid": "scrubbed-53",
+                    "name": "scrubbed-53",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-54",
+                    "name": "scrubbed-54",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-55",
+                    "name": "scrubbed-55",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-56",
+                    "name": "scrubbed-56",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-57",
+                    "name": "scrubbed-57",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Entitytype": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Company"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-58",
+                    "name": "scrubbed-58",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-59",
+                    "name": "scrubbed-59",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "HasPSD2Certificate": "<scrubbed>",
+                        "HasAgreement": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-59",
+                    "name": "scrubbed-59",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "HasPSD2Certificate": "<scrubbed>",
+                        "HasAgreement": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-60",
+                    "name": "scrubbed-60",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-61",
+                    "name": "scrubbed-61",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-62",
+                    "name": "scrubbed-62",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-63",
+                    "name": "scrubbed-63",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-64",
+                    "name": "scrubbed-64",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:11Z"
+                },
+                {
+                    "uid": "scrubbed-65",
+                    "name": "scrubbed-65",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-66",
+                    "name": "scrubbed-66",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Id": "scrubbed-66",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Publisher"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-67",
+                    "name": "scrubbed-67",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "HasPSD2Certificate": "<scrubbed>",
+                        "RegisteredScopes": "<scrubbed>",
+                        "Hasagreement": "<scrubbed>",
+                        "Haspsd2certificate": "<scrubbed>",
+                        "HasAgreement": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-67",
+                    "name": "scrubbed-67",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "HasPSD2Certificate": "<scrubbed>",
+                        "RegisteredScopes": "<scrubbed>",
+                        "Hasagreement": "<scrubbed>",
+                        "Haspsd2certificate": "<scrubbed>",
+                        "HasAgreement": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-68",
+                    "name": "scrubbed-68",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "HasPSD2Certificate": "<scrubbed>",
+                        "HasAgreement": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "scrubbed-68",
+                    "name": "scrubbed-68",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "HasPSD2Certificate": "<scrubbed>",
+                        "HasAgreement": "<scrubbed>",
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "ThirdPartyApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:05Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-155100-id/with/slash",
+                    "name": "ws0-probe-20261121-155100-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        "Ws0Probe"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T04:51:05Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-190350-id/with/slash",
+                    "name": "ws0-probe-20261121-190350-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T08:03:51Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-211859-id/with/slash",
+                    "name": "ws0-probe-20261121-211859-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:20:07Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-214027-id/with/slash",
+                    "name": "ws0-probe-20261121-214027-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:41:20Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-seed-1",
+                    "name": "ws0-probe-20261121-215954-seed-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-seed-2",
+                    "name": "ws0-probe-20261121-215954-seed-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-seed-3",
+                    "name": "ws0-probe-20261121-215954-seed-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-1",
+                    "name": "ws0-probe-20261121-215954-shape-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-3",
+                    "name": "ws0-probe-20261121-215954-shape-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        "Ws0Probe"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-4",
+                    "name": "ws0-probe-20261121-215954-shape-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-5",
+                    "name": "ws0-probe-20261121-215954-shape-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-6",
+                    "name": "ws0-probe-20261121-215954-shape-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                }
+            ],
+            "pagedResultsCookie": null,
+            "totalResults": 83,
+            "hasMore": false
+        }
+    },
+    "metadata": {
+        "probeExchange": 28,
+        "check": "WS0.08",
+        "runId": "20261121-215954"
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"id\":\"ws0-probe-20261121-215954-edge-A\",\"baseType\":2,\"attributes\":{\"ID\":\"ws0-probe-20261121-215954-edge-A\",\"probe\":\"ws0\",\"rev\":\"1\"},\"relationships\":[{\"sourceID\":\"ws0-probe-20261121-215954-edge-A\",\"targetID\":\"ws0-probe-20261121-215954-edge-B\",\"type\":\"Ws0ProbeEdge\"}],\"directArchetypes\":[]}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200
+    },
+    "metadata": {
+        "probeExchange": 50,
+        "check": "WS0.07",
+        "runId": "20261121-215954"
+    }
+}

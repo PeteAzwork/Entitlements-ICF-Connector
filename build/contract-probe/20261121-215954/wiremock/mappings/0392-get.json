@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "GET",
+        "urlPath": "/admin/entities/ws0-probe-20261121-215954-rel-p17"
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 392,
+        "check": "cleanup",
+        "runId": "20261121-215954"
+    }
+}

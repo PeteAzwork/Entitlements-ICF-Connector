@@ -1,0 +1,209 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"filter\":{\"operation\":\"STARTSWITH\",\"left\":\"ID\",\"right\":\"ws0-probe-\"},\"pageSize\":200}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "ws0-probe-20261121-155100-id/with/slash",
+                    "name": "ws0-probe-20261121-155100-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        "Ws0Probe"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T04:51:05Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-190350-id/with/slash",
+                    "name": "ws0-probe-20261121-190350-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T08:03:51Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-211859-id/with/slash",
+                    "name": "ws0-probe-20261121-211859-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:20:07Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-214027-id/with/slash",
+                    "name": "ws0-probe-20261121-214027-id/with/slash",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:41:20Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-seed-1",
+                    "name": "ws0-probe-20261121-215954-seed-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-seed-2",
+                    "name": "ws0-probe-20261121-215954-seed-2",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-seed-3",
+                    "name": "ws0-probe-20261121-215954-seed-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-1",
+                    "name": "ws0-probe-20261121-215954-shape-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-3",
+                    "name": "ws0-probe-20261121-215954-shape-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        "Ws0Probe"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-4",
+                    "name": "ws0-probe-20261121-215954-shape-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-5",
+                    "name": "ws0-probe-20261121-215954-shape-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                },
+                {
+                    "uid": "ws0-probe-20261121-215954-shape-6",
+                    "name": "ws0-probe-20261121-215954-shape-6",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "probe": "ws0"
+                    },
+                    "isArchetypes": [
+                        
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2026-11-21T10:59:54Z"
+                }
+            ],
+            "pagedResultsCookie": null,
+            "totalResults": 12,
+            "hasMore": false
+        }
+    },
+    "metadata": {
+        "probeExchange": 33,
+        "check": "WS0.15",
+        "runId": "20261121-215954"
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"objectClass\":99}"
+            }
+        ]
+    },
+    "response": {
+        "status": 500
+    },
+    "metadata": {
+        "probeExchange": 32,
+        "check": "WS0.05",
+        "runId": "20261121-215954"
+    }
+}

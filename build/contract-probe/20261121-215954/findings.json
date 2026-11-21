@@ -1,0 +1,1301 @@
+{
+    "runId": "20261121-215954",
+    "baseUrl": "http://localhost:8080",
+    "generatedAt": "2026-11-21T11:01:18.441910Z",
+    "mode": "read-write",
+    "exchanges": 477,
+    "contract": {
+        "createShape": "EntityDTO with attributes.ID (C8)",
+        "searchPath": "/admin/entities/search",
+        "objectClassSelects": {
+            "4": "Subject",
+            "2": "Resource",
+            "Subject": "Subject",
+            "Resource": "Resource"
+        },
+        "baseTypeNumbering": "P18 (4 = Subject, 2 = Resource)",
+        "idFilterField": "ID",
+        "envelope": "object, items under `results`",
+        "totalKey": "totalResults",
+        "cursorKey": "pagedResultsCookie",
+        "pageSizeParam": "pageSize",
+        "cursorParam": "pagedResultsCookie",
+        "lastEvaluatedFormat": "ISO-8601, no fraction, Z",
+        "getById": "fails (500)",
+        "ambiguousArchetypes": [
+            "ThirdPartyApplication"
+        ],
+        "subjectArchetypes": [
+            "Account Owner",
+            "Developer",
+            "Legal Representative"
+        ],
+        "resourceArchetypes": [
+            "Credit Card",
+            "Current Account",
+            "Financing",
+            "Insurance",
+            "Savings Account",
+            "Third Party Application",
+            "User Access Requests"
+        ],
+        "leftoverProbeEntities": 4,
+        "relationshipForm": "P17 {sourceID, targetID, type}",
+        "searchReflectsDelete": true,
+        "searchLagMs": 525,
+        "baseTypeOnCreate": "confirmed: 4 = Subject"
+    },
+    "findings": [
+        {
+            "detail": "Checked with a GET of an entity ID that does not exist, so a valid key should get 404. The key is sent raw in the `X-API-KEY` header. The service uses one shared key, so a 403 is not expected.",
+            "answer": "No key: 401. Wrong key: 401. Valid key: 500.",
+            "evidence": [
+                1,
+                2,
+                3
+            ],
+            "key": "auth.status",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.10",
+            "question": "How does the service respond to a missing, wrong and valid `X-API-KEY` key?"
+        },
+        {
+            "detail": "Each variant changes one thing in the designed body. Archetype used: Ws0Probe. 1. EntityDTO with attributes.ID (C8) \u2192 200; 2. EntityDTO without attributes.ID \u2192 500; 3. EntityDTO with attributes.ID and a direct archetype \u2192 200; 4. EntityDTO with attributes.ID, without empty arrays \u2192 200; 5. EntityDTO with attributes.ID, path with a trailing slash \u2192 200; 6. design casing (ID, BaseType, Relationships) \u2192 200",
+            "answer": "The EntityDTO with attributes.ID is accepted, as designed (C8).",
+            "evidence": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "key": "create.shape",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Which create body does the service accept?"
+        },
+        {
+            "detail": null,
+            "answer": "`POST /admin/entities/search` with a JSON body. `{}` returned 79 entities.",
+            "evidence": [
+                13
+            ],
+            "key": "search.path",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Which request serves the entity search?"
+        },
+        {
+            "detail": "Search results name the base type, so a numeric objectClass shows its meaning. `4` \u2192 Subject \u00d714; `2` \u2192 Resource \u00d720; `\"Subject\"` \u2192 Subject \u00d714; `\"Resource\"` \u2192 Resource \u00d720",
+            "answer": "4 = Subject, 2 = Resource, as P18 assumes.",
+            "evidence": [
+                14,
+                15,
+                16,
+                17
+            ],
+            "key": "baseType.objectClass",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Which base type does each numeric objectClass select (P18, C6)?"
+        },
+        {
+            "detail": "Filtered on the ID of one sampled entity. `ID` \u2192 1 result(s), exactly the entity",
+            "answer": "`ID`: an EQUALS filter on it returns exactly the entity.",
+            "evidence": [
+                18
+            ],
+            "key": "search.idFilter",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Which filter field matches the entity ID (P21)?"
+        },
+        {
+            "detail": "83 items returned with no paging fields, total reported 83.",
+            "answer": "object, items under `results`; total count: `totalResults`; next-page cursor: `pagedResultsCookie`; `hasMore`: present.",
+            "evidence": [
+                19
+            ],
+            "key": "paging.envelope",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "What does a search response look like?"
+        },
+        {
+            "detail": "First page `hasMore`: true.",
+            "answer": "Yes: `pageSize` is honoured, and sending back `pagedResultsCookie` returns the next page.",
+            "evidence": [
+                20,
+                21
+            ],
+            "key": "paging.params",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Do `pageSize` and `pagedResultsCookie` page through the results?"
+        },
+        {
+            "detail": "Total reported: 83. If fewer items came back than both the request and the total, that is the cap.",
+            "answer": "Asked for 10000: 200, 83 items. Asked for 1000: 200, 83 items.",
+            "evidence": [
+                22,
+                23
+            ],
+            "key": "paging.maxPageSize",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "What is the largest page the service will return?"
+        },
+        {
+            "detail": null,
+            "answer": "Same first page twice: identical order. Order: sorted by ID.",
+            "evidence": [
+                24,
+                25
+            ],
+            "key": "paging.ordering",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Is the result order stable and what is it ordered by?"
+        },
+        {
+            "detail": "From one search result. Only field names are reported.",
+            "answer": "attributes, baseType, directArchetypes, isArchetypes, lastEvaluated, name, uid (as documented).",
+            "evidence": [
+                26
+            ],
+            "key": "document.searchFields",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Which fields does a search item carry?"
+        },
+        {
+            "detail": null,
+            "answer": "ISO-8601, no fraction, Z",
+            "evidence": [
+                26
+            ],
+            "key": "document.lastEvaluated",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "In which format is `lastEvaluated` reported?"
+        },
+        {
+            "detail": null,
+            "answer": "No: 500, no content type, empty body. Reads by ID need `byIdLookup: search` (P21).",
+            "evidence": [
+                27
+            ],
+            "key": "get.existingEntity",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Does GET by ID work for an entity that exists (C1)?"
+        },
+        {
+            "detail": null,
+            "answer": "Cannot tell: GET returned 500.",
+            "evidence": [
+                27
+            ],
+            "key": "document.readModelFields",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Which fields does the read model (GET) carry?"
+        },
+        {
+            "detail": null,
+            "answer": "Cannot tell: GET returned 500.",
+            "evidence": [
+                27
+            ],
+            "key": "document.edgeKeys",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.06",
+            "question": "Which keys appear on relationships in the read model?"
+        },
+        {
+            "detail": "Sample of 71 entities over at most 5 pages.",
+            "answer": "Resource: 57, Subject: 14",
+            "evidence": [
+                28
+            ],
+            "key": "types.baseTypes",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.08",
+            "question": "Which base types occur?"
+        },
+        {
+            "detail": "Archetypes read from directArchetypes and isArchetypes together; search reports directly assigned ones in isArchetypes (C9). 2 of 71 entities have no archetype. 7 distinct archetype sets: CreditCardApplication \u00d71, Customer \u00d78, Account \u00d746, (none) \u00d72, Company \u00d77, ThirdPartyApplication \u00d76, Publisher \u00d71",
+            "answer": "Not on their own: ThirdPartyApplication appear with more than one base type.",
+            "evidence": [
+                28
+            ],
+            "key": "types.archetypes",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.08",
+            "question": "Do archetypes discriminate types?"
+        },
+        {
+            "detail": "Every archetype the connector is configured with must be listed here for its base type. Only archetype names are recorded.",
+            "answer": "4 manifest(s), nested in an export bundle rather than the documented list (C11). Subject archetypes: Account Owner, Developer, Legal Representative. Resource archetypes: Credit Card, Current Account, Financing, Insurance, Savings Account, Third Party Application, User Access Requests.",
+            "evidence": [
+                29
+            ],
+            "key": "manifests.archetypes",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Which archetypes do the manifests define (P22)?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                30
+            ],
+            "key": "errors.getMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does GET of a missing entity return?"
+        },
+        {
+            "detail": null,
+            "answer": "400: application/problem+json, JSON object with keys [errors, status, title, traceId, type]",
+            "evidence": [
+                31
+            ],
+            "key": "errors.badFilter",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a search with an unknown filter operation return?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                32
+            ],
+            "key": "errors.badObjectClass",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a search with an unknown objectClass return?"
+        },
+        {
+            "detail": "ws0-probe-20261121-155100-id/with/slash, ws0-probe-20261121-190350-id/with/slash, ws0-probe-20261121-211859-id/with/slash, ws0-probe-20261121-214027-id/with/slash",
+            "answer": "Yes: 4, from run(s) 20261121-155100 \u00d71, 20261121-190350 \u00d71, 20261121-211859 \u00d71, 20261121-214027 \u00d71. Remove them by hand; their IDs are in the detail.",
+            "evidence": [
+                33
+            ],
+            "key": "probe.leftovers",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Are entities from earlier probe runs still in the service?"
+        },
+        {
+            "detail": null,
+            "answer": "Removed 0 of 4. Not addressable by path, so not attempted (Q09.1): ws0-probe-20261121-155100-id/with/slash, ws0-probe-20261121-190350-id/with/slash, ws0-probe-20261121-211859-id/with/slash, ws0-probe-20261121-214027-id/with/slash. Ask the service team to remove them.",
+            "evidence": [
+                34
+            ],
+            "key": "probe.leftoversRemoved",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Were the leftover probe entities removed?"
+        },
+        {
+            "detail": "Whether the relationship was stored needs GET, which fails (C1); this only shows the body is accepted.",
+            "answer": "P17 `{sourceID, targetID, type}` \u2192 200; design `{TargetID, type}` \u2192 200.",
+            "evidence": [
+                34,
+                35,
+                36
+            ],
+            "key": "create.relationshipShape",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Which relationship form does a create accept (P17)?"
+        },
+        {
+            "detail": null,
+            "answer": "Yes: after DELETE (200) it was gone from search in 522 ms. GET then returns 500.",
+            "evidence": [
+                37,
+                39,
+                40,
+                42,
+                43
+            ],
+            "key": "search.reflectsDelete",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Does a deleted entity disappear from search?"
+        },
+        {
+            "detail": null,
+            "answer": "Yes: both created entities were found by a search on their ID within 525 ms.",
+            "evidence": [
+                44,
+                45,
+                47,
+                48,
+                49
+            ],
+            "key": "search.createdVisible",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.02",
+            "question": "Is a newly created entity found by search, and how soon (C5)?"
+        },
+        {
+            "detail": null,
+            "answer": "Yes: created with 4 it is a `Subject`, and created with 2 a `Resource`; a search with objectClass 4 finds it.",
+            "evidence": [
+                44,
+                45,
+                47,
+                48,
+                49
+            ],
+            "key": "baseType.create",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Is an entity created with base type 4 a Subject (P18)?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window.",
+            "answer": "Cannot tell: GET returned 500 within the 10s settle window.",
+            "evidence": [
+                50,
+                52,
+                73
+            ],
+            "key": "edges.postToMissing",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "What happens to a relationship to a missing entity on POST (A7)?"
+        },
+        {
+            "detail": null,
+            "answer": "200, and the entity was replaced (upsert), visible after 521 ms.",
+            "evidence": [
+                74,
+                76
+            ],
+            "key": "create.duplicate",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.04",
+            "question": "What does a duplicate POST return?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window.",
+            "answer": "Yes: B, written with A \u2192 B, lists it.",
+            "evidence": [
+                80,
+                82,
+                83
+            ],
+            "key": "edges.inboundOnCreate",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does a relationship in the target's POST link it to an existing source?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window.",
+            "answer": "Yes: B lists A \u2192 B, with A as source.",
+            "evidence": [
+                83
+            ],
+            "key": "edges.getShowsInbound",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does GET of the target show the relationship, with the other entity as source?"
+        },
+        {
+            "detail": null,
+            "answer": "source, sourceType, target, type",
+            "evidence": [
+                83
+            ],
+            "key": "edges.readShape",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Which keys does the read model use for a relationship (P17)?"
+        },
+        {
+            "detail": "Read once, straight after B's write was applied.",
+            "answer": "Yes: A lists A \u2192 B, although only B was written.",
+            "evidence": [
+                84
+            ],
+            "key": "edges.otherEndRefreshed",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does the other end's read model show a relationship it did not write (C15)?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window. Waits for the removal, not only for the write.",
+            "answer": "No: A, written with no relationships, still lists A \u2192 B within the 10s settle window, although B also asserts it.",
+            "evidence": [
+                85,
+                87,
+                108
+            ],
+            "key": "edges.sourceOmission",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does writing the source with an empty relationship list delete the relationship (P15)?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window.",
+            "answer": "Yes: B, written with A \u2192 B, lists it.",
+            "evidence": [
+                109,
+                111,
+                112
+            ],
+            "key": "edges.inboundOnPut",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does a relationship in the target's PUT link the entities?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window. Waits for the removal, not only for the write.",
+            "answer": "No: B, written with no relationships, still lists A \u2192 B within the 10s settle window.",
+            "evidence": [
+                113,
+                115,
+                136
+            ],
+            "key": "edges.targetOmission",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does writing the target with an empty relationship list delete the relationship (Q07.8)?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window.",
+            "answer": "Dropped silently: PUT succeeded and only the relationship to the existing entity remains.",
+            "evidence": [
+                137,
+                139,
+                140
+            ],
+            "key": "edges.putToMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "What happens to a relationship to a missing entity on PUT?"
+        },
+        {
+            "detail": "Settled writes; read on the written entity within the 10s settle window, waiting for the outcome.",
+            "answer": "Yes: R, rewritten with only R \u2192 T2, lists R \u2192 T2 and no longer R \u2192 T1 (after 6 ms).",
+            "evidence": [
+                151,
+                153,
+                154
+            ],
+            "key": "edges.replaceNonEmpty",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does a non-empty relationship list replace the old one (P15)?"
+        },
+        {
+            "detail": null,
+            "answer": "DELETE 200: removed. POST 200: not added within the 10s settle window. The connector does not use them (P15).",
+            "evidence": [
+                155,
+                157,
+                158,
+                179
+            ],
+            "key": "edges.relationshipEndpoints",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Do the relationship endpoints remove and add one relationship?"
+        },
+        {
+            "detail": "DELETE T2 200.",
+            "answer": "Yes: R no longer lists R \u2192 T2.",
+            "evidence": [
+                180,
+                181
+            ],
+            "key": "edges.deleteCascades",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.07",
+            "question": "Does DELETE remove the relationships touching the entity?"
+        },
+        {
+            "detail": "Read by search after each write was applied.",
+            "answer": "No: once the update was visible, the omitted attribute was still there. The connector must send empty values explicitly instead of omitting them.",
+            "evidence": [
+                182,
+                184,
+                185,
+                187
+            ],
+            "key": "attributes.omission",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Does an update that omits an attribute remove it (P20)?"
+        },
+        {
+            "detail": "Read by search after the update was applied.",
+            "answer": "Stored as an empty string: the attribute remains, with an empty value.",
+            "evidence": [
+                188,
+                190,
+                191,
+                193
+            ],
+            "key": "attributes.clear",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Does writing an attribute as an empty string clear it (P20)?"
+        },
+        {
+            "detail": "Archetypes Credit Card, Current Account, from the manifests. Read from isArchetypes, where search reports them (C9).",
+            "answer": "Yes: Created with both; after an update listing only `Current Account`, only `Current Account` remains.",
+            "evidence": [
+                194,
+                196,
+                197,
+                199
+            ],
+            "key": "archetypes.replace",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.15",
+            "question": "Does an update replace directArchetypes in full (P22)?"
+        },
+        {
+            "detail": null,
+            "answer": "500: no content type, empty body",
+            "evidence": [
+                200
+            ],
+            "key": "errors.postWithoutId",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a POST without an ID return (C4)?"
+        },
+        {
+            "detail": null,
+            "answer": "400: application/problem+json, JSON object with keys [errors, status, title, traceId, type]",
+            "evidence": [
+                201
+            ],
+            "key": "errors.malformedJson",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a malformed JSON body return?"
+        },
+        {
+            "detail": null,
+            "answer": "400: application/problem+json, JSON object with keys [errors, status, title, traceId, type]",
+            "evidence": [
+                202
+            ],
+            "key": "errors.nonStringAttribute",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a POST with a non-string attribute value return (P20)?"
+        },
+        {
+            "detail": null,
+            "answer": "200: no content type, empty body. A read-back finds the entity, so PUT creates missing entities (upsert, C2).",
+            "evidence": [
+                203,
+                205,
+                207
+            ],
+            "key": "errors.putMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a PUT to a missing entity return (C2)?"
+        },
+        {
+            "detail": null,
+            "answer": "200: no content type, empty body",
+            "evidence": [
+                204
+            ],
+            "key": "errors.deleteMissing",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.05",
+            "question": "What does a DELETE of a missing entity return (C3)?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%20with%20space",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                208,
+                209,
+                211,
+                212,
+                213,
+                214
+            ],
+            "key": "ids.space",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with space accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%2Fwith%2Fslash",
+            "answer": "Created and GET by the encoded ID returned 500, but a search finds it, but delete returned 200 and removal was not visible: search still finds it.",
+            "evidence": [
+                215,
+                216,
+                218,
+                219,
+                220,
+                241
+            ],
+            "key": "ids.slash",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with slash accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%3Fq%3D1",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                242,
+                243,
+                245,
+                246,
+                247,
+                248
+            ],
+            "key": "ids.question",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with question accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%23hash",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                249,
+                250,
+                252,
+                253,
+                254,
+                255
+            ],
+            "key": "ids.hash",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with hash accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%2Bplus",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                256,
+                257,
+                259,
+                260,
+                261,
+                262
+            ],
+            "key": "ids.plus",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with plus accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%2525",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                263,
+                264,
+                266,
+                267,
+                268,
+                269
+            ],
+            "key": "ids.percent",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with percent accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id%C3%BC-%C3%B1-%E6%BC%A2",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                270,
+                271,
+                273,
+                274,
+                275,
+                276
+            ],
+            "key": "ids.unicode",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with unicode accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-id.with.dots",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                277,
+                278,
+                280,
+                281,
+                282,
+                283
+            ],
+            "key": "ids.dot",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with dot accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-len-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                284,
+                285,
+                287,
+                288,
+                289,
+                291
+            ],
+            "key": "ids.length 64",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 64 accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-len-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                292,
+                293,
+                295,
+                296,
+                297,
+                298
+            ],
+            "key": "ids.length 255",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 255 accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-len-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                299,
+                300,
+                302,
+                303,
+                304,
+                306
+            ],
+            "key": "ids.length 256",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 256 accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": "Path used: /admin/entities/ws0-probe-20261121-215954-len-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "answer": "Yes: created, GET by the encoded ID returned 500, but a search finds it unchanged, and deleted (no longer found by search).",
+            "evidence": [
+                307,
+                308,
+                310,
+                311,
+                312,
+                313
+            ],
+            "key": "ids.length 1024",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Is an ID with length 1024 accepted and addressable when percent-encoded?"
+        },
+        {
+            "detail": null,
+            "answer": "Yes: the entity is in search, and a search for the lower-cased ID does not find it.",
+            "evidence": [
+                314,
+                316,
+                317
+            ],
+            "key": "ids.caseSensitivity",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.09",
+            "question": "Are IDs case-sensitive?"
+        },
+        {
+            "detail": "Page size 1, a STARTSWITH filter on the probe IDs, one entity updated after the first page that contained a test entity.",
+            "answer": "Neither: each entity appeared exactly once.",
+            "evidence": [
+                318,
+                319,
+                320,
+                321,
+                322,
+                323,
+                324,
+                325,
+                326,
+                327,
+                328
+            ],
+            "key": "paging.updateDuringEnumeration",
+            "confidence": "observed",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.03",
+            "question": "Can an entity updated mid-enumeration be skipped or returned twice?"
+        },
+        {
+            "detail": "The probe does not try to trigger throttling. A 429 policy must come from the service team.",
+            "answer": "No rate-limit or Retry-After headers were seen in 328 responses.",
+            "evidence": [
+                
+            ],
+            "key": "limits.headers",
+            "confidence": "inconclusive",
+            "CONFIDENCE": [
+                "observed",
+                "inferred",
+                "inconclusive",
+                "not-tested",
+                "error"
+            ],
+            "task": "WS0.10",
+            "question": "Does the service advertise rate limits?"
+        }
+    ],
+    "cleanupProblems": [
+        "ws0-probe-20261121-215954-id/with/slash still found by search after cleanup"
+    ],
+    "cleanupUnconfirmed": [
+        
+    ]
+}
