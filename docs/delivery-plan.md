@@ -1,7 +1,7 @@
 # Delivery Plan — Ping IDM Scripted REST Connector for the Graph Entity Service
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06)
-**Plan status:** Proposed, v1.2 — 2026-11-04 (WS0 started: question register and contract probe)
+**Plan status:** Proposed, v1.3 — 2026-11-21 (authentication confirmed: shared API key in `X-API-KEY`, decision P13)
 **Target platform:** Self-managed Ping IDM 7.5, Groovy Connector Toolkit 1.5.20.x (Scripted REST)
 **Delivery approach:** Test-first. This repository already contains the complete unit test suite and thin stubs; implementation work turns specs green workstream by workstream.
 
@@ -33,7 +33,7 @@ Every test name in the suite cites the design section it proves (for example `§
 |---|---|---|---|---|
 | D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/graphentity/` | API fixed, bodies are stubs |
 | D2 | Seven ICF operation scripts | §4 | `connector/src/main/scripts/*.groovy` | Written (thin delegation) |
-| D3 | Connector unit + script-harness + contract + scenario tests | §6 of this plan | `connector/src/test/groovy/…` | **Complete: 29 specs, 557 test executions** |
+| D3 | Connector unit + script-harness + contract + scenario tests | §6 of this plan | `connector/src/test/groovy/…` | **Complete: 29 specs, 535 test executions** |
 | D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js` | API fixed, bodies are stubs |
 | D5 | Mapping library tests (Node test runner, Rhino-like isolation) | §8.2 | `mapping-lib/test/` | **Complete: 67 tests** |
 | D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…` | API fixed, bodies are stubs |
@@ -43,7 +43,7 @@ Every test name in the suite cites the design section it proves (for example `§
 | D10 | Integration test harness against IDM 7.5 in Docker | this plan §6.4 | `integration/` (to be created) | Not started |
 | D11 | Operator runbook (deployment, recon cadence, REPORT→DELETE promotion, log interpretation) | §9–§11, §14 | `docs/runbook.md` (to be created) | Not started |
 | D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` | Question register written; no answers confirmed yet |
-| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (47 tests); not yet run against the real service** |
+| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (51 tests); not yet run against the real service** |
 
 ### 2.2 Out of scope (unchanged from the design)
 
@@ -91,6 +91,7 @@ These are places where turning the design into testable code forced a concrete c
 | P10 | **The mapping library reads `config/managed` (cached) only as a fallback** for relationship properties not listed in `objectTypes`. | §6 says listing every property is *should*, not *must*; the fallback needs the reverse property name, which only `managed.json` has. | `graphEntityPayload.test.js` "falls back to managed.json" cases |
 | P11 | **Verification GET failure after a successful POST does not fail the create**; it is logged at WARN. | §9.1 makes verification an audit aid; failing the create would create a retry loop for an entity that already exists (409 on retry). | `CreateOperationSpec` |
 | P12 | **Package namespace `au.com.azwork.idm.graphentity`.** | Derived from the organisation domain; rename is a find-and-replace before WS1 starts if a different namespace is preferred. | everywhere |
+| P13 | **Authentication is one shared API key, sent raw in the `X-API-KEY` header.** Missing and wrong keys both return 401. The key is stored in the Scripted REST `password` property, which IDM encrypts, and the customizer sends it as a default header. `defaultAuthMethod` is `NONE` and there is no username. The header name can be overridden with `apiKeyHeader` in `customConfiguration`. *Decided 2026-11-21.* | Stated by the project owner on 2026-11-21, replacing the design's HTTP Basic. Reusing `password` keeps the key in IDM's encrypted-property handling with no custom secret store. Whether `customSensitiveConfiguration` would serve better is checked in WS3.01. The probe will observe the 401 behaviour (`auth.status`). | `ConnectorConfigSpec`, `CustomizerScriptSpec`, `RestClientEntityApiSpec`, `HttpErrorMapperSpec`, `ScriptSupportSpec`, `ContractProbeSpec` |
 
 ---
 
@@ -223,7 +224,7 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `config/EntityKindSpec` | §3 A4, §6 | 4 | 17 |
 | `config/DirectionSpec` | §7 | 3 | 10 |
 | `config/ObjectTypesParserSpec` | §6 | 18 | 32 |
-| `config/ConnectorConfigSpec` | §6, §15 | 13 | 29 |
+| `config/ConnectorConfigSpec` | §6, §15, P13 | 17 | 39 |
 | `convention/RelationshipConventionSpec` | §7 | 24 | 54 |
 | `model/EdgeSpec` | §2.2 | 9 | 17 |
 | `model/EntityDocumentSpec` | §2.1 | 8 | 8 |
@@ -231,7 +232,7 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `payload/EntityPayloadBuilderSpec` | §8.3, §8.4, A3 | 21 | 23 |
 | `payload/EntityDecoderSpec` | §9.4 | 10 | 10 |
 | `payload/EdgeVerifierSpec` | §9.1 | 8 | 8 |
-| `http/HttpErrorMapperSpec` | §13 | 20 | 102 |
+| `http/HttpErrorMapperSpec` | §13, P13 | 20 | 108 |
 | `http/HttpResponseSpec` | — | 2 | 2 |
 | `http/RestClientEntityApiSpec` | §2, §14 | 12 | 24 |
 | `schema/SchemaFactorySpec` | §5.2, §6, §9.5 | 10 | 13 |
@@ -244,25 +245,25 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `ops/DeleteOperationSpec` | §9.3 | 8 | 8 |
 | `ops/SearchOperationSpec` | §9.4 | 19 | 19 |
 | `ops/TestAndSchemaOperationSpec` | §9.5 | 9 | 9 |
-| `ops/ScriptSupportSpec` | §4 | 7 | 7 |
+| `ops/ScriptSupportSpec` | §4, P13 | 8 | 8 |
 | `scripts/OperationScriptsSpec` | §4 | 13 | 13 |
-| `scripts/CustomizerScriptSpec` | §4, §14 | 4 | 4 |
+| `scripts/CustomizerScriptSpec` | §4, §14, P13 | 5 | 5 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
-| **Connector total** | | **301** | **517** |
+| **Connector total** | | **307** | **535** |
 | `discovery/ManagedSchemaReaderSpec` | §12 | 8 | 8 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 16 | 16 |
 | `discovery/MappingSkeletonGeneratorSpec` | §12, §8.2, §11 | 10 | 10 |
 | `discovery/DiffSummarySpec` | §12 | 7 | 7 |
 | **Discovery total** | | **41** | **41** |
 | `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6 | — | **67** |
-| `contract-probe/ContractProbeSpec` | WS0, §2 | 18 | 18 |
+| `contract-probe/ContractProbeSpec` | WS0, §2 | 19 | 19 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 9 | 9 |
 | `contract-probe/ScrubberSpec` | §13 | 6 | 6 |
-| `contract-probe/ProbeMainSpec` | WS0 | 7 | 14 |
-| **Contract probe total** | | **40** | **47** |
-| **Grand total** | | | **672** |
+| `contract-probe/ProbeMainSpec` | WS0 | 7 | 17 |
+| **Contract probe total** | | **41** | **51** |
+| **Grand total** | | | **694** |
 
-Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass / 503 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 47 tests all pass, because the probe is finished code rather than a stub. The passing tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers, edge equality, the library's exports and ES5 syntax.
+Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 51 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write (WS8/WS9)
 
@@ -277,7 +278,7 @@ Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass
 - **Build:** Gradle 8.14 wrapper, Groovy 3.0.21 (IDM 7.5's Groovy line), Spock 2.3, WireMock 3.9 (standalone, shaded), HTTP Builder 0.7.1 (the `RESTClient` the harness binds). JDK 17+ (tests were run on 21).
 - **ICF flavour:** `./gradlew test` uses ConnId from Maven Central; `./gradlew test -PicfFlavour=forgerock` uses `org.forgerock.openicf.framework:connector-framework:1.5.20.21` from `maven.forgerock.org`. The release artefact is built with the ForgeRock flavour.
 - **Mapping library:** `cd mapping-lib && npm test` (Node 20+, no dependencies).
-- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL --username USER"`, with the password in `GRAPH_PROBE_PASSWORD`. Add `--allow-writes` only against a test instance. Usage is in `docs/service-contract.md` §1. Its tests run in CI with the rest of the Gradle suite, entirely on loopback.
+- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL"`, with the API key in `GRAPH_PROBE_API_KEY`. Add `--allow-writes` only against a test instance. Usage is in `docs/service-contract.md` §1. Its tests run in CI with the rest of the Gradle suite, entirely on loopback.
 - **Shared test fixtures:** `FakeGraphService` and its HTTP front-end `FakeGraphHttpServer` live in `connector/src/testFixtures`, so any subproject can test against the documented semantics.
 - **CI:** `.github/workflows/ci.yml` runs both Gradle subprojects (ConnId flavour) and the Node suite on every push and pull request, publishing JUnit reports. Add a second job with the ForgeRock flavour once the runner has repository access (credentials via secrets, never in `gradle.properties`).
 - **Packaging:** `./gradlew :connector:connectorScripts` → `connector/build/connector-scripts/{scripts,lib,provisioner…json}`.
@@ -306,6 +307,7 @@ Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass
 | A1 erosion (another writer) | Connector deletes foreign edges | Low now | Runbook watch item; read-merge-write evolution path per §15 |
 | Mutable `idProperty` | Orphans on rename | Medium | Discovery tool prompts for natural keys; runbook documents orphan behaviour; optional `onUpdate` guard mapping snippet in WS9 |
 | Partial-attribute updates | Mass edge deletion | Low with P4 | Connector-side guard (P4) + generated mappings + drift recon |
+| One shared API key for every consumer (P13) | A leaked key gives full read and write access for every consumer. The key cannot be scoped to this connector, requests cannot be attributed to it, and rotation needs every consumer at once. Any consumer holding the key could also write relationships, which bears directly on invariant A1 | Medium | TLS for every non-localhost endpoint. The key lives only in IDM's encrypted configuration, and is redacted from logs and error messages by both header-name patterns and literal value (WS3.04). Ask the service team for per-client keys (T5) and a rotation procedure (T10). Confirm A1 (T1) before go-live |
 | ForgeRock Maven access from CI | Release build cannot run in CI | Medium | Flavour switch (P8); add credentials as secrets; fallback manual release build |
 | Rhino incompatibility in the JS library | Mapping transformations fail at runtime | Low | ES5 lint test; WS8 loads the library in real IDM |
 | ICF API difference between ConnId and ForgeRock | Compiles in CI, fails in IDM | Low | Only `org.identityconnectors.framework.common.*` is used; WS7 deploys to real IDM early |
@@ -319,7 +321,7 @@ Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass
 2. **Platform team:** confirm IDM 7.5 Groovy version (3.0.x assumed), whether `maven.forgerock.org` credentials can be provided to CI, and the IDM instance directory layout for `scriptRoots`/`classpath`.
 3. **Design owner:** accept or amend P1–P12, in particular P3 (passive-form rule), P4 (connector-side guard) and P12 (package name).
 4. **Operations:** desired recon cadence and the criteria for promoting `REPORT` → `DELETE` per type.
-5. **Security:** service account scoping on the admin API and the TLS/mTLS target for non-localhost deployment (§14).
+5. **Security:** the authentication scheme is settled (P13), but the key is shared by every consumer and cannot be scoped. Still open: rotation procedure, whether the key differs per environment, and the TLS target for non-localhost deployment (§14). See `docs/service-contract.md` T5, T10 and T11.
 
 ---
 
@@ -327,7 +329,7 @@ Current result (2026-11-04, after the harness fixes in §12.3): connector 9 pass
 
 A workstream is done when its named specs are green with no test modified except to reflect a WS0-confirmed contract change or an accepted plan decision, code review has checked the §8.4 invariant (every update payload carries the full edge set), and the design → code map in §2.3 is still accurate.
 
-The project is done when M5 is reached: all 672 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
+The project is done when M5 is reached: all 694 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
 
 ---
 
@@ -407,16 +409,17 @@ The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding
 - [ ] **WS0.08 Type discrimination (S).** Confirm that `BaseType` is only ever 2 or 4. Confirm whether archetypes are unique per IDM type in practice. Decide whether the `idPattern` fallback is needed (P5).
 - [ ] **WS0.09 ID constraints (S).** Confirm allowed characters, maximum length, case sensitivity, and how an ID containing `/`, `?`, `#` or a space must be encoded in the path.
   *Impacts:* `RestClientEntityApi.encodeSegment` and `RestClientEntityApiSpec`'s encoding table.
-- [ ] **WS0.10 Auth and limits (S).** Confirm whether Basic auth is preemptive and the semantics of 401 versus 403. Confirm rate limits, and whether 429 carries `Retry-After` as seconds or as an HTTP-date. Confirm the service account's scoping options (§14).
+- [ ] **WS0.10 Auth and limits (S).** Confirm the authentication scheme and the semantics of 401 versus 403. Confirm rate limits, and whether 429 carries `Retry-After` as seconds or as an HTTP-date. Confirm the service account's scoping options (§14).
+  *Progress, 2026-11-21:* authentication is answered and folded into the code (P13). It is one shared key, sent raw in `X-API-KEY`, with 401 for a missing or wrong key, so no 403 is expected. Scoping is answered: the key cannot be scoped. Rate limits remain open.
 - [ ] **WS0.11 Record real traffic (M).** *Progress:* the probe writes every exchange as a scrubbed WireMock stub. What remains is a run against the real service, then choosing which stubs to keep. Capture one real document of each type plus a search page as WireMock JSON under `connector/src/test/resources/wiremock/`. Scrub PII and replace names with Appendix A values. These recordings feed WS8 and a contract spec in WS4.09.
-- [ ] **WS0.12 Fold the answers into the code and plan (M).** Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
+- [ ] **WS0.12 Fold the answers into the code and plan (M).** *Progress, 2026-11-21:* the authentication answers (Q10.1, Q10.2, T5) are folded in. That covers the probe, configuration model, customizer contract, redaction rules, provisioner sample, fixtures and specs, the design's §2, §4 and §14, decision P13 and the risk register. Update `FakeGraphService`, `PageCursor`, `PageCursorSpec`, `Fixtures` and the default `timestampSearchParam`. Update `HttpErrorMapper` and its spec if 409 differs. Add a decision-log entry in §3 for each changed assumption, and close the matching items in §10.
   *Green:* all suites still compile, and changed specs fail only on stubs.
 - [x] **WS0.13 Contract probe (L). Done 2026-11-04.**
   - Built `contract-probe/`, a command-line tool that observes the service and answers the observable WS0 questions, citing numbered exchanges as evidence.
   - It is read-only by default. `--allow-writes` limits writes to `ws0-probe-<run>-` IDs and always cleans up.
   - Outputs never contain credentials or data from entities it did not create.
   - It was tested against `FakeGraphHttpServer`, an HTTP front-end over the in-memory model of design §2, so a difference in a real run's report is a real difference in the service.
-  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (47 tests).
+  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (51 tests).
 
 ### WS1 — Configuration, convention and schema
 
@@ -455,7 +458,8 @@ Do these in order; later tasks reuse earlier ones.
   *Green:* `RelationshipConventionSpec`.
 - [ ] **WS1.12 `ConnectorConfig.from` (M).**
   - `serviceAddress` must be an http or https URI with a host. Strip a trailing slash.
-  - `username` and `password` are required, and `password` may be a String or `char[]`.
+  - `apiKey` is required, as a String or `char[]`, and must contain no control characters, since it becomes a header value. Never echo it in a message. There is no username (P13).
+  - `apiKeyHeader` defaults to `X-API-KEY` and must be a header name of letters, digits and dashes.
   - `objectTypes` may be a JSON string or a Map. Parse it through WS1.04/05, then run WS1.11.
   - Coerce string forms of booleans and integers, because `customConfiguration` delivers them that way.
   - `pageSizeDefault` must be between 1 and `MAX_PAGE_SIZE`.
@@ -529,7 +533,7 @@ Do these in order; later tasks reuse earlier ones.
 - [ ] **WS3.02 `HttpErrorMapper.raise` (M).** Implement the §13 table exactly as `HttpErrorMapperSpec` encodes it. Messages read like "HTTP 400 during CREATE: <redacted body>". A 429 message carries the `Retry-After` value. A tolerated 404 returns true.
   *Gotcha:* `CreateOperationSpec` expects the 400 body to appear in an ERROR log line, but `raise` has no logger. Either the operations log before calling `raise`, or `raise` takes a `Log`. Choose one approach for all operations.
 - [ ] **WS3.03 `HttpErrorMapper.retryAfterSeconds` (S).** Accept non-negative delta-seconds, or an RFC 1123 HTTP-date converted to seconds from now and clamped at zero. Anything else returns null. Header lookup ignores case.
-- [ ] **WS3.04 `HttpErrorMapper.redact` (S).** Mask `Authorization` header values (Basic and Bearer), JSON `password` fields in any case, and `authorization=` parameters. Leave other text untouched and accept null.
+- [ ] **WS3.04 `HttpErrorMapper.redact` (S).** Mask `X-API-KEY` values as a header, JSON field or query parameter, in any case, along with `apiKey` and `api_key` fields, `Authorization` values (Basic and Bearer) and JSON `password` fields. Leave other text untouched and accept null. Separately, `raise` must strip the configured key's literal value from any message, because the service may echo the key without a recognisable label, and one leaked key exposes every consumer (P13).
   *Green:* `HttpErrorMapperSpec`.
 - [ ] **WS3.05 `RestClientEntityApi` (L).** Implement the five calls over `RESTClient`. Convert responses to `HttpResponse`, carrying the status, the parsed body (Map or List, or null for a non-JSON body), the raw body and the headers. Never throw for a non-2xx status. Let transport failures propagate as `IOException`.
   *Gotcha:* `RESTClient` parses bodies by content type and consumes the stream, so the raw body is lost unless you take control. Request text and parse JSON with `JsonSlurper` yourself, or register a buffering parser.
@@ -537,7 +541,7 @@ Do these in order; later tasks reuse earlier ones.
   *Gotcha:* `URLEncoder` encodes a space as `+`, but a path segment needs `%20`.
   *Green:* `RestClientEntityApiSpec`.
 - [ ] **WS3.06 `ScriptSupport` (M).**
-  - `propertiesFrom` converts the `serviceAddress` URI to a string and the `GuardedString` password through `access()`, without mutating the configuration.
+  - `propertiesFrom` converts the `serviceAddress` URI to a string. It reads the `GuardedString` `password`, which holds the API key (P13), through `access()`, returns it as `apiKey` and does not mutate the configuration. It never returns `password` or `username`.
   - It copies the property bag keys. When the bag lacks `objectTypes`, it parses `customConfiguration` with `ConfigSlurper`.
   - `contextFrom` builds the `OperationContext`. A null connection is allowed for Schema.
   - It logs the config's validation warnings at WARN.
@@ -563,7 +567,7 @@ Do these in order; later tasks reuse earlier ones.
 - [ ] **WS3.12 `TestOperation` (S).** Run a search from epoch with page size 1 using `PageCursor`'s first page, then map with `TEST` context. Convert `IOException` to `ConnectorIOException`.
   *Green:* the test cases in `TestAndSchemaOperationSpec`.
 - [ ] **WS3.13 `CustomizerScript` (M).**
-  - `init` adds a preemptive Basic `Authorization` default header from `configuration.username` and the `GuardedString` password.
+  - `init` reads the API key from the `GuardedString` `password` property and adds it, raw, as a default `X-API-KEY` header, or under the `apiKeyHeader` override from the property bag. It never sends an `Authorization` header (P13).
   - It sets connect, socket and connection-request timeouts on a `RequestConfig`. Defaults come from constants and can be overridden through property bag keys `connectTimeoutMs` and `socketTimeoutMs`. Document both keys in the provisioner sample.
   - It uses the system trust store for https, and logs WARN when the address is http on a host other than localhost (§14).
   - `release` stays safe to call.
@@ -685,7 +689,7 @@ The library must stay ES5. Its §7 rules must match the Groovy ones exactly.
 
 - [ ] **WS7.01 Complete `connectorScripts` (S).** Also copy `graphEntityPayload.js` into `script/lib/`, the drift-check script and the schedule sample. Write a `VERSION` file containing the git SHA. Add a `distZip` task.
 - [ ] **WS7.02 Confirm the library deployment model (M).** Verify in IDM 7.5 that the provisioner's `classpath` accepts a directory of Groovy *sources* in packages (P9). If it does not, package the library as a jar and update the task and §8.
-- [ ] **WS7.03 Provisioner generation (S).** Generate the escaped `customConfiguration` string with the WS6.07 tool rather than by hand. Document how the password gets encrypted on write.
+- [ ] **WS7.03 Provisioner generation (S).** Generate the escaped `customConfiguration` string with the WS6.07 tool rather than by hand. Document how the API key stored in `password` gets encrypted on write, and that `defaultAuthMethod` must stay `NONE` (P13).
 - [ ] **WS7.04 Confirm versions (S).** Confirm the Groovy version bundled with IDM 7.5 and the exact Scripted REST bundle version. Update `gradle.properties` and the provisioner's `connectorRef` range.
 - [ ] **WS7.05 ForgeRock flavour in CI (S).** Add a CI job with `-PicfFlavour=forgerock`, with repository credentials as secrets. Fail the build when the two flavours disagree.
 - [ ] **WS7.06 Development IDM container (M).** Build a docker-compose stack with IDM 7.5 and its repository, mounting the build output. Image access needs vendor credentials, so document how to get them.
@@ -725,7 +729,11 @@ The library must stay ES5. Its §7 rules must match the Groovy ones exactly.
 - [ ] **WS9.03 Monitoring (M).** Write queries or alerts for dropped-edge WARN volume, the `ConnectorIOException` rate, recon REPORT counts per situation and drift-check lag.
 - [ ] **WS9.04 REPORT to DELETE checklist (S).** Write the per-type promotion criteria (§8 step 7), with who signs off and how to roll back.
 - [ ] **WS9.05 Mutable `idProperty` guard (M). New tests.** Write an `onUpdate` mapping snippet that detects an `idProperty` change and does an explicit delete then create (§15). Add an integration case to WS8.
-- [ ] **WS9.06 Security review (M).** Cover service account scope, TLS in every non-localhost environment, credentials held only in the encrypted provisioner, the read-only discovery credentials, and a PII sample audit of real logs.
+- [ ] **WS9.06 Security review (M).** Cover:
+  - the shared API key: where it is stored, who can read the provisioner configuration, and the rotation runbook agreed with every consumer (T10);
+  - TLS in every non-localhost environment;
+  - the read-only discovery credentials;
+  - a log audit, of a real-log sample, showing that neither the key nor PII appears.
 - [ ] **WS9.07 Non-production dry run (M).** Run against the real service with `REPORT` everywhere. Review the counts with operations.
 - [ ] **WS9.08 Sign-off (S).** Get sign-off from operations, security and the design owner, then record the decision.
 - [ ] **WS9.09 Handover (S).** Walk support through the runbook and the log signals.

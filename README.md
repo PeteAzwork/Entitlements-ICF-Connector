@@ -12,10 +12,10 @@ The build is test-first. The complete unit test suite is in place and the produc
 
 | Area | Code | Tests | Run |
 |---|---|---|---|
-| Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 29 Spock specs, 517 executions | `./gradlew :connector:test` |
+| Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 29 Spock specs, 535 executions | `./gradlew :connector:test` |
 | Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 4 specs, 41 executions | `./gradlew :discovery:test` |
 | Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 67 tests | `cd mapping-lib && npm test` |
-| Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 4 specs, 47 tests, all passing | `./gradlew :contract-probe:test` |
+| Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 4 specs, 51 tests, all passing | `./gradlew :contract-probe:test` |
 | Configuration samples | `config/` | — | — |
 
 ## Prerequisites
@@ -35,9 +35,9 @@ cd mapping-lib && npm test
 ## Probing the real service (WS0)
 
 ```bash
-export GRAPH_PROBE_PASSWORD='…'
-./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe"                 # read-only
-./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe --allow-writes"  # test instance only
+export GRAPH_PROBE_API_KEY='…'   # the service's shared key, sent raw in the X-API-KEY header
+./gradlew :contract-probe:run --args="--base-url https://graph.test.example"                 # read-only
+./gradlew :contract-probe:run --args="--base-url https://graph.test.example --allow-writes"  # test instance only
 ```
 
 The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-contract.md` §1.

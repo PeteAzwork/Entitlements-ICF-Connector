@@ -159,15 +159,18 @@ class HttpErrorMapperSpec extends Specification {
         status << [301, 302, 405, 410, 418, 422]
     }
 
-    def "the exception message includes status and context but never the request credentials"() {
+    def "the exception message includes status and context but never the API key, even when the service echoes it"() {
+        given:
+        def key = Fixtures.API_KEY
+
         when:
-        HttpErrorMapper.raise(resp(400, ['Authorization': 'Basic c2VjcmV0'], '{"error":"x","authorization":"Basic c2VjcmV0"}'), CREATE, Fixtures.connectorConfig())
+        HttpErrorMapper.raise(resp(400, ['X-API-KEY': key], "{\"error\":\"key ${key} rejected\",\"x-api-key\":\"${key}\"}"), CREATE, Fixtures.connectorConfig())
 
         then:
         def e = thrown(InvalidAttributeValueException)
         e.message.contains('400')
         e.message.contains('CREATE')
-        !e.message.contains('c2VjcmV0')
+        !e.message.contains(key)
     }
 
     // ---- Retry-After ----
@@ -214,6 +217,12 @@ class HttpErrorMapperSpec extends Specification {
 
         where:
         input                                                | secret
+        'X-API-KEY: k-abc123'                                | 'k-abc123'
+        'x-api-key: k-abc123'                                | 'k-abc123'
+        '{"X-API-KEY": "k-abc123"}'                          | 'k-abc123'
+        '{"apiKey":"k-abc123"}'                              | 'k-abc123'
+        '{"api_key":"k-abc123"}'                             | 'k-abc123'
+        'x-api-key=k-abc123&y=1'                             | 'k-abc123'
         'Authorization: Basic c3ZjOnNlY3JldA=='              | 'c3ZjOnNlY3JldA=='
         '{"password":"hunter2"}'                             | 'hunter2'
         '{"Password": "hunter2", "x": 1}'                    | 'hunter2'

@@ -7,9 +7,12 @@ import java.time.format.DateTimeFormatter
 
 @Canonical
 class ProbeOptions {
+    static final String DEFAULT_API_KEY_HEADER = 'X-API-KEY'
+
     String baseUrl
-    String username
-    char[] password
+    /** Sent raw, as the value of {@link #apiKeyHeader}. */
+    char[] apiKey
+    String apiKeyHeader = DEFAULT_API_KEY_HEADER
     /** Write checks create, change and delete entities whose ID starts with {@link #getPrefix()}. Off by default. */
     boolean allowWrites = false
     int maxPages = 5
@@ -23,6 +26,6 @@ class ProbeOptions {
 
     @Override
     String toString() {
-        "ProbeOptions(baseUrl=${baseUrl}, username=${username}, allowWrites=${allowWrites}, maxPages=${maxPages}, runId=${runId})"
+        "ProbeOptions(baseUrl=${baseUrl}, apiKeyHeader=${apiKeyHeader}, allowWrites=${allowWrites}, maxPages=${maxPages}, runId=${runId})"
     }
 }

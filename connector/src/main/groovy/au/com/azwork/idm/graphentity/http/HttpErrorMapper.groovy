@@ -34,7 +34,12 @@ class HttpErrorMapper {
         throw new UnsupportedOperationException('TODO WS3: HttpErrorMapper.retryAfterSeconds')
     }
 
-    /** Redacts anything that looks like a credential before a body is logged. TODO WS3. */
+    /**
+     * Redacts anything that looks like a credential before a body is logged: {@code X-API-KEY} header or
+     * field values (any case), {@code apiKey} fields, {@code Authorization} values and {@code password}
+     * fields. {@link #raise} additionally removes the configured key's literal value wherever it appears,
+     * because one shared key leaking exposes every consumer of the service. TODO WS3.
+     */
     static String redact(String body) {
         throw new UnsupportedOperationException('TODO WS3: HttpErrorMapper.redact')
     }

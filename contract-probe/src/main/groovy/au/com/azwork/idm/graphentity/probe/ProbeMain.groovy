@@ -4,21 +4,24 @@ package au.com.azwork.idm.graphentity.probe
  * Command line for the WS0 contract probe.
  *
  * <pre>
- * GRAPH_PROBE_PASSWORD=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe"
- * GRAPH_PROBE_PASSWORD=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe --allow-writes"
+ * GRAPH_PROBE_API_KEY=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example"
+ * GRAPH_PROBE_API_KEY=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --allow-writes"
  * </pre>
  *
- * The password is read from an environment variable so it never appears in shell history or process lists.
+ * The API key is read from an environment variable so it never appears in shell history or process lists.
+ * It is sent raw in the {@code X-API-KEY} header (configurable with {@code --api-key-header}).
  * Exit codes: 0 finished (see the report for answers), 1 the probe could not complete, 2 usage error.
  */
 class ProbeMain {
 
     static final String USAGE = '''\
-Usage: contract-probe --base-url URL --username USER [options]
+Usage: contract-probe --base-url URL [options]
+
+The API key is read from the environment, never from the command line.
 
   --base-url URL         Service base URL, e.g. https://graph.test.example (required)
-  --username USER        Basic-auth user (required). Password comes from the environment.
-  --password-env NAME    Environment variable holding the password (default GRAPH_PROBE_PASSWORD)
+  --api-key-env NAME     Environment variable holding the API key (default GRAPH_PROBE_API_KEY)
+  --api-key-header NAME  Header the key is sent in, raw (default X-API-KEY)
   --allow-writes         Also create, change and delete probe entities (ID prefix ws0-probe-<run>-).
                          Use only against a test instance. Without it, only GET requests are made.
   --out DIR              Output directory (default build/contract-probe/<run>)
@@ -35,7 +38,7 @@ Usage: contract-probe --base-url URL --username USER [options]
     /** Pure parsing so it can be tested without touching the network or the real environment. */
     static ProbeOptions parse(List<String> args, Map<String, String> env) {
         def o = new ProbeOptions()
-        String passwordEnv = 'GRAPH_PROBE_PASSWORD'
+        String keyEnv = 'GRAPH_PROBE_API_KEY'
         def it = args.iterator()
         Closure<String> next = { String flag ->
             if (!it.hasNext()) throw new UsageException("${flag} needs a value")
@@ -45,8 +48,11 @@ Usage: contract-probe --base-url URL --username USER [options]
             String a = it.next()
             switch (a) {
                 case '--base-url': o.baseUrl = next(a); break
-                case '--username': o.username = next(a); break
-                case '--password-env': passwordEnv = next(a); break
+                case '--api-key-env': keyEnv = next(a); break
+                case '--api-key-header':
+                    o.apiKeyHeader = next(a)
+                    if (!(o.apiKeyHeader ==~ /[A-Za-z0-9-]{1,64}/)) throw new UsageException('--api-key-header must be a header name: letters, digits and dashes')
+                    break
                 case '--allow-writes': o.allowWrites = true; break
                 case '--out': o.outDir = new File(next(a)); break
                 case '--max-pages': o.maxPages = positive(a, next(a)); break
@@ -62,10 +68,10 @@ Usage: contract-probe --base-url URL --username USER [options]
         }
         if (!o.baseUrl) throw new UsageException('--base-url is required')
         if (!(o.baseUrl ==~ /https?:\/\/[^\/\s]+.*/)) throw new UsageException('--base-url must be an http or https URL')
-        if (!o.username) throw new UsageException('--username is required')
-        String pw = env[passwordEnv]
-        if (!pw) throw new UsageException("Set the password in the ${passwordEnv} environment variable")
-        o.password = pw.toCharArray()
+        String key = env[keyEnv]
+        if (!key) throw new UsageException("Set the API key in the ${keyEnv} environment variable")
+        if (key.any { it < ' ' || it == '\u007f' }) throw new UsageException("The API key in ${keyEnv} contains control characters")
+        o.apiKey = key.toCharArray()
         if (!o.outDir) o.outDir = new File("build/contract-probe/${o.runId}")
         o
     }

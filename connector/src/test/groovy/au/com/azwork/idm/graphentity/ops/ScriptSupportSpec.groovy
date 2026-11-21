@@ -2,6 +2,7 @@ package au.com.azwork.idm.graphentity.ops
 
 import au.com.azwork.idm.graphentity.http.RestClientEntityApi
 import au.com.azwork.idm.graphentity.support.CapturingLog
+import au.com.azwork.idm.graphentity.support.Fixtures
 import au.com.azwork.idm.graphentity.support.ScriptHarness
 import org.identityconnectors.common.security.GuardedString
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
@@ -10,27 +11,28 @@ import spock.lang.Specification
 /** Bridge from the Scripted REST harness bindings to the library. */
 class ScriptSupportSpec extends Specification {
 
-    def "flattens the harness configuration (URI serviceAddress, GuardedString password, propertyBag) into properties"() {
+    def "flattens the harness configuration (URI serviceAddress, GuardedString password holding the API key, propertyBag) into properties"() {
         when:
         def props = ScriptSupport.propertiesFrom(ScriptHarness.fakeConfiguration('http://localhost:5276'))
 
         then:
         props.serviceAddress == 'http://localhost:5276'
-        props.username == 'svc-idm-sync'
-        props.password == 'secret'
+        props.apiKey == Fixtures.API_KEY
+        !props.containsKey('password')
+        !props.containsKey('username')
         props.objectTypes instanceof String
         props.timestampSearchParam == 'updatedAfter'
         props.pageSizeDefault == 200
         props.deleteMissingTolerated == true
     }
 
-    def "accepts a String serviceAddress and a String password"() {
+    def "accepts a String serviceAddress and a String password, returned as apiKey"() {
         when:
-        def props = ScriptSupport.propertiesFrom(new Expando(serviceAddress: 'http://h:1', username: 'u', password: 'p', propertyBag: [objectTypes: '{}']))
+        def props = ScriptSupport.propertiesFrom(new Expando(serviceAddress: 'http://h:1', password: 'p', propertyBag: [objectTypes: '{}']))
 
         then:
         props.serviceAddress == 'http://h:1'
-        props.password == 'p'
+        props.apiKey == 'p'
     }
 
     def "a GuardedString password is read without leaving a String copy in the configuration object"() {
@@ -42,6 +44,11 @@ class ScriptSupportSpec extends Specification {
 
         then:
         cfg.password instanceof GuardedString
+    }
+
+    def "apiKeyHeader in the propertyBag is passed through"() {
+        expect:
+        ScriptSupport.propertiesFrom(ScriptHarness.fakeConfiguration('http://localhost:5276', [apiKeyHeader: 'X-Custom-Key'])).apiKeyHeader == 'X-Custom-Key'
     }
 
     def "a propertyBag without objectTypes falls back to parsing customConfiguration"() {

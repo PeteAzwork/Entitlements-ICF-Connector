@@ -54,7 +54,6 @@ function fakeOpenidm(store, opts) {
         _id: 'provisioner.openicf/graphentity',
         configurationProperties: {
             serviceAddress: 'http://localhost:5276',
-            username: 'svc-idm-sync',
             customConfiguration: "objectTypes='" + JSON.stringify(opts.objectTypes || objectTypes()).replace(/'/g, "\\'") + "'"
         }
     };

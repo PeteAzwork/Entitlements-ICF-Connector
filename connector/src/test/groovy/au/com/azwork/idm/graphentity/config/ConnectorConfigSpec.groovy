@@ -14,8 +14,8 @@ class ConnectorConfigSpec extends Specification {
 
         then:
         cfg.serviceAddress == 'http://localhost:5276'
-        cfg.username == 'svc-idm-sync'
-        String.valueOf(cfg.password) == 'secret'
+        String.valueOf(cfg.apiKey) == Fixtures.API_KEY
+        cfg.apiKeyHeader == 'X-API-KEY'
         cfg.objectTypes.keySet() == ['user', 'account'] as Set
         cfg.timestampSearchParam == 'updatedAfter'
         cfg.pageSizeDefault == 200
@@ -44,6 +44,7 @@ class ConnectorConfigSpec extends Specification {
         'pageSizeDefault'        | 200
         'deleteMissingTolerated' | true
         'rePutOnDroppedEdges'    | false
+        'apiKeyHeader'           | 'X-API-KEY'
     }
 
     @Unroll
@@ -76,8 +77,8 @@ class ConnectorConfigSpec extends Specification {
         key              | value
         'serviceAddress' | null
         'serviceAddress' | ''
-        'username'       | null
-        'password'       | null
+        'apiKey'         | null
+        'apiKey'         | ''
         'objectTypes'    | null
     }
 
@@ -111,15 +112,59 @@ class ConnectorConfigSpec extends Specification {
         max = ConnectorConfig.MAX_PAGE_SIZE
     }
 
-    def "password accepts char[] and String"() {
+    def "apiKey accepts char[] and String"() {
         expect:
-        String.valueOf(ConnectorConfig.from(Fixtures.connectorProps(password: 'pw'.toCharArray())).password) == 'pw'
-        String.valueOf(ConnectorConfig.from(Fixtures.connectorProps(password: 'pw')).password) == 'pw'
+        String.valueOf(ConnectorConfig.from(Fixtures.connectorProps(apiKey: 'k1'.toCharArray())).apiKey) == 'k1'
+        String.valueOf(ConnectorConfig.from(Fixtures.connectorProps(apiKey: 'k1')).apiKey) == 'k1'
     }
 
-    def "toString never reveals the password"() {
+    def "no username is required: the service authenticates by API key alone (P13)"() {
+        given:
+        def props = Fixtures.connectorProps()
+        props.remove('username')
+
         expect:
-        !ConnectorConfig.from(Fixtures.connectorProps(password: 'hunter2')).toString().contains('hunter2')
+        ConnectorConfig.from(props).apiKey
+    }
+
+    @Unroll
+    def "an API key containing a control character is rejected, because it becomes a header value: #why"() {
+        when:
+        ConnectorConfig.from(Fixtures.connectorProps(apiKey: key))
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('apiKey')
+        !e.message.contains(key)
+
+        where:
+        why            | key
+        'line break'   | 'abc\r\nX-Injected: 1'
+        'tab'          | 'abc\tdef'
+        'NUL'          | 'abc\u0000'
+    }
+
+    def "apiKeyHeader can be overridden"() {
+        expect:
+        ConnectorConfig.from(Fixtures.connectorProps(apiKeyHeader: 'X-Custom-Key')).apiKeyHeader == 'X-Custom-Key'
+    }
+
+    @Unroll
+    def "apiKeyHeader '#header' is rejected because it is not a header name"() {
+        when:
+        ConnectorConfig.from(Fixtures.connectorProps(apiKeyHeader: header))
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('apiKeyHeader')
+
+        where:
+        header << ['', 'X API KEY', 'X-API-KEY:', 'X-API-KEY\r\n']
+    }
+
+    def "toString never reveals the API key"() {
+        expect:
+        !ConnectorConfig.from(Fixtures.connectorProps(apiKey: 'hunter2')).toString().contains('hunter2')
     }
 
     def "typeFor resolves configured classes and returns null for unknown ones"() {

@@ -1,8 +1,8 @@
 # Service Contract — Graph Entity Service Admin API
 
 **Workstream:** WS0 (delivery plan §4 and §12)
-**Status:** Open. No answer below is confirmed yet.
-**Last updated:** 2026-11-04
+**Status:** Open. Authentication is answered (Q10.1, Q10.2, T5). Everything else is open.
+**Last updated:** 2026-11-21
 
 This is the record of what the connector may rely on about the remote service. Each question has one of three states:
 
@@ -21,14 +21,14 @@ Most questions can be answered by observation with the contract probe in `contra
 **Step 1. Read-only run.** This is safe against any environment, because it only sends GET requests:
 
 ```bash
-export GRAPH_PROBE_PASSWORD='…'
-./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe"
+export GRAPH_PROBE_API_KEY='…'
+./gradlew :contract-probe:run --args="--base-url https://graph.test.example"
 ```
 
 **Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never touches any other entity.
 
 ```bash
-./gradlew :contract-probe:run --args="--base-url https://graph.test.example --username svc-probe --allow-writes"
+./gradlew :contract-probe:run --args="--base-url https://graph.test.example --allow-writes"
 ```
 
 **Output** goes to `build/contract-probe/<run>/`:
@@ -42,7 +42,7 @@ export GRAPH_PROBE_PASSWORD='…'
 
 **Safe to share.** No output contains request headers or credentials. Every entity the probe did not create is scrubbed: its ID and attribute values are replaced, and its shape (BaseType, archetypes, field names, edge types, timestamp formats) is kept. Tests in `ProbeOutputSpec` enforce this.
 
-**What the probe needs.** A service account that can read entities for step 1, and create and delete them for step 2. The password is read from an environment variable and never from the command line. There is no option to disable TLS verification.
+**What the probe needs.** The service's API key, read from the `GRAPH_PROBE_API_KEY` environment variable, or another variable named with `--api-key-env`. It is never taken from the command line. The key is sent raw in the `X-API-KEY` header; `--api-key-header` overrides the name. Because every consumer shares one key, the key used for the write run can write anywhere that key is valid. Point `--allow-writes` only at a test instance, and check T11 below before assuming test and production keys differ. There is no option to disable TLS verification.
 
 ---
 
@@ -125,8 +125,8 @@ export GRAPH_PROBE_PASSWORD='…'
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
-| Q10.1 | How are missing, wrong and valid credentials answered? | 401 for both failures; Basic sent preemptively | `auth.status` | `HttpErrorMapper` (TEST context) | Open |
-| Q10.2 | When does the service return 403 rather than 401? | Authenticated but not permitted | Not observable | `HttpErrorMapper` | Open |
+| Q10.1 | How does the service authenticate, and how are missing, wrong and valid credentials answered? | **Answered:** one raw key in the `X-API-KEY` header; a missing key gets 401 and a wrong key gets 401 | `auth.status` | Done 2026-11-21 (P13): probe, `ConnectorConfig`, customizer contract, redaction, provisioner sample, fixtures, specs | **Confirmed** by the project owner, 2026-11-21. The probe will observe it on its first run |
+| Q10.2 | When does the service return 403 rather than 401? | **Answered:** not expected. There is one key with no permission levels | Not observable | None. `HttpErrorMapper` keeps its 403 mapping as a safe default | **Confirmed** (follows from Q10.1), 2026-11-21 |
 | Q10.3 | Are there rate limits, and does 429 carry `Retry-After`? | 429 with `Retry-After` in seconds or as an HTTP-date | `limits.headers` (partial) | `HttpErrorMapper.retryAfterSeconds`, queued sync settings | Open |
 
 ---
@@ -141,11 +141,13 @@ The probe cannot observe these. Send this section ahead of the WS0.01 session.
 | T2 | Is the paging order guaranteed, or just how it works today? | Recon correctness depends on it (Q03.5, Q03.6) | Open |
 | T3 | Are the ID constraints documented, or just what is accepted today? | The discovery tool should validate against documented limits (Q09) | Open |
 | T4 | What is the rate-limit policy, per account or per IP, and what are the limits? | Recon `taskThreads` and queued sync retry settings (plan §9, WS9.02) | Open |
-| T5 | Can the service account be scoped to the entities API only? | Design §14 | Open |
+| T5 | Can the service account be scoped to the entities API only? | Design §14 | **Answered 2026-11-21: no.** One constant key is shared by all consumers, so it cannot be scoped or attributed. Recorded as a risk in the plan §9. Worth asking whether per-client keys are planned |
 | T6 | Is there a test instance or tenant the write probe and WS8 may use? | WS0.07 and WS8 need one | Open |
 | T7 | Is the error body schema stable, or may it change without notice? | Whether the connector may ever parse it (§13) | Open |
 | T8 | How is the API versioned, and how are breaking changes announced? | Upgrade and monitoring planning (WS9) | Open |
-| T9 | Is TLS available on every non-development endpoint, and with which CA? | Design §14, customizer trust settings (WS3.13) | Open |
+| T9 | Is TLS available on every non-development endpoint, and with which CA? | Design §14, customizer trust settings (WS3.13). With a shared key, TLS is the main protection against the key being read in transit | Open |
+| T10 | How is the shared key rotated, and how are consumers told in advance? | Rotation breaks every consumer that has not switched. IDM needs a provisioner update at the same moment (WS9.01, WS9.06) | Open |
+| T11 | Is the key the same in every environment, test and production alike? | If it is, a key handed out for testing is the production key, and the probe's write run could reach production data | Open |
 
 ---
 
@@ -157,6 +159,7 @@ These are questions about Ping IDM's Scripted REST harness, not about the servic
 |---|---|---|---|
 | H1 | Which binding carries the HTTP client the customizer's `decorate` closure returns: `connection` or `customizedConnection`? | `connection`. The vendor docs suggest `customizedConnection` | Open |
 | H2 | What are the signatures of the customizer's `init`, `decorate` and `release` closures? | `init(HttpClientBuilder)`, `release(...)`. No `decorate` yet | Open |
+| H7 | Is `password` the right home for the API key, or does `customSensitiveConfiguration` reach the scripts decrypted? | `password`, read through `GuardedString.access()` (P13) | Open |
 | H3 | Does a create script receive an `id` binding? | Not used | Open |
 | H4 | May a search script return a `SearchResult` to pass the paged-results cookie? | Yes | Open |
 | H5 | Does the schema script return a `Schema`, or call `builder.schema { }`? | Returns a `Schema` | Open |
@@ -169,3 +172,4 @@ These are questions about Ping IDM's Scripted REST harness, not about the servic
 | Date | Change |
 |---|---|
 | 2026-11-04 | Register created. Contract probe added. No answers confirmed yet: no instance of the service was reachable from the environment that wrote this. |
+| 2026-11-21 | Q10.1, Q10.2 and T5 answered by the project owner: one shared raw key in `X-API-KEY`, with 401 for a missing or wrong key. Folded into the code as decision P13. Added T10, T11 and H7. |
