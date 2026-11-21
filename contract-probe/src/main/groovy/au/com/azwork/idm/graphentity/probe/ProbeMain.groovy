@@ -4,22 +4,25 @@ package au.com.azwork.idm.graphentity.probe
  * Command line for the WS0 contract probe.
  *
  * <pre>
- * GRAPH_PROBE_API_KEY=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example"
+ * ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
  * GRAPH_PROBE_API_KEY=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --allow-writes"
  * </pre>
  *
- * The API key is read from an environment variable so it never appears in shell history or process lists.
- * It is sent raw in the {@code X-API-KEY} header (configurable with {@code --api-key-header}).
+ * The API key comes from {@code --api-key}, or failing that from an environment variable. The option is the
+ * simplest to use but leaves the key in shell history and visible in the process list; the environment
+ * variable avoids both. The key is sent raw in the {@code X-API-KEY} header (configurable with
+ * {@code --api-key-header}) and never written to any output.
  * Exit codes: 0 finished (see the report for answers), 1 the probe could not complete, 2 usage error.
  */
 class ProbeMain {
 
     static final String USAGE = '''\
-Usage: contract-probe --base-url URL [options]
-
-The API key is read from the environment, never from the command line.
+Usage: contract-probe --base-url URL [--api-key KEY] [options]
 
   --base-url URL         Service base URL, e.g. https://graph.test.example (required)
+  --api-key KEY          The service's API key. Convenient, but the key is kept in shell
+                         history and is visible in the process list. If omitted, the key is
+                         read from the environment variable named by --api-key-env.
   --api-key-env NAME     Environment variable holding the API key (default GRAPH_PROBE_API_KEY)
   --api-key-header NAME  Header the key is sent in, raw (default X-API-KEY)
   --allow-writes         Also create, change and delete probe entities (ID prefix ws0-probe-<run>-).
@@ -39,6 +42,7 @@ The API key is read from the environment, never from the command line.
     static ProbeOptions parse(List<String> args, Map<String, String> env) {
         def o = new ProbeOptions()
         String keyEnv = 'GRAPH_PROBE_API_KEY'
+        String keyArg = null
         def it = args.iterator()
         Closure<String> next = { String flag ->
             if (!it.hasNext()) throw new UsageException("${flag} needs a value")
@@ -48,6 +52,7 @@ The API key is read from the environment, never from the command line.
             String a = it.next()
             switch (a) {
                 case '--base-url': o.baseUrl = next(a); break
+                case '--api-key': keyArg = next(a); break
                 case '--api-key-env': keyEnv = next(a); break
                 case '--api-key-header':
                     o.apiKeyHeader = next(a)
@@ -68,9 +73,11 @@ The API key is read from the environment, never from the command line.
         }
         if (!o.baseUrl) throw new UsageException('--base-url is required')
         if (!(o.baseUrl ==~ /https?:\/\/[^\/\s]+.*/)) throw new UsageException('--base-url must be an http or https URL')
-        String key = env[keyEnv]
-        if (!key) throw new UsageException("Set the API key in the ${keyEnv} environment variable")
-        if (key.any { it < ' ' || it == '\u007f' }) throw new UsageException("The API key in ${keyEnv} contains control characters")
+        String key = keyArg != null ? keyArg : env[keyEnv]
+        String source = keyArg != null ? '--api-key' : "the ${keyEnv} environment variable"
+        if (!key) throw new UsageException(keyArg != null ? '--api-key must not be empty' :
+            "No API key: pass --api-key KEY, or set the ${keyEnv} environment variable")
+        if (key.any { it < ' ' || it == '\u007f' }) throw new UsageException("The API key from ${source} contains control characters")
         o.apiKey = key.toCharArray()
         if (!o.outDir) o.outDir = new File("build/contract-probe/${o.runId}")
         o

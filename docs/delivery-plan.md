@@ -43,7 +43,7 @@ Every test name in the suite cites the design section it proves (for example `§
 | D10 | Integration test harness against IDM 7.5 in Docker | this plan §6.4 | `integration/` (to be created) | Not started |
 | D11 | Operator runbook (deployment, recon cadence, REPORT→DELETE promotion, log interpretation) | §9–§11, §14 | `docs/runbook.md` (to be created) | Not started |
 | D12 | Service-contract confirmation record (answers to design §15 open items) | §15 | `docs/service-contract.md` | Question register written; no answers confirmed yet |
-| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (51 tests); not yet run against the real service** |
+| D13 | Contract probe: answers the observable WS0 questions and records the evidence | §15 | `contract-probe/` | **Built and tested against the in-memory fake (59 tests); not yet run against the real service** |
 
 ### 2.2 Out of scope (unchanged from the design)
 
@@ -259,11 +259,11 @@ Assumes one engineer on the connector and one on the mapping library/discovery, 
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 19 | 19 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 9 | 9 |
 | `contract-probe/ScrubberSpec` | §13 | 6 | 6 |
-| `contract-probe/ProbeMainSpec` | WS0 | 7 | 17 |
-| **Contract probe total** | | **41** | **51** |
-| **Grand total** | | | **694** |
+| `contract-probe/ProbeMainSpec` | WS0 | 11 | 25 |
+| **Contract probe total** | | **45** | **59** |
+| **Grand total** | | | **702** |
 
-Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 51 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
+Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Stepwise` scenario stops after its first step); discovery 0 / 41; mapping library 3 pass / 64 fail. Every failure is a `TODO WSn` stub, with no failures caused by the test harness. The contract probe's 59 tests all pass, because the probe is finished code rather than a stub. The passing connector tests are structural checks: the scripts exist, there is no SyncScript, the customizer holds no credentials and its release closure is safe, the builder takes no API dependency, response helpers and edge equality. The passing mapping-library tests check the library's exports and ES5 syntax.
 
 ### 6.4 Tests still to write (WS8/WS9)
 
@@ -278,7 +278,7 @@ Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Step
 - **Build:** Gradle 8.14 wrapper, Groovy 3.0.21 (IDM 7.5's Groovy line), Spock 2.3, WireMock 3.9 (standalone, shaded), HTTP Builder 0.7.1 (the `RESTClient` the harness binds). JDK 17+ (tests were run on 21).
 - **ICF flavour:** `./gradlew test` uses ConnId from Maven Central; `./gradlew test -PicfFlavour=forgerock` uses `org.forgerock.openicf.framework:connector-framework:1.5.20.21` from `maven.forgerock.org`. The release artefact is built with the ForgeRock flavour.
 - **Mapping library:** `cd mapping-lib && npm test` (Node 20+, no dependencies).
-- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL"`, with the API key in `GRAPH_PROBE_API_KEY`. Add `--allow-writes` only against a test instance. Usage is in `docs/service-contract.md` §1. Its tests run in CI with the rest of the Gradle suite, entirely on loopback.
+- **Contract probe:** `./gradlew :contract-probe:run --args="--base-url URL --api-key KEY"`. Alternatively, leave out `--api-key` and set `GRAPH_PROBE_API_KEY`, which keeps the key out of shell history. Add `--allow-writes` only against a test instance. Usage is in `docs/service-contract.md` §1. Its tests run in CI with the rest of the Gradle suite, entirely on loopback.
 - **Shared test fixtures:** `FakeGraphService` and its HTTP front-end `FakeGraphHttpServer` live in `connector/src/testFixtures`, so any subproject can test against the documented semantics.
 - **CI:** `.github/workflows/ci.yml` runs both Gradle subprojects (ConnId flavour) and the Node suite on every push and pull request, publishing JUnit reports. Add a second job with the ForgeRock flavour once the runner has repository access (credentials via secrets, never in `gradle.properties`).
 - **Packaging:** `./gradlew :connector:connectorScripts` → `connector/build/connector-scripts/{scripts,lib,provisioner…json}`.
@@ -329,7 +329,7 @@ Current result (2026-11-21): connector 9 pass / 521 fail / 5 skipped (the `@Step
 
 A workstream is done when its named specs are green with no test modified except to reflect a WS0-confirmed contract change or an accepted plan decision, code review has checked the §8.4 invariant (every update payload carries the full edge set), and the design → code map in §2.3 is still accurate.
 
-The project is done when M5 is reached: all 694 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
+The project is done when M5 is reached: all 702 unit-level tests green under both ICF flavours, WS8 integration run green and archived, runbook signed off, and a dry-run recon reviewed with `REPORT` policies against the real service.
 
 ---
 
@@ -419,7 +419,7 @@ The probe covers WS0.02–WS0.10 and produces the WS0.11 recordings. Its finding
   - It is read-only by default. `--allow-writes` limits writes to `ws0-probe-<run>-` IDs and always cleans up.
   - Outputs never contain credentials or data from entities it did not create.
   - It was tested against `FakeGraphHttpServer`, an HTTP front-end over the in-memory model of design §2, so a difference in a real run's report is a real difference in the service.
-  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (51 tests).
+  *Green:* `ContractProbeSpec`, `ProbeOutputSpec`, `ScrubberSpec`, `ProbeMainSpec` (59 tests).
 
 ### WS1 — Configuration, convention and schema
 

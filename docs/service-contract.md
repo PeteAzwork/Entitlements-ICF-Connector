@@ -21,14 +21,13 @@ Most questions can be answered by observation with the contract probe in `contra
 **Step 1. Read-only run.** This is safe against any environment, because it only sends GET requests:
 
 ```bash
-export GRAPH_PROBE_API_KEY='…'
-./gradlew :contract-probe:run --args="--base-url https://graph.test.example"
+./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
 ```
 
 **Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never touches any other entity.
 
 ```bash
-./gradlew :contract-probe:run --args="--base-url https://graph.test.example --allow-writes"
+./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY --allow-writes"
 ```
 
 **Output** goes to `build/contract-probe/<run>/`:
@@ -42,7 +41,7 @@ export GRAPH_PROBE_API_KEY='…'
 
 **Safe to share.** No output contains request headers or credentials. Every entity the probe did not create is scrubbed: its ID and attribute values are replaced, and its shape (BaseType, archetypes, field names, edge types, timestamp formats) is kept. Tests in `ProbeOutputSpec` enforce this.
 
-**What the probe needs.** The service's API key, read from the `GRAPH_PROBE_API_KEY` environment variable, or another variable named with `--api-key-env`. It is never taken from the command line. The key is sent raw in the `X-API-KEY` header; `--api-key-header` overrides the name. Because every consumer shares one key, the key used for the write run can write anywhere that key is valid. Point `--allow-writes` only at a test instance, and check T11 below before assuming test and production keys differ. There is no option to disable TLS verification.
+**What the probe needs.** The service's API key, given with `--api-key`. That option keeps the key in shell history and shows it in the process list. To avoid that, leave it out and set the `GRAPH_PROBE_API_KEY` environment variable instead, or another variable named with `--api-key-env`. If both are given, `--api-key` wins. The key never appears in any output file. It is sent raw in the `X-API-KEY` header; `--api-key-header` overrides the name. Because every consumer shares one key, the key used for the write run can write anywhere that key is valid. Point `--allow-writes` only at a test instance, and check T11 below before assuming test and production keys differ. There is no option to disable TLS verification.
 
 ---
 
