@@ -22,6 +22,9 @@ class Fixtures {
     static final ObjectClass USER = new ObjectClass('user')
     static final ObjectClass ACCOUNT = new ObjectClass('account')
 
+    /** The service's shared API key, as test data. Sent raw in the X-API-KEY header (decision P13). */
+    static final String API_KEY = 'test-api-key'
+
     static final String SANNE = 'Sanne'
     static final String SANNE_ACCOUNT = 'Current-Account-1-Sanne'
 
@@ -72,7 +75,7 @@ class Fixtures {
 
     static ConnectorConfig connectorConfig(Map overrides = [:]) {
         def cfg = new ConnectorConfig(
-            serviceAddress: 'http://localhost:5276', username: 'svc-idm-sync', password: 'secret'.toCharArray(),
+            serviceAddress: 'http://localhost:5276', apiKey: API_KEY.toCharArray(),
             objectTypes: [user: userType(), account: accountType()],
             timestampSearchParam: 'updatedAfter', pageSizeDefault: 200, deleteMissingTolerated: true)
         overrides.each { k, v -> cfg."$k" = v }
@@ -83,8 +86,7 @@ class Fixtures {
     static Map<String, Object> connectorProps(Map overrides = [:]) {
         def m = [
             serviceAddress        : 'http://localhost:5276',
-            username              : 'svc-idm-sync',
-            password              : 'secret',
+            apiKey                : API_KEY,
             objectTypes           : objectTypesJson(),
             timestampSearchParam  : 'updatedAfter',
             pageSizeDefault       : 200,

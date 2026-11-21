@@ -27,7 +27,7 @@ class ProbeOutputSpec extends Specification {
         service.seedEdge('PII-Sanne', 'PII-Account-1', 'Owns')
         def server = new FakeGraphHttpServer(service).start()
         try {
-            probe = new ContractProbe(new ProbeOptions(baseUrl: server.baseUrl, username: 'svc-idm-sync', password: 'secret'.toCharArray(),
+            probe = new ContractProbe(new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
                 runId: 'out1', outDir: dir, allowWrites: true, timeoutSeconds: 5)).run()
             ProbeReport.write(probe, dir)
         } finally {
@@ -45,12 +45,9 @@ class ProbeOutputSpec extends Specification {
         new File(dir, 'wiremock/mappings').listFiles().size() == probe.http.exchanges.count { it.status > 0 && it.auth == 'valid' }
     }
 
-    def "no output file contains the password or the Basic credentials"() {
-        given:
-        def b64 = 'svc-idm-sync:secret'.bytes.encodeBase64().toString()
-
+    def "no output file contains the API key, valid or deliberately invalid"() {
         expect:
-        files.every { !it.text.contains('secret') && !it.text.contains(b64) && !it.text.contains('Authorization') }
+        files.findAll { it.text.contains(FakeGraphHttpServer.DEFAULT_API_KEY) || it.text.contains(ProbeHttp.INVALID_KEY) }*.name == []
     }
 
     def "no output file contains any ID or value of an entity the probe did not create"() {

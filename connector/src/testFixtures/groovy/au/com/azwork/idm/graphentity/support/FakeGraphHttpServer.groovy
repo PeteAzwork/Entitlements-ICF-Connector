@@ -15,23 +15,27 @@ import java.time.format.DateTimeParseException
  * WS8-style checks) can be tested against the documented service semantics without a real instance.
  *
  * Routes (design §2): GET|POST {@code /admin/entities[/]}, GET|PUT|DELETE {@code /admin/entities/{id}}.
- * Adds what the in-memory model leaves to the transport: HTTP Basic auth (401 with a challenge), JSON
- * parsing, a 400 for a POST without {@code ID} or with a malformed body or timestamp, and percent-decoding
- * of the ID path segment.
+ * Adds what the in-memory model leaves to the transport: API-key authentication (a raw key in the
+ * {@code X-API-KEY} header; a missing or wrong key gets 401, as the service does), JSON parsing, a 400 for
+ * a POST without {@code ID} or with a malformed body or timestamp, and percent-decoding of the ID path
+ * segment.
  */
 class FakeGraphHttpServer implements Closeable {
 
     static final String PREFIX = '/admin/entities'
 
+    static final String DEFAULT_API_KEY = 'test-api-key'
+    static final String DEFAULT_API_KEY_HEADER = 'X-API-KEY'
+
     final FakeGraphService service
-    final String username
-    final String password
+    final String apiKey
+    final String apiKeyHeader
     private final HttpServer server
 
-    FakeGraphHttpServer(FakeGraphService service, String username = 'svc-idm-sync', String password = 'secret') {
+    FakeGraphHttpServer(FakeGraphService service, String apiKey = DEFAULT_API_KEY, String apiKeyHeader = DEFAULT_API_KEY_HEADER) {
         this.service = service
-        this.username = username
-        this.password = password
+        this.apiKey = apiKey
+        this.apiKeyHeader = apiKeyHeader
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         server.createContext(PREFIX) { HttpExchange ex -> handle(ex) }
     }
@@ -46,7 +50,6 @@ class FakeGraphHttpServer implements Closeable {
     private void handle(HttpExchange ex) {
         try {
             if (!authorised(ex)) {
-                ex.responseHeaders.add('WWW-Authenticate', 'Basic realm="graph"')
                 send(ex, new HttpResponse(status: 401, body: [error: 'unauthorised']))
                 return
             }
@@ -85,9 +88,9 @@ class FakeGraphHttpServer implements Closeable {
         }
     }
 
+    /** The service compares a raw key; header names are case-insensitive in HTTP, and the JDK server honours that. */
     private boolean authorised(HttpExchange ex) {
-        String header = ex.requestHeaders.getFirst('Authorization')
-        header == 'Basic ' + "${username}:${password}".getBytes(StandardCharsets.UTF_8).encodeBase64().toString()
+        ex.requestHeaders.getFirst(apiKeyHeader) == apiKey
     }
 
     private static class MalformedJson extends RuntimeException {}

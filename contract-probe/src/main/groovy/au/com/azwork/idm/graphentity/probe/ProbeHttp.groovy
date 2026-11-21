@@ -12,7 +12,8 @@ import java.time.Duration
 
 /**
  * Minimal HTTP client for the probe (JDK {@code java.net.http}, no dependencies). Every call is recorded as
- * an {@link Exchange}. Basic credentials are sent preemptively, matching what the connector will do.
+ * an {@link Exchange}. The API key is sent raw in its header on every request, as the connector will send it.
+ * Request headers are never recorded, so the key cannot reach an output file.
  */
 class ProbeHttp {
 
@@ -22,13 +23,18 @@ class ProbeHttp {
     final List<Exchange> exchanges = []
     String currentCheck = '-'
 
-    private final String validAuth
+    /** Sent when a check deliberately presents a wrong key. */
+    static final String INVALID_KEY = 'ws0-probe-deliberately-invalid-key'
+
+    final String apiKeyHeader
+    private final String apiKey
     private final HttpClient client
     private final Duration timeout
 
-    ProbeHttp(String baseUrl, String username, char[] password, Duration timeout) {
+    ProbeHttp(String baseUrl, String apiKeyHeader, char[] apiKey, Duration timeout) {
         this.baseUri = URI.create(baseUrl.replaceAll('/+$', ''))
-        this.validAuth = basic(username, new String(password))
+        this.apiKeyHeader = apiKeyHeader
+        this.apiKey = new String(apiKey)
         this.timeout = timeout
         this.client = HttpClient.newBuilder()
             .connectTimeout(timeout)
@@ -37,13 +43,10 @@ class ProbeHttp {
             .build()
     }
 
-    private static String basic(String user, String pass) {
-        'Basic ' + "${user}:${pass}".getBytes(StandardCharsets.UTF_8).encodeBase64().toString()
-    }
-
     /**
      * @param rawPath already percent-encoded path
-     * @param opts {@code auth}: 'valid' (default), 'none' or 'invalid'; {@code rawBody}: send this text verbatim
+     * @param opts {@code auth}: 'valid' (default), 'none' (no key header) or 'invalid' (a wrong key);
+     *        {@code rawBody}: send this text verbatim
      */
     Exchange send(String method, String rawPath, Map<String, ?> query = [:], Object body = null, Map opts = [:]) {
         def ex = new Exchange(n: exchanges.size() + 1, check: currentCheck, method: method, path: rawPath,
@@ -55,8 +58,8 @@ class ProbeHttp {
         def builder = HttpRequest.newBuilder(URI.create(baseUri.toString() + rawPath + qs))
             .timeout(timeout)
             .header('Accept', 'application/json')
-        if (ex.auth == 'valid') builder.header('Authorization', validAuth)
-        if (ex.auth == 'invalid') builder.header('Authorization', basic('ws0-probe-invalid', 'not-the-password'))
+        if (ex.auth == 'valid') builder.header(apiKeyHeader, apiKey)
+        if (ex.auth == 'invalid') builder.header(apiKeyHeader, INVALID_KEY)
 
         String payload = opts.rawBody != null ? opts.rawBody as String : (body != null ? JsonOutput.toJson(body) : null)
         def publisher = payload != null ? HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8)

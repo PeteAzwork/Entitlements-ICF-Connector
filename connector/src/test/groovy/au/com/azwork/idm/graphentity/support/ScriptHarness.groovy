@@ -20,14 +20,15 @@ class ScriptHarness {
     static Object fakeConfiguration(String serviceAddress, Map<String, Object> propertyBag = [:]) {
         def bag = [objectTypes: Fixtures.objectTypesJson(), timestampSearchParam: 'updatedAfter',
                    pageSizeDefault: 200, deleteMissingTolerated: true] + propertyBag
-        new Expando(serviceAddress: new URI(serviceAddress), username: 'svc-idm-sync',
-            password: new GuardedString('secret'.toCharArray()), propertyBag: bag,
+        // The Scripted REST `password` property carries the API key (decision P13); there is no username.
+        new Expando(serviceAddress: new URI(serviceAddress),
+            password: new GuardedString(Fixtures.API_KEY.toCharArray()), propertyBag: bag,
             customConfiguration: "objectTypes='${JsonOutput.toJson(Fixtures.objectTypesMap()).replace("'", "\\'")}'")
     }
 
     static RESTClient restClient(String baseUrl) {
         def client = new RESTClient(baseUrl)
-        client.headers['Authorization'] = 'Basic ' + 'svc-idm-sync:secret'.bytes.encodeBase64()
+        client.headers['X-API-KEY'] = Fixtures.API_KEY
         client.handler.failure = client.handler.success  // never throw on non-2xx; RestClientEntityApi maps statuses
         client
     }

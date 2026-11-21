@@ -45,7 +45,7 @@ class ContractProbe {
 
     ContractProbe(ProbeOptions opts, ProbeHttp http = null) {
         this.opts = opts
-        this.http = http ?: new ProbeHttp(opts.baseUrl, opts.username, opts.password, Duration.ofSeconds(opts.timeoutSeconds))
+        this.http = http ?: new ProbeHttp(opts.baseUrl, opts.apiKeyHeader, opts.apiKey, Duration.ofSeconds(opts.timeoutSeconds))
         this.scrubber = new Scrubber(opts.prefix)
     }
 
@@ -222,16 +222,16 @@ class ContractProbe {
         def none = http.get(path, [:], [auth: 'none'])
         def wrong = http.get(path, [:], [auth: 'invalid'])
         def valid = http.get(path, [:])
-        String challenge = none.headers['www-authenticate'] ? " with challenge `${none.headers['www-authenticate']}`" : ' with no challenge header'
-        add('WS0.10', 'auth.status', 'How does the service respond to missing, wrong and valid Basic credentials?',
-            "No credentials: ${none.status}${challenge}. Wrong credentials: ${wrong.status}. Valid credentials: ${valid.status}.",
-            'observed', '403 (authenticated but not permitted) cannot be provoked without a second, under-privileged account.', [none, wrong, valid])
+        String challenge = none.headers['www-authenticate'] ? " with challenge `${none.headers['www-authenticate']}`" : ''
+        add('WS0.10', 'auth.status', "How does the service respond to a missing, wrong and valid `${opts.apiKeyHeader}` key?",
+            "No key: ${none.status}${challenge}. Wrong key: ${wrong.status}. Valid key: ${valid.status}.",
+            'observed', "The key is sent raw in the `${opts.apiKeyHeader}` header. The service uses one shared key, so a 403 (authenticated but not permitted) is not expected.", [none, wrong, valid])
         if (valid.status == -1) {
             aborted = true
             add('WS0.10', 'transport', 'Is the service reachable?', "No: ${valid.error}", 'error', null, [valid])
         } else if (valid.status in [401, 403]) {
             aborted = true
-            add('WS0.10', 'auth.valid', 'Are the supplied credentials accepted?', "No: ${valid.status}. Remaining checks skipped.", 'error', null, [valid])
+            add('WS0.10', 'auth.valid', 'Is the supplied API key accepted?', "No: ${valid.status}. Remaining checks skipped.", 'error', null, [valid])
         }
     }
 

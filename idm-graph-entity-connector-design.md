@@ -29,7 +29,7 @@ The connector consumes the following administrative API. Base URL and credential
 | Delete entity | `DELETE /admin/entities/{ID}` | Deletes the entity and all relationships touching it. |
 | Search | `GET /admin/entities?updatedAfter={datetime}` *(parameter name to be confirmed)* | Returns full entity documents for entities created or updated after the given datetime. Supports paging. Used for drift detection. |
 
-Authentication is HTTP Basic via headers. Parameter names for the search endpoint and its paging mechanism are placeholders pending API documentation and must be confirmed before implementation (§15).
+Authentication is by a single API key, shared by all consumers of the service, sent raw in the `X-API-KEY` header. A missing or wrong key returns `401`. *(Amended 2026-11-21: this section originally said HTTP Basic. See decision P13 in the delivery plan.)* Parameter names for the search endpoint and its paging mechanism are placeholders pending API documentation and must be confirmed before implementation (§15).
 
 ### 2.1 Entity document shape
 
@@ -91,7 +91,7 @@ The connector is built on the standard Groovy Connector Toolkit's Scripted REST 
 
 | Script | ICF operation | Responsibility |
 |---|---|---|
-| `CustomizerScript.groovy` | — | HTTP client construction: base URI, Basic-auth credentials from encrypted configuration, timeouts, TLS. |
+| `CustomizerScript.groovy` | — | HTTP client construction: base URI, the `X-API-KEY` header from encrypted configuration, timeouts, TLS. |
 | `TestScript.groovy` | Test | Lightweight authenticated call (e.g., search with page size 1) to validate connectivity and credentials. |
 | `SchemaScript.groovy` | Schema | Builds one ICF object class per configured entity type from the `objectTypes` configuration (§5, §6). |
 | `SearchScript.groovy` | Search / Get | `EqualsFilter` on `__UID__`/`__NAME__` → `GET /admin/entities/{id}`; `GreaterThan` on the timestamp attribute → search endpoint; no filter → full enumeration via search endpoint from epoch, with paging. |
@@ -142,8 +142,8 @@ Connector configuration (in `provisioner.openicf-graphentity.json`, `configurati
 ```json
 {
   "serviceAddress": "http://localhost:5276",
-  "username": "svc-idm-sync",
   "password": {"$crypto": "..."},
+  "apiKeyHeader": "X-API-KEY",
   "objectTypes": {
     "user": {
       "idmResource": "managed/user",
@@ -173,7 +173,7 @@ Connector configuration (in `provisioner.openicf-graphentity.json`, `configurati
 }
 ```
 
-Field semantics: `entityKind` maps `subject → BaseType 4`, `resource → BaseType 2`, applied automatically by the create/update scripts. `idProperty` names the IDM property whose value becomes the remote `ID` (and ICF `__UID__`/`__NAME__`), per invariant A3. `attributes` enumerates the domain attributes exposed on the ICF object class and written into the remote `attributes` map. `archetypes` is the static archetype set stamped on every entity of the type; `archetypeProperty`, if set, names an IDM property whose (possibly multivalued) value is appended, supporting dynamic archetypes without a schema change. The `relationships` block is the override mechanism for the naming convention defined next — entries are only required where the convention is insufficient or where explicitness is preferred for auditability. Every relationship property intended for sync **should** appear here after discovery-script generation, with convention-derived values, so the configuration is self-documenting; the convention then serves as the rule the generator applies and the fallback for anything unlisted.
+Field semantics: `password` holds the service's shared API key, encrypted by IDM and sent raw in the `apiKeyHeader` header (default `X-API-KEY`, §14); there is no username. `entityKind` maps `subject → BaseType 4`, `resource → BaseType 2`, applied automatically by the create/update scripts. `idProperty` names the IDM property whose value becomes the remote `ID` (and ICF `__UID__`/`__NAME__`), per invariant A3. `attributes` enumerates the domain attributes exposed on the ICF object class and written into the remote `attributes` map. `archetypes` is the static archetype set stamped on every entity of the type; `archetypeProperty`, if set, names an IDM property whose (possibly multivalued) value is appended, supporting dynamic archetypes without a schema change. The `relationships` block is the override mechanism for the naming convention defined next — entries are only required where the convention is insufficient or where explicitness is preferred for auditability. Every relationship property intended for sync **should** appear here after discovery-script generation, with convention-derived values, so the configuration is self-documenting; the convention then serves as the rule the generator applies and the fallback for anything unlisted.
 
 In addition to the configured domain attributes, every object class carries the connector-managed attributes `directArchetypes` (multivalued string), `entityRelationships` (multivalued string; each value a JSON-encoded edge object, see §8.3), and `lastUpdated` (read-only, surfaced from the remote document for drift comparison).
 
@@ -292,7 +292,7 @@ Structured error bodies, if the service provides them, are logged verbatim (minu
 
 ## 14. Security considerations
 
-Credentials for HTTP Basic are held in the connector configuration using IDM's encrypted property handling and injected by the customizer script; they must never appear in operation scripts or logs. The admin API is powerful (full entity CRUD), so the service account should be scoped to the entities API only, and TLS is required for any non-localhost deployment — the current `http://localhost:5276` posture is acceptable only for co-located development. Basic auth is noted as "at the moment"; the customizer script is the single point of change for a future move to OAuth2 client-credentials or mTLS, and the design intentionally confines auth knowledge there. The discovery script's IDM credentials are separate and read-only (`config/managed` access suffices).
+The service's API key is held in the connector configuration's `password` property, using IDM's encrypted property handling, and the customizer script sends it as the `X-API-KEY` header. IDM's own Basic authentication is switched off (`defaultAuthMethod: NONE`). The key must never appear in operation scripts, logs or error messages. The service uses one constant key for all of its consumers, which shapes the security posture in three ways. First, the key cannot be scoped to this connector, and requests cannot be attributed to it, so a leak from any consumer exposes full entity CRUD. Second, rotating the key needs every consumer at once. Third, any holder of the key could write relationships, which is exactly the second writer that invariant A1 rules out (§3, §15). TLS is therefore required for any non-localhost deployment; the current `http://localhost:5276` posture is acceptable only for co-located development. The customizer script is the single point of change for a future move to per-client keys, OAuth2 client-credentials or mTLS, and the design intentionally confines auth knowledge there. *(Amended 2026-11-21: this section originally specified HTTP Basic credentials scoped to a service account.)* The discovery script's IDM credentials are separate and read-only (`config/managed` access suffices).
 
 ---
 
@@ -306,7 +306,7 @@ Credentials for HTTP Basic are held in the connector configuration using IDM's e
 
 **Risk: partial-attribute updates.** Any mapping change that stops recomputing `entityRelationships` on every update silently converts routine attribute updates into relationship mass-deletions (§8.4). Mitigation: generator-emitted mappings, code review rule, and the drift recon as detection.
 
-**Decision log.** Scripted REST over custom Java bundle (confirmed requirement). Per-type dynamic schema over single generic class (§5.3). Mapping-side payload assembly over connector callback to IDM (§8.2). Pure IDM-derived full-state `PUT` over read-merge-write (§8.1), contingent on A1/A2. Self-heal plus verification logging over synchronous create-time repair (§9.1). No client-side locking; convergence plus serialisation plus drift recon (§10). Target-phase `REPORT`-then-`DELETE` rollout (§11).
+**Decision log.** Scripted REST over custom Java bundle (confirmed requirement). Per-type dynamic schema over single generic class (§5.3). Mapping-side payload assembly over connector callback to IDM (§8.2). Pure IDM-derived full-state `PUT` over read-merge-write (§8.1), contingent on A1/A2. Self-heal plus verification logging over synchronous create-time repair (§9.1). No client-side locking; convergence plus serialisation plus drift recon (§10). Target-phase `REPORT`-then-`DELETE` rollout (§11). Shared `X-API-KEY` authentication in place of HTTP Basic, confirmed 2026-11-21 (§2, §14; delivery plan P13).
 
 ---
 

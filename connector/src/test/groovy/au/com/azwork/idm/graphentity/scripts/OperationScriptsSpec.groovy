@@ -179,7 +179,7 @@ class OperationScriptsSpec extends Specification {
             .withQueryParam('pageSize', equalTo('200')))
     }
 
-    def "scripts never log the password"() {
+    def "scripts never log the API key"() {
         given:
         wm.stubFor(get(urlPathEqualTo('/admin/entities')).willReturn(aResponse().withStatus(500).withBody('{"error":"x"}')))
 
@@ -187,6 +187,6 @@ class OperationScriptsSpec extends Specification {
         try { ScriptHarness.run('TestScript.groovy', bindings()) } catch (ignored) {}
 
         then:
-        !log.allText().contains('secret')
+        !log.allText().contains(Fixtures.API_KEY)
     }
 }

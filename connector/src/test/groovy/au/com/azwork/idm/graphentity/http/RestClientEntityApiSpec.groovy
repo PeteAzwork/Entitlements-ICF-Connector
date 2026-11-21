@@ -27,7 +27,7 @@ class RestClientEntityApiSpec extends Specification {
         api = new RestClientEntityApi(ScriptHarness.restClient("http://localhost:${wm.port()}"))
     }
 
-    def "GET /admin/entities/{id} returns the parsed document and the Basic auth header is sent"() {
+    def "GET /admin/entities/{id} returns the parsed document; the raw API key is sent and no Authorization header"() {
         given:
         wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(groovy.json.JsonOutput.toJson(Fixtures.sanneWire()))))
 
@@ -39,7 +39,8 @@ class RestClientEntityApiSpec extends Specification {
         r.body.ID == 'Sanne'
         r.body.Relationships == [[TargetID: 'Current-Account-1-Sanne', type: 'Owns']]
         wm.verify(getRequestedFor(urlEqualTo('/admin/entities/Sanne'))
-            .withHeader('Authorization', equalTo('Basic ' + 'svc-idm-sync:secret'.bytes.encodeBase64().toString()))
+            .withHeader('X-API-KEY', equalTo(Fixtures.API_KEY))
+            .withoutHeader('Authorization')
             .withHeader('Accept', containing('application/json')))
     }
 

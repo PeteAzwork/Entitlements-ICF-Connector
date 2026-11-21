@@ -29,7 +29,7 @@ class ContractProbeSpec extends Specification {
     def cleanup() { server?.close() }
 
     ProbeOptions options(Map overrides = [:]) {
-        def o = new ProbeOptions(baseUrl: server.baseUrl, username: 'svc-idm-sync', password: 'secret'.toCharArray(),
+        def o = new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
             runId: 't1', outDir: dir, maxPages: 5, timeoutSeconds: 5)
         overrides.each { k, v -> o."$k" = v }
         o
@@ -70,16 +70,27 @@ class ContractProbeSpec extends Specification {
         ['create.duplicate', 'edges', 'ids', 'search.boundary', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
     }
 
-    def "WS0.10: reports how missing, wrong and valid credentials are answered"() {
+    def "WS0.10: reports how a missing, wrong and valid API key are answered"() {
         when:
         def a = f(probe(), 'auth.status')
 
         then:
-        a.answer.contains('No credentials: 401')
-        a.answer.contains('Basic realm')
-        a.answer.contains('Wrong credentials: 401')
-        a.answer.contains('Valid credentials: 200')
+        a.answer == 'No key: 401. Wrong key: 401. Valid key: 200.'
+        a.question.contains('`X-API-KEY`')
         a.evidence.size() == 3
+    }
+
+    def "WS0.10: the key header name is configurable end to end"() {
+        given:
+        server.close()
+        server = new FakeGraphHttpServer(service, 'other-key', 'X-Custom-Key').start()
+
+        when:
+        def p = probe(apiKey: 'other-key'.toCharArray(), apiKeyHeader: 'X-Custom-Key')
+
+        then:
+        f(p, 'auth.status').answer == 'No key: 401. Wrong key: 401. Valid key: 200.'
+        f(p, 'search.path').confidence == 'observed'
     }
 
     def "WS0.02: finds the search path, the timestamp parameter and the accepted datetime formats"() {
@@ -245,9 +256,9 @@ class ContractProbeSpec extends Specification {
         !p.findings*.key.contains('search.path')
     }
 
-    def "rejected credentials stop the probe after the auth check"() {
+    def "a rejected API key stops the probe after the auth check"() {
         when:
-        def p = probe(password: 'wrong'.toCharArray(), allowWrites: true)
+        def p = probe(apiKey: 'wrong-key'.toCharArray(), allowWrites: true)
 
         then:
         f(p, 'auth.valid').answer.startsWith('No: 401')

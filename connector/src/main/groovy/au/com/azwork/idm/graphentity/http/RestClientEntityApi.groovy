@@ -2,7 +2,7 @@ package au.com.azwork.idm.graphentity.http
 
 /**
  * {@link EntityApi} over the {@code groovyx.net.http.RESTClient} that the Scripted REST connector binds as
- * {@code connection}. The customizer script has already configured base URI, Basic auth, timeouts and TLS,
+ * {@code connection}. The customizer script has already configured base URI, the {@code X-API-KEY} header, timeouts and TLS,
  * so this class only knows paths, content types and how to turn HTTP Builder's responses/exceptions into
  * {@link HttpResponse}s.
  */

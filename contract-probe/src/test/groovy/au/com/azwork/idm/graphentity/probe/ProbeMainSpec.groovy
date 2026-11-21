@@ -1,5 +1,7 @@
 package au.com.azwork.idm.graphentity.probe
 
+import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
+import au.com.azwork.idm.graphentity.support.FakeGraphService
 import spock.lang.Specification
 import spock.lang.TempDir
 import spock.lang.Unroll
@@ -7,27 +9,49 @@ import spock.lang.Unroll
 class ProbeMainSpec extends Specification {
 
     @TempDir File dir
-    static final Map ENV = [GRAPH_PROBE_PASSWORD: 'pw']
+    static final Map ENV = [GRAPH_PROBE_API_KEY: 'k-123']
 
     def "parses a minimal read-only invocation"() {
         when:
-        def o = ProbeMain.parse(['--base-url', 'https://graph.test.example', '--username', 'svc'], ENV)
+        def o = ProbeMain.parse(['--base-url', 'https://graph.test.example'], ENV)
 
         then:
         o.baseUrl == 'https://graph.test.example'
-        o.username == 'svc'
-        String.valueOf(o.password) == 'pw'
+        String.valueOf(o.apiKey) == 'k-123'
+        o.apiKeyHeader == 'X-API-KEY'
         !o.allowWrites
         o.maxPages == 5
         o.outDir.path.startsWith('build/contract-probe/')
     }
 
+    def "takes the API key from --api-key"() {
+        when:
+        def o = ProbeMain.parse(['--base-url', 'http://h', '--api-key', 'from-arg'], [:])
+
+        then:
+        String.valueOf(o.apiKey) == 'from-arg'
+    }
+
+    def "--api-key wins over the environment variable"() {
+        expect:
+        String.valueOf(ProbeMain.parse(['--api-key', 'from-arg', '--base-url', 'http://h'], [GRAPH_PROBE_API_KEY: 'from-env']).apiKey) == 'from-arg'
+    }
+
+    def "the usage text warns that --api-key is kept in shell history"() {
+        expect:
+        ProbeMain.USAGE.contains('--api-key KEY')
+        ProbeMain.USAGE.contains('shell')
+        ProbeMain.USAGE.contains('history')
+    }
+
     def "parses every option"() {
         when:
-        def o = ProbeMain.parse(['--base-url', 'http://h:1', '--username', 'u', '--password-env', 'X', '--allow-writes', '--out', dir.path,
+        def o = ProbeMain.parse(['--base-url', 'http://h:1', '--api-key-env', 'X', '--api-key-header', 'X-Other-Key', '--allow-writes', '--out', dir.path,
                                  '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--run-id', 'abc-1'], [X: 'p'])
 
         then:
+        String.valueOf(o.apiKey) == 'p'
+        o.apiKeyHeader == 'X-Other-Key'
         o.allowWrites
         o.outDir == dir
         o.maxPages == 9
@@ -46,15 +70,22 @@ class ProbeMainSpec extends Specification {
         e.message.contains(expected)
 
         where:
-        why                       | args                                                                 | env  | expected
-        'a missing base URL'      | ['--username', 'u']                                                  | ENV  | '--base-url'
-        'a missing username'      | ['--base-url', 'http://h']                                           | ENV  | '--username'
-        'a missing password'      | ['--base-url', 'http://h', '--username', 'u']                        | [:]  | 'GRAPH_PROBE_PASSWORD'
-        'a non-http URL'          | ['--base-url', 'ftp://h', '--username', 'u']                         | ENV  | 'http or https'
-        'an unknown flag'         | ['--base-url', 'http://h', '--username', 'u', '--insecure']          | ENV  | 'Unknown argument'
-        'a bad page count'        | ['--base-url', 'http://h', '--username', 'u', '--max-pages', '0']    | ENV  | 'positive'
-        'an unsafe run id'        | ['--base-url', 'http://h', '--username', 'u', '--run-id', '../x']    | ENV  | '--run-id'
-        'a flag without a value'  | ['--base-url']                                                       | ENV  | 'needs a value'
+        why                          | args                                                          | env                                 | expected
+        'a missing base URL'         | []                                                            | ENV                                 | '--base-url'
+        'no API key anywhere'        | ['--base-url', 'http://h']                                    | [:]                                 | '--api-key KEY'
+        'no API key anywhere (env)'  | ['--base-url', 'http://h']                                    | [:]                                 | 'GRAPH_PROBE_API_KEY'
+        'an empty --api-key'         | ['--base-url', 'http://h', '--api-key', '']                   | [:]                                 | 'must not be empty'
+        'a --api-key line break'     | ['--base-url', 'http://h', '--api-key', "a\r\nX: y"]          | [:]                                 | '--api-key contains control characters'
+        'a --api-key with no value'  | ['--base-url', 'http://h', '--api-key']                       | [:]                                 | 'needs a value'
+        'a key in another variable'  | ['--base-url', 'http://h', '--api-key-env', 'K']              | ENV                                 | 'K environment variable'
+        'a key with a line break'    | ['--base-url', 'http://h']                                    | [GRAPH_PROBE_API_KEY: "a\r\nX: y"] | 'control characters'
+        'a bad header name'          | ['--base-url', 'http://h', '--api-key-header', 'X API KEY']   | ENV                                 | '--api-key-header'
+        'a non-http URL'             | ['--base-url', 'ftp://h']                                     | ENV                                 | 'http or https'
+        'an unknown flag'            | ['--base-url', 'http://h', '--insecure']                      | ENV                                 | 'Unknown argument'
+        'the removed username flag'  | ['--base-url', 'http://h', '--username', 'u']                 | ENV                                 | 'Unknown argument'
+        'a bad page count'           | ['--base-url', 'http://h', '--max-pages', '0']                | ENV                                 | 'positive'
+        'an unsafe run id'           | ['--base-url', 'http://h', '--run-id', '../x']                | ENV                                 | '--run-id'
+        'a flag without a value'     | ['--base-url']                                                | ENV                                 | 'needs a value'
     }
 
     def "there is no option to disable TLS verification"() {
@@ -62,9 +93,34 @@ class ProbeMainSpec extends Specification {
         !ProbeMain.USAGE.toLowerCase().contains('insecure')
     }
 
-    def "the password never appears in the options' string form"() {
+    def "the API key never appears in the options' string form"() {
         expect:
-        !ProbeMain.parse(['--base-url', 'http://h', '--username', 'u'], [GRAPH_PROBE_PASSWORD: 'hunter2']).toString().contains('hunter2')
+        !ProbeMain.parse(['--base-url', 'http://h'], [GRAPH_PROBE_API_KEY: 'hunter2']).toString().contains('hunter2')
+        !ProbeMain.parse(['--base-url', 'http://h', '--api-key', 'hunter2'], [:]).toString().contains('hunter2')
+    }
+
+    def "end to end: a key given with --api-key authenticates, and appears in no output or console text"() {
+        given:
+        def service = new FakeGraphService()
+        service.seed([ID: 'E1', BaseType: 4, attributes: [ID: 'E1'], directArchetypes: ['Customer']])
+        def server = new FakeGraphHttpServer(service, 'arg-key-123').start()
+        def out = new ByteArrayOutputStream()
+        def err = new ByteArrayOutputStream()
+
+        when:
+        int rc = ProbeMain.run(['--base-url', server.baseUrl, '--api-key', 'arg-key-123', '--out', dir.path, '--run-id', 'argkey'],
+            [:], new PrintStream(out), new PrintStream(err))
+
+        then:
+        rc == 0
+        new File(dir, 'report.md').text.contains('Valid key: 200')
+        !(out.toString() + err.toString()).contains('arg-key-123')
+        def files = []
+        dir.eachFileRecurse { if (it.isFile()) files << it }
+        files.findAll { it.text.contains('arg-key-123') }*.name == []
+
+        cleanup:
+        server?.close()
     }
 
     def "usage errors exit with code 2 and print usage"() {
@@ -84,7 +140,7 @@ class ProbeMainSpec extends Specification {
         def err = new ByteArrayOutputStream()
 
         expect:
-        ProbeMain.run(['--base-url', "http://127.0.0.1:${port}".toString(), '--username', 'u', '--out', dir.path, '--timeout-seconds', '2'],
+        ProbeMain.run(['--base-url', "http://127.0.0.1:${port}".toString(), '--out', dir.path, '--timeout-seconds', '2'],
             ENV, new PrintStream(out), new PrintStream(err)) == 1
         new File(dir, 'report.md').text.contains('Is the service reachable?')
     }

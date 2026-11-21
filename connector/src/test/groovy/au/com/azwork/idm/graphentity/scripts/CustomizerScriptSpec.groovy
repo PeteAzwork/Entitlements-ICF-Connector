@@ -1,5 +1,6 @@
 package au.com.azwork.idm.graphentity.scripts
 
+import au.com.azwork.idm.graphentity.support.Fixtures
 import au.com.azwork.idm.graphentity.support.ScriptHarness
 import org.apache.http.HttpHost
 import org.apache.http.client.methods.HttpGet
@@ -46,7 +47,7 @@ class CustomizerScriptSpec extends Specification {
         captured
     }
 
-    def "init configures Basic auth from the encrypted configuration and the client sends it"() {
+    def "init sends the API key from the encrypted configuration, raw, in X-API-KEY, and no Authorization header"() {
         given:
         wm.stubFor(get(urlEqualTo('/admin/entities/x')).willReturn(ok()))
         def captured = evaluate(ScriptHarness.fakeConfiguration("http://localhost:${wm.port()}"))
@@ -54,13 +55,28 @@ class CustomizerScriptSpec extends Specification {
 
         when:
         captured.init(builder)
-        def client = builder.build()
-        def ctx = new BasicHttpContext()
-        client.execute(new HttpHost('localhost', wm.port()), new HttpGet('/admin/entities/x'), ctx).close()
+        builder.build().execute(new HttpHost('localhost', wm.port()), new HttpGet('/admin/entities/x'), new BasicHttpContext()).close()
 
         then:
         wm.verify(getRequestedFor(urlEqualTo('/admin/entities/x'))
-            .withHeader('Authorization', equalTo('Basic ' + 'svc-idm-sync:secret'.bytes.encodeBase64().toString())))
+            .withHeader('X-API-KEY', equalTo(Fixtures.API_KEY))
+            .withoutHeader('Authorization'))
+    }
+
+    def "the key header name can be overridden with apiKeyHeader in customConfiguration"() {
+        given:
+        wm.stubFor(get(urlEqualTo('/admin/entities/x')).willReturn(ok()))
+        def captured = evaluate(ScriptHarness.fakeConfiguration("http://localhost:${wm.port()}", [apiKeyHeader: 'X-Custom-Key']))
+        def builder = HttpClientBuilder.create()
+
+        when:
+        captured.init(builder)
+        builder.build().execute(new HttpHost('localhost', wm.port()), new HttpGet('/admin/entities/x'), new BasicHttpContext()).close()
+
+        then:
+        wm.verify(getRequestedFor(urlEqualTo('/admin/entities/x'))
+            .withHeader('X-Custom-Key', equalTo(Fixtures.API_KEY))
+            .withoutHeader('X-API-KEY'))
     }
 
     def "init sets connect and socket timeouts (no unbounded hangs during recon)"() {
@@ -92,8 +108,8 @@ class CustomizerScriptSpec extends Specification {
         def src = new File(ScriptHarness.SCRIPT_DIR, 'CustomizerScript.groovy').text
 
         expect:
-        !src.contains('svc-idm-sync')
-        !src.contains("'secret'")
+        !src.contains(Fixtures.API_KEY)
+        !src.contains('Authorization')
         src.contains('configuration')
     }
 }
