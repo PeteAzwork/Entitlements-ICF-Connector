@@ -49,7 +49,7 @@ class ContractProbeSpec extends Specification {
 
     // ---------------------------------------------------------------- read-only mode
 
-    def "read-only mode issues only GET requests and changes nothing"() {
+    def "read-only mode issues only GETs and search POSTs, and changes nothing"() {
         given:
         def before = snapshot()
 
@@ -57,9 +57,29 @@ class ContractProbeSpec extends Specification {
         def p = probe()
 
         then:
-        p.http.exchanges*.method.unique() == ['GET']
+        p.http.exchanges.every { it.method == 'GET' || (it.method == 'POST' && it.path == '/admin/entities/search') }
+        p.http.exchanges.any { it.method == 'POST' }
         service.requests*.op.unique().sort() == ['GET', 'SEARCH']
         snapshot() == before
+    }
+
+    def "a search path that is the create endpoint is refused, so read-only mode cannot create entities"() {
+        given:
+        def before = snapshot()
+
+        when:
+        def p = probe(searchPath: '/admin/entities')
+
+        then:
+        f(p, 'search.path').confidence == 'error'
+        f(p, 'search.path').answer.contains('creates entities')
+        !p.http.exchanges.any { it.method == 'POST' }
+        snapshot() == before
+    }
+
+    def "a 405 response is described with its Allow header"() {
+        expect:
+        ContractProbe.shape(new Exchange(status: 405, headers: [allow: 'POST'])) == 'no content type, empty body; Allow: POST'
     }
 
     def "write checks are reported as not tested in read-only mode"() {
@@ -75,8 +95,9 @@ class ContractProbeSpec extends Specification {
         def a = f(probe(), 'auth.status')
 
         then:
-        a.answer == 'No key: 401. Wrong key: 401. Valid key: 200.'
+        a.answer == 'No key: 401. Wrong key: 401. Valid key: 404.'
         a.question.contains('`X-API-KEY`')
+        a.detail.contains('does not exist')
         a.evidence.size() == 3
     }
 
@@ -89,7 +110,7 @@ class ContractProbeSpec extends Specification {
         def p = probe(apiKey: 'other-key'.toCharArray(), apiKeyHeader: 'X-Custom-Key')
 
         then:
-        f(p, 'auth.status').answer == 'No key: 401. Wrong key: 401. Valid key: 200.'
+        f(p, 'auth.status').answer == 'No key: 401. Wrong key: 401. Valid key: 404.'
         f(p, 'search.path').confidence == 'observed'
     }
 
@@ -98,13 +119,22 @@ class ContractProbeSpec extends Specification {
         def p = probe()
 
         then:
-        f(p, 'search.path').answer == '`/admin/entities`'
+        f(p, 'search.path').answer == '`POST /admin/entities/search` with a JSON body. `{}` returned 4 entities.'
         f(p, 'search.timestampParam').answer == '`updatedAfter`'
         p.contract.timestampParam == 'updatedAfter'
         def formats = p.contract.acceptedDatetimeFormats as List
         formats.containsAll(['ISO-8601, seconds, Z', 'ISO-8601, milliseconds, Z'])
         !formats.contains('epoch milliseconds')
         !formats.contains('date only')
+    }
+
+    def "WS0.02: a known timestamp field skips the guessing"() {
+        when:
+        def p = probe(timestampField: 'updatedAfter')
+
+        then:
+        f(p, 'search.timestampParam').answer == '`updatedAfter`'
+        !f(p, 'search.timestampParam').detail.contains('modifiedSince')
     }
 
     def "WS0.03: finds the envelope, page-size and offset parameters, and the ordering"() {

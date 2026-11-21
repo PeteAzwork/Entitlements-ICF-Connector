@@ -76,7 +76,8 @@ class ProbeOutputSpec extends Specification {
         expect:
         ['WS0.02', 'WS0.03', 'WS0.04', 'WS0.05', 'WS0.06', 'WS0.07', 'WS0.08', 'WS0.09', 'WS0.10'].every { md.contains("### ${it}") }
         md =~ /\| #\d+/
-        md.contains('| Timestamp parameter | `updatedAfter` |')
+        md.contains('| Timestamp field (request body) | `updatedAfter` |')
+        md.contains('| Search request | `POST /admin/entities/search` with a JSON body |')
         md.contains('probe entity IDs were deleted and confirmed gone')
     }
 
@@ -112,7 +113,9 @@ class ProbeOutputSpec extends Specification {
 
         when:
         def resp = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder(URI.create("http://localhost:${wm.port()}/admin/entities?updatedAfter=1970-01-01T00%3A00%3A00Z")).build(),
+            HttpRequest.newBuilder(URI.create("http://localhost:${wm.port()}/admin/entities/search"))
+                .header('Content-Type', 'application/json')
+                .POST(HttpRequest.BodyPublishers.ofString('{"updatedAfter":"1970-01-01T00:00:00Z"}')).build(),
             HttpResponse.BodyHandlers.ofString())
 
         then:

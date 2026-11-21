@@ -1,6 +1,6 @@
 package au.com.azwork.idm.graphentity.ops
 
-/** Test (design §9.5): authenticated search with page size 1; any 2xx is healthy. */
+/** Test (design §9.5): authenticated search (POST /admin/entities/search, P14) with page size 1; any 2xx is healthy. */
 class TestOperation {
     private final OperationContext ctx
 

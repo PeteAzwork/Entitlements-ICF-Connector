@@ -47,7 +47,7 @@ class ProbeMainSpec extends Specification {
     def "parses every option"() {
         when:
         def o = ProbeMain.parse(['--base-url', 'http://h:1', '--api-key-env', 'X', '--api-key-header', 'X-Other-Key', '--allow-writes', '--out', dir.path,
-                                 '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--run-id', 'abc-1'], [X: 'p'])
+                                 '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--timestamp-field', 'modifiedSince', '--run-id', 'abc-1'], [X: 'p'])
 
         then:
         String.valueOf(o.apiKey) == 'p'
@@ -57,6 +57,7 @@ class ProbeMainSpec extends Specification {
         o.maxPages == 9
         o.timeoutSeconds == 3
         o.searchPath == '/x'
+        o.timestampField == 'modifiedSince'
         o.prefix == 'ws0-probe-abc-1-'
     }
 
@@ -86,6 +87,9 @@ class ProbeMainSpec extends Specification {
         'a bad page count'           | ['--base-url', 'http://h', '--max-pages', '0']                | ENV                                 | 'positive'
         'an unsafe run id'           | ['--base-url', 'http://h', '--run-id', '../x']                | ENV                                 | '--run-id'
         'a flag without a value'     | ['--base-url']                                                | ENV                                 | 'needs a value'
+        'the create path as search'  | ['--base-url', 'http://h', '--search-path', '/admin/entities'] | ENV                                | 'create endpoint'
+        'a relative search path'     | ['--base-url', 'http://h', '--search-path', 'search']         | ENV                                 | 'must start with /'
+        'a bad timestamp field'      | ['--base-url', 'http://h', '--timestamp-field', 'a b']        | ENV                                 | '--timestamp-field'
     }
 
     def "there is no option to disable TLS verification"() {
@@ -113,7 +117,7 @@ class ProbeMainSpec extends Specification {
 
         then:
         rc == 0
-        new File(dir, 'report.md').text.contains('Valid key: 200')
+        new File(dir, 'report.md').text.contains('Valid key: 404')
         !(out.toString() + err.toString()).contains('arg-key-123')
         def files = []
         dir.eachFileRecurse { if (it.isFile()) files << it }

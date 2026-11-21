@@ -1,7 +1,7 @@
 # Service Contract — Graph Entity Service Admin API
 
 **Workstream:** WS0 (delivery plan §4 and §12)
-**Status:** Open. Authentication is answered (Q10.1, Q10.2, T5). Everything else is open.
+**Status:** Open. Authentication (Q10.1, Q10.2, T5) and the search endpoint (Q02.1) are answered. Everything else is open.
 **Last updated:** 2026-11-21
 
 This is the record of what the connector may rely on about the remote service. Each question has one of three states:
@@ -18,7 +18,7 @@ When a question changes state, apply WS0.12 in the delivery plan: change the cod
 
 Most questions can be answered by observation with the contract probe in `contract-probe/`. The probe was tested against an in-memory model of the documented semantics; it has not yet been run against the real service.
 
-**Step 1. Read-only run.** This is safe against any environment, because it only sends GET requests:
+**Step 1. Read-only run.** This is safe against any environment, because it only reads. It sends GET requests and search POSTs to `/admin/entities/search`, which read, and it refuses a search path that would create entities. If you know the request-body field that filters by last-updated time, add `--timestamp-field NAME`:
 
 ```bash
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
@@ -53,8 +53,8 @@ Most questions can be answered by observation with the contract probe in `contra
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
-| Q02.1 | Which path serves search: `/admin/entities` or `/admin/entities/`? | `/admin/entities` (`RestClientEntityApiSpec`) | `search.path` | `RestClientEntityApi` | Open |
-| Q02.2 | What is the timestamp parameter called? | `updatedAfter` (`ConnectorConfig.DEFAULT_TIMESTAMP_PARAM`, configurable) | `search.timestampParam` | Default value, `Fixtures`, `FakeGraphService.timestampParam` | Open |
+| Q02.1 | Which request serves search? | **Answered:** `POST /admin/entities/search` with a JSON body; `{}` is the unfiltered search. `GET /admin/entities` returns 405 | `search.path` | Done 2026-11-21 (P14): `EntityApi.search` takes body fields, plus the fake service, probe and specs | **Confirmed** by the project owner, 2026-11-21. Probe run `20261121-150804` #4 and #5 showed the 405 |
+| Q02.2 | What is the request-body field that filters by last-updated time called? | `updatedAfter` (`ConnectorConfig.DEFAULT_TIMESTAMP_PARAM`, configurable) | `search.timestampParam` | Default value, `Fixtures`, `FakeGraphService.timestampParam` | Open |
 | Q02.3 | Which datetime formats does it accept, at what precision? | ISO-8601 instant with `Z` (`SearchPlanner`, `SearchPlanner.EPOCH`) | `search.datetimeFormats` | `SearchPlanner`, `SearchPlannerSpec` | Open |
 | Q02.4 | Is the filter strictly-after or inclusive? | Undecided. `GreaterThan` and `GreaterThanOrEqual` map identically | `search.boundary` (write run) | `SearchPlanner` (WS4.04) | Open |
 | Q02.5 | Does the search return updated entities as well as created ones? | Yes (design §2) | `search.returnsUpdated` (write run) | Design §11 if not | Open |
@@ -64,8 +64,8 @@ Most questions can be answered by observation with the contract probe in `contra
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
 | Q03.1 | What is the response envelope? | Object with `items`, plus optional `totalCount` or `nextCursor` (P6) | `paging.envelope` | `PageCursor.next`, `FakeGraphService.search` | Open |
-| Q03.2 | Which parameter sets the page size? | `pageSize` | `paging.pageSizeParam` | `PageCursor.toQuery`, `PageCursorSpec` | Open |
-| Q03.3 | Offset, page number or cursor, and which parameter? | `offset`, or an opaque `cursor` when the response supplies one | `paging.params` | `PageCursor`, `PageCursorSpec` | Open |
+| Q03.2 | Which request-body field sets the page size? | `pageSize` | `paging.pageSizeParam` | `PageCursor.toQuery`, `PageCursorSpec` | Open |
+| Q03.3 | Offset, page number or cursor, and which request-body field? | `offset`, or an opaque `cursor` when the response supplies one | `paging.params` | `PageCursor`, `PageCursorSpec` | Open |
 | Q03.4 | What is the maximum page size? | 1000 (`ConnectorConfig.MAX_PAGE_SIZE`) | `paging.maxPageSize` | `MAX_PAGE_SIZE`, `ConnectorConfigSpec` | Open |
 | Q03.5 | Is ordering stable across pages, and what is it ordered by? | Stable | `paging.ordering` | Design §9.4 if not | Open |
 | Q03.6 | Can an entity updated mid-enumeration be skipped? (Returned twice is harmless.) | Not skipped | `paging.updateDuringEnumeration` (write run) | Risk register §9. A skip would undermine target recon | Open |
@@ -171,4 +171,5 @@ These are questions about Ping IDM's Scripted REST harness, not about the servic
 | Date | Change |
 |---|---|
 | 2026-11-04 | Register created. Contract probe added. No answers confirmed yet: no instance of the service was reachable from the environment that wrote this. |
+| 2026-11-21 | Q02.1 answered by the project owner, after the first probe run against the real service got 405 for `GET /admin/entities`: search is `POST /admin/entities/search` with a JSON body, and `{}` returns everything. Folded in as decision P14. The probe now searches that way and accepts `--timestamp-field`. |
 | 2026-11-21 | Q10.1, Q10.2 and T5 answered by the project owner: one shared raw key in `X-API-KEY`, with 401 for a missing or wrong key. Folded into the code as decision P13. Added T10, T11 and H7. |

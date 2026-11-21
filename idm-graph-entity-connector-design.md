@@ -27,9 +27,9 @@ The connector consumes the following administrative API. Base URL and credential
 | Read entity | `GET /admin/entities/{ID}` | Returns the full document including **all** relationships touching the entity, inbound and outbound. |
 | Replace entity | `PUT /admin/entities/{ID}` | **Full replacement.** Any relationship touching this entity — inbound or outbound — that is omitted from the payload is **deleted** by the service. |
 | Delete entity | `DELETE /admin/entities/{ID}` | Deletes the entity and all relationships touching it. |
-| Search | `GET /admin/entities?updatedAfter={datetime}` *(parameter name to be confirmed)* | Returns full entity documents for entities created or updated after the given datetime. Supports paging. Used for drift detection. |
+| Search | `POST /admin/entities/search` with a JSON body, e.g. `{"updatedAfter": "{datetime}"}` *(field names to be confirmed; `{}` returns everything)* | Returns full entity documents for entities created or updated after the given datetime. Supports paging. Used for drift detection. |
 
-Authentication is by a single API key, shared by all consumers of the service, sent raw in the `X-API-KEY` header. A missing or wrong key returns `401`. *(Amended 2026-11-21: this section originally said HTTP Basic. See decision P13 in the delivery plan.)* Parameter names for the search endpoint and its paging mechanism are placeholders pending API documentation and must be confirmed before implementation (§15).
+Authentication is by a single API key, shared by all consumers of the service, sent raw in the `X-API-KEY` header. A missing or wrong key returns `401`. *(Amended 2026-11-21: this section originally said HTTP Basic. See decision P13 in the delivery plan.)* The search is a POST with a JSON body, not a GET. *(Amended 2026-11-21: this section originally specified `GET /admin/entities?updatedAfter=…`. See decision P14.)* Field names for the search filter and its paging mechanism are placeholders pending API documentation and must be confirmed before implementation (§15).
 
 ### 2.1 Entity document shape
 
@@ -306,7 +306,7 @@ The service's API key is held in the connector configuration's `password` proper
 
 **Risk: partial-attribute updates.** Any mapping change that stops recomputing `entityRelationships` on every update silently converts routine attribute updates into relationship mass-deletions (§8.4). Mitigation: generator-emitted mappings, code review rule, and the drift recon as detection.
 
-**Decision log.** Scripted REST over custom Java bundle (confirmed requirement). Per-type dynamic schema over single generic class (§5.3). Mapping-side payload assembly over connector callback to IDM (§8.2). Pure IDM-derived full-state `PUT` over read-merge-write (§8.1), contingent on A1/A2. Self-heal plus verification logging over synchronous create-time repair (§9.1). No client-side locking; convergence plus serialisation plus drift recon (§10). Target-phase `REPORT`-then-`DELETE` rollout (§11). Shared `X-API-KEY` authentication in place of HTTP Basic, confirmed 2026-11-21 (§2, §14; delivery plan P13).
+**Decision log.** Scripted REST over custom Java bundle (confirmed requirement). Per-type dynamic schema over single generic class (§5.3). Mapping-side payload assembly over connector callback to IDM (§8.2). Pure IDM-derived full-state `PUT` over read-merge-write (§8.1), contingent on A1/A2. Self-heal plus verification logging over synchronous create-time repair (§9.1). No client-side locking; convergence plus serialisation plus drift recon (§10). Target-phase `REPORT`-then-`DELETE` rollout (§11). Shared `X-API-KEY` authentication in place of HTTP Basic, confirmed 2026-11-21 (§2, §14; delivery plan P13). Search by `POST /admin/entities/search` with a JSON body, not `GET` with query parameters, confirmed 2026-11-21 (§2; delivery plan P14).
 
 ---
 

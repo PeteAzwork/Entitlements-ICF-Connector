@@ -89,9 +89,9 @@ class RestClientEntityApiSpec extends Specification {
         api.delete('Sanne').status == 204
     }
 
-    def "search sends the query parameters verbatim (parameter names are configuration, §15)"() {
+    def "search POSTs the filter and paging fields as a JSON body to /admin/entities/search (P14)"() {
         given:
-        wm.stubFor(get(urlPathEqualTo('/admin/entities')).willReturn(okJson('{"items":[],"totalCount":0}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[],"totalCount":0}')))
 
         when:
         def r = api.search([updatedAfter: '1970-01-01T00:00:00Z', pageSize: 200, offset: 0])
@@ -99,10 +99,32 @@ class RestClientEntityApiSpec extends Specification {
         then:
         r.status == 200
         r.body.items == []
-        wm.verify(getRequestedFor(urlPathEqualTo('/admin/entities'))
-            .withQueryParam('updatedAfter', equalTo('1970-01-01T00:00:00Z'))
-            .withQueryParam('pageSize', equalTo('200'))
-            .withQueryParam('offset', equalTo('0')))
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search'))
+            .withHeader('Content-Type', containing('application/json'))
+            .withHeader('X-API-KEY', equalTo(Fixtures.API_KEY))
+            .withRequestBody(equalToJson('{"updatedAfter":"1970-01-01T00:00:00Z","pageSize":200,"offset":0}')))
+    }
+
+    def "an unfiltered search sends {} as the body, not an empty request"() {
+        given:
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[]}')))
+
+        when:
+        api.search([:])
+
+        then:
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search')).withRequestBody(equalToJson('{}')))
+    }
+
+    def "search never uses GET: the service answers GET on the collection with 405"() {
+        given:
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[]}')))
+
+        when:
+        api.search([updatedAfter: '1970-01-01T00:00:00Z'])
+
+        then:
+        wm.verify(0, getRequestedFor(urlPathMatching('/admin/entities.*')))
     }
 
     @Unroll

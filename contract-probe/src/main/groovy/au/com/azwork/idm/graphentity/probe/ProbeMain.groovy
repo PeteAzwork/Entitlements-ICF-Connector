@@ -30,7 +30,10 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
   --out DIR              Output directory (default build/contract-probe/<run>)
   --max-pages N          Pages to read when sampling entities (default 5)
   --timeout-seconds N    Per-request timeout (default 15)
-  --search-path PATH     Skip search-path discovery and use PATH
+  --search-path PATH     Search endpoint, called with POST and a JSON body
+                         (default /admin/entities/search)
+  --timestamp-field NAME Request-body field that filters by last-updated time.
+                         Without it, common names are tried.
   --run-id ID            Override the run identifier (letters, digits and dashes)
 '''
 
@@ -62,7 +65,15 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
                 case '--out': o.outDir = new File(next(a)); break
                 case '--max-pages': o.maxPages = positive(a, next(a)); break
                 case '--timeout-seconds': o.timeoutSeconds = positive(a, next(a)); break
-                case '--search-path': o.searchPath = next(a); break
+                case '--search-path':
+                    o.searchPath = next(a)
+                    if (!o.searchPath.startsWith('/')) throw new UsageException('--search-path must start with /')
+                    if (o.searchPath in ContractProbe.CREATE_PATHS) throw new UsageException("--search-path ${o.searchPath} is the create endpoint: a POST there creates entities")
+                    break
+                case '--timestamp-field':
+                    o.timestampField = next(a)
+                    if (!(o.timestampField ==~ /[A-Za-z0-9_.-]{1,64}/)) throw new UsageException('--timestamp-field must be a field name')
+                    break
                 case '--run-id':
                     o.runId = next(a)
                     if (!(o.runId ==~ /[A-Za-z0-9-]{1,40}/)) throw new UsageException('--run-id must be 1-40 letters, digits or dashes')

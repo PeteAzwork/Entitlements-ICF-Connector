@@ -52,19 +52,19 @@ class OperationScriptsSpec extends Specification {
 
     def "TestScript: 200 from the search endpoint passes"() {
         given:
-        wm.stubFor(get(urlPathEqualTo('/admin/entities')).willReturn(okJson('{"items":[],"totalCount":0}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[],"totalCount":0}')))
 
         when:
         ScriptHarness.run('TestScript.groovy', bindings())
 
         then:
         noExceptionThrown()
-        wm.verify(getRequestedFor(urlPathEqualTo('/admin/entities')).withQueryParam('pageSize', equalTo('1')))
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search')).withRequestBody(matchingJsonPath('$.pageSize', equalTo('1'))))
     }
 
     def "TestScript: 401 → InvalidCredentialException"() {
         given:
-        wm.stubFor(get(urlPathEqualTo('/admin/entities')).willReturn(aResponse().withStatus(401)))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(aResponse().withStatus(401)))
 
         when:
         ScriptHarness.run('TestScript.groovy', bindings())
@@ -162,9 +162,9 @@ class OperationScriptsSpec extends Specification {
         seen*.uid*.uidValue == ['Sanne']
     }
 
-    def "SearchScript unfiltered enumerates with the configured timestamp parameter and page size"() {
+    def "SearchScript unfiltered enumerates with the configured timestamp field and page size in the POST body"() {
         given:
-        wm.stubFor(get(urlPathEqualTo('/admin/entities')).willReturn(okJson(JsonOutput.toJson(
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson(JsonOutput.toJson(
             [items: [Fixtures.sanneWire(), Fixtures.accountWire()], totalCount: 2]))))
         def seen = []
 
@@ -174,14 +174,14 @@ class OperationScriptsSpec extends Specification {
 
         then:
         seen*.uid*.uidValue == ['Sanne']
-        wm.verify(getRequestedFor(urlPathEqualTo('/admin/entities'))
-            .withQueryParam('updatedAfter', equalTo('1970-01-01T00:00:00Z'))
-            .withQueryParam('pageSize', equalTo('200')))
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search'))
+            .withRequestBody(matchingJsonPath('$.updatedAfter', equalTo('1970-01-01T00:00:00Z')))
+            .withRequestBody(matchingJsonPath('$.pageSize', equalTo('200'))))
     }
 
     def "scripts never log the API key"() {
         given:
-        wm.stubFor(get(urlPathEqualTo('/admin/entities')).willReturn(aResponse().withStatus(500).withBody('{"error":"x"}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(aResponse().withStatus(500).withBody('{"error":"x"}')))
 
         when:
         try { ScriptHarness.run('TestScript.groovy', bindings()) } catch (ignored) {}

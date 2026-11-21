@@ -13,7 +13,8 @@ import java.time.format.DateTimeFormatter
  *   <li>GET: full document including every edge touching the entity, inbound ones as {@code SourceID}.</li>
  *   <li>PUT: full replacement; every edge touching the entity not in the payload is deleted. 404 if absent.</li>
  *   <li>DELETE: removes the entity and all edges touching it. 404 if absent.</li>
- *   <li>Search: {@code updatedAfter} (ISO instant) with offset/pageSize paging and a {@code totalCount}.</li>
+ *   <li>Search: a map of request-body fields (P14): {@code updatedAfter} (ISO instant string) with
+ *       {@code offset}/{@code pageSize} paging and a {@code totalCount}. An absent filter means everything.</li>
  * </ul>
  * Also supports fault injection ({@link #failNextWith}) so operations can be tested against each §13 status.
  */
@@ -76,7 +77,9 @@ class FakeGraphService implements EntityApi {
     @Override
     HttpResponse search(Map<String, Object> query) {
         def r = injectedOrNull('SEARCH', [query: query]); if (r) return r
-        Instant since = query[timestampParam] ? Instant.parse(query[timestampParam] as String) : Instant.EPOCH
+        // Any value present is parsed, so a non-ISO value (e.g. epoch millis 0) is a 400 at the HTTP layer, not "everything".
+        def raw = query[timestampParam]
+        Instant since = raw == null ? Instant.EPOCH : Instant.parse(raw as String)
         int offset = (query.offset ?: 0) as int
         int pageSize = (query.pageSize ?: 200) as int
         def ids = entities.keySet().findAll { updatedAt[it].isAfter(since) }.sort()
