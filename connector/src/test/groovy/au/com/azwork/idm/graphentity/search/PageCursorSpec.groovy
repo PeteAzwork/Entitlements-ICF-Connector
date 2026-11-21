@@ -5,31 +5,33 @@ import spock.lang.Specification
 import spock.lang.Unroll
 
 /**
- * Design §9.4 / §15 — paging through the ICF paged-results cookie. The remote protocol is unconfirmed; these
- * tests pin the assumed offset/pageSize + totalCount protocol. When the real protocol is confirmed, only
- * PageCursor and this spec should change.
+ * Design §9.4 — paging through the service's opaque {@code pagedResultsCookie}, wrapped in ICF's paged-results
+ * cookie. All paging knowledge stays in PageCursor (P6 superseded by the real protocol).
  */
 class PageCursorSpec extends Specification {
 
-    def "a null or blank cookie is the first page"() {
+    static HttpResponse page(Map body) { new HttpResponse(status: 200, body: body) }
+
+    def "a null or blank ICF cookie is the first page"() {
         expect:
-        PageCursor.decode(null).offset == 0
-        PageCursor.decode('').offset == 0
-        PageCursor.decode('  ').offset == 0
+        PageCursor.decode(null).serviceCookie == null
+        PageCursor.decode('').serviceCookie == null
+        PageCursor.decode('  ').serviceCookie == null
     }
 
-    def "encode/decode round-trips the offset"() {
+    def "encode/decode round-trips the service's cookie"() {
         expect:
-        PageCursor.decode(new PageCursor(offset: 600).encode()).offset == 600
+        PageCursor.decode(new PageCursor(serviceCookie: '100').encode()).serviceCookie == '100'
+        PageCursor.decode(new PageCursor(serviceCookie: 'opaque=+/token').encode()).serviceCookie == 'opaque=+/token'
     }
 
-    def "encode/decode round-trips an opaque server cursor when the service supplies one"() {
+    def "the ICF cookie is URL-safe"() {
         expect:
-        PageCursor.decode(new PageCursor(offset: 0, opaque: 'abc==').encode()).opaque == 'abc=='
+        new PageCursor(serviceCookie: 'opaque=+/token').encode() ==~ /[A-Za-z0-9_-]+=*/
     }
 
     @Unroll
-    def "a corrupt cookie '#cookie' is rejected rather than restarting from the first page (which would duplicate results)"() {
+    def "a corrupt ICF cookie '#cookie' is rejected rather than restarting from the first page (which would duplicate results)"() {
         when:
         PageCursor.decode(cookie)
 
@@ -37,52 +39,41 @@ class PageCursorSpec extends Specification {
         thrown(IllegalArgumentException)
 
         where:
-        cookie << ['garbage', 'offset=-1', '{"offset":"x"}']
+        cookie << ['garbage!', 'bm90LWpzb24', 'e30']   // not base64; base64 of non-JSON; base64 of {} (no cookie)
     }
 
-    def "toQuery emits offset and pageSize"() {
+    def "toQuery sends pageSize, and pagedResultsCookie only after the first page"() {
         expect:
-        new PageCursor(offset: 200).toQuery(100) == [offset: 200, pageSize: 100]
+        new PageCursor().toQuery(50) == [pageSize: 50]
+        new PageCursor(serviceCookie: '100').toQuery(50) == [pageSize: 50, pagedResultsCookie: '100']
     }
 
-    def "toQuery prefers an opaque server cursor when present"() {
+    def "next follows the cookie the response returned"() {
         expect:
-        new PageCursor(opaque: 'tok').toQuery(100) == [cursor: 'tok', pageSize: 100]
+        PageCursor.next(page([results: [[uid: 'a']], pagedResultsCookie: '1', totalResults: 72, hasMore: true])).serviceCookie == '1'
     }
 
-    def "next advances by the page size while totalCount says more remain"() {
-        when:
-        def next = new PageCursor(offset: 0).next(new HttpResponse(status: 200, body: [items: [1] * 100, totalCount: 250]), 100, 100)
-
-        then:
-        next.offset == 100
-    }
-
-    def "next is null on the last page by totalCount"() {
+    @Unroll
+    def "next is null when there are no more pages: #why"() {
         expect:
-        new PageCursor(offset: 200).next(new HttpResponse(status: 200, body: [items: [1] * 50, totalCount: 250]), 50, 100) == null
+        PageCursor.next(page(body)) == null
+
+        where:
+        why                                    | body
+        'the cookie is null'                   | [results: [[uid: 'a']], pagedResultsCookie: null, totalResults: 1, hasMore: false]
+        'the cookie is absent'                 | [results: [[uid: 'a']]]
+        'an empty page, even with a cookie'    | [results: [], pagedResultsCookie: '5', hasMore: true]
     }
 
-    def "next is null when a page comes back short and there is no totalCount"() {
+    @Unroll
+    def "totalResults is #expected for #body"() {
         expect:
-        new PageCursor(offset: 0).next(new HttpResponse(status: 200, body: [items: [1] * 30]), 30, 100) == null
-    }
+        PageCursor.totalResults(page(body)) == expected
 
-    def "next continues when a page is full and there is no totalCount (we cannot know it was the last)"() {
-        expect:
-        new PageCursor(offset: 0).next(new HttpResponse(status: 200, body: [items: [1] * 100]), 100, 100).offset == 100
-    }
-
-    def "next picks up a server-supplied nextCursor"() {
-        when:
-        def next = new PageCursor().next(new HttpResponse(status: 200, body: [items: [1], nextCursor: 'tok2']), 1, 100)
-
-        then:
-        next.opaque == 'tok2'
-    }
-
-    def "an empty page is always the end"() {
-        expect:
-        new PageCursor(offset: 0).next(new HttpResponse(status: 200, body: [items: [], totalCount: 999]), 0, 100) == null
+        where:
+        body                                  | expected
+        [results: [], totalResults: 72]       | 72
+        [results: [], totalResults: -1]       | -1
+        [results: []]                         | -1
     }
 }

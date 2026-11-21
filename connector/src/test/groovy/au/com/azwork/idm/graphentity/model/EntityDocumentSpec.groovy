@@ -3,86 +3,125 @@ package au.com.azwork.idm.graphentity.model
 import au.com.azwork.idm.graphentity.support.Fixtures
 import spock.lang.Specification
 
-/** Design §2.1 — entity document shape. */
+/** Service contract §5.2 — the three document models and the connector's canonical form. */
 class EntityDocumentSpec extends Specification {
 
-    def "toWire produces the §2.1 document with exact key casing"() {
+    // ---------------------------------------------------------------- write model
+
+    def "toWire produces the write model (EntityDTO) with the service's key casing"() {
         when:
         def wire = Fixtures.sanneDoc().toWire()
 
         then:
         wire == Fixtures.sanneWire()
-        wire.keySet() == ['ID', 'BaseType', 'attributes', 'Relationships', 'directArchetypes'] as Set
+        wire.keySet() == ['id', 'baseType', 'attributes', 'relationships', 'directArchetypes'] as Set
     }
 
-    def "toWire omits lastUpdated (it is read-only on the service side)"() {
+    def "toWire always emits relationships and directArchetypes, even when empty, because writes are full-state (P15)"() {
+        when:
+        def wire = new EntityDocument(id: 'x', baseType: 2, attributes: [:]).toWire()
+
+        then:
+        wire.relationships == []
+        wire.directArchetypes == []
+        wire.attributes == [:]
+    }
+
+    def "toWire never emits read-only fields"() {
         given:
         def doc = Fixtures.sanneDoc()
-        doc.lastUpdated = '2026-07-06T00:00:00Z'
+        doc.lastEvaluated = '2026-07-06T00:00:00Z'
+        doc.isArchetypes = ['Policy']
 
         expect:
-        !doc.toWire().containsKey('lastUpdated')
+        !doc.toWire().containsKey('lastEvaluated')
+        !doc.toWire().containsKey('isArchetypes')
     }
 
-    def "toWire always emits Relationships and directArchetypes, even when empty, so a PUT is explicit"() {
+    def "fromWire round-trips the write model"() {
+        expect:
+        EntityDocument.fromWire(Fixtures.sanneDoc().toWire()) == Fixtures.sanneDoc()
+    }
+
+    // ---------------------------------------------------------------- read model
+
+    def "fromEntity reads the read model: attribute objects, source/target relationships, lastEvaluated"() {
+        when:
+        def doc = EntityDocument.fromEntity(Fixtures.sanneEntity())
+
+        then:
+        doc.id == 'Sanne'
+        doc.baseType == 4
+        doc.attributes == [name: 'Sanne Groen']
+        doc.relationships == [Fixtures.owns()]
+        doc.lastEvaluated == Fixtures.EVALUATED
+    }
+
+    def "the read model carries no archetypes, so directArchetypes is unknown (null), not empty"() {
+        expect:
+        EntityDocument.fromEntity(Fixtures.sanneEntity()).directArchetypes == null
+    }
+
+    def "fromEntity ignores compoundAttributes: multi-valued attributes are not synchronised (P20)"() {
         given:
-        def doc = new EntityDocument(id: 'x', baseType: 2, attributes: [ID: 'x'])
+        def entity = Fixtures.sanneEntity() + [compoundAttributes: [phones: [[name: 'phones', type: 'string', value: '+61']]]]
 
-        when:
-        def wire = doc.toWire()
-
-        then:
-        wire.Relationships == []
-        wire.directArchetypes == []
+        expect:
+        EntityDocument.fromEntity(entity).attributes == [name: 'Sanne Groen']
     }
 
-    def "fromWire parses a service response including relationships in both directions and lastUpdated"() {
-        given:
-        def wire = Fixtures.accountWire() + [lastUpdated: '2026-07-06T10:00:00Z']
-        wire.Relationships = [[SourceID: 'Sanne', type: 'Owns'], [TargetID: 'Ledger-1', type: 'PostsTo']]
-
-        when:
-        def doc = EntityDocument.fromWire(wire)
-
-        then:
-        doc.id == 'Current-Account-1-Sanne'
-        doc.baseType == 2
-        doc.attributes == [ID: 'Current-Account-1-Sanne', name: 'Current Account', productCode: 'CA1']
-        doc.relationships == [Edge.inbound('Sanne', 'Owns'), Edge.outbound('Ledger-1', 'PostsTo')]
-        doc.directArchetypes == ['Account']
-        doc.lastUpdated == '2026-07-06T10:00:00Z'
+    def "fromEntity accepts a base type given as a name"() {
+        expect:
+        EntityDocument.fromEntity(Fixtures.sanneEntity() + [baseType: 'Subject']).baseType == 4
     }
 
-    def "fromWire tolerates missing collections"() {
+    def "fromEntity requires an id"() {
         when:
-        def doc = EntityDocument.fromWire([ID: 'x', BaseType: 4])
-
-        then:
-        doc.attributes == [:]
-        doc.relationships == []
-        doc.directArchetypes == []
-        doc.lastUpdated == null
-    }
-
-    def "fromWire requires an ID"() {
-        when:
-        EntityDocument.fromWire([BaseType: 4])
+        EntityDocument.fromEntity([baseType: 4])
 
         then:
         thrown(IllegalArgumentException)
     }
 
-    def "fromWire converts a numeric BaseType delivered as a string or long"() {
-        expect:
-        EntityDocument.fromWire([ID: 'x', BaseType: '4']).baseType == 4
-        EntityDocument.fromWire([ID: 'x', BaseType: 2L]).baseType == 2
+    // ---------------------------------------------------------------- search item
+
+    def "fromSearchItem reads uid, a named base type, plain attributes and both archetype lists"() {
+        when:
+        def doc = EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [isArchetypes: ['Customer', 'Retail']])
+
+        then:
+        doc.id == 'Sanne'
+        doc.baseType == 4
+        doc.attributes == [name: 'Sanne Groen']
+        doc.directArchetypes == ['Customer']
+        doc.isArchetypes == ['Customer', 'Retail']
+        doc.lastEvaluated == Fixtures.EVALUATED
     }
 
-    def "round trip toWire→fromWire is lossless for a write document"() {
-        given:
-        def doc = Fixtures.sanneDoc()
-
+    def "search items carry no relationships, so relationships is unknown (null), not empty (D4)"() {
         expect:
-        EntityDocument.fromWire(doc.toWire()) == doc
+        EntityDocument.fromSearchItem(Fixtures.sanneSearchItem()).relationships == null
+    }
+
+    def "fromSearchItem converts non-string attribute values to strings (P20)"() {
+        expect:
+        EntityDocument.fromSearchItem(Fixtures.accountSearchItem() + [attributes: [limit: 5000, active: true]]).attributes ==
+            [limit: '5000', active: 'true']
+    }
+
+    def "fromSearchItem falls back to name when uid is missing, and requires one of them"() {
+        expect:
+        EntityDocument.fromSearchItem([name: 'Sanne', baseType: 'Subject']).id == 'Sanne'
+
+        when:
+        EntityDocument.fromSearchItem([baseType: 'Subject'])
+
+        then:
+        thrown(IllegalArgumentException)
+    }
+
+    def "an unknown base type decodes to null rather than failing the read"() {
+        expect:
+        EntityDocument.fromSearchItem(Fixtures.sanneSearchItem() + [baseType: 'Action']).baseType == null
     }
 }

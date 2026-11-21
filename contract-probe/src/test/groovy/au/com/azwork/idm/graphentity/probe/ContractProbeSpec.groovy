@@ -1,14 +1,15 @@
 package au.com.azwork.idm.graphentity.probe
 
+import au.com.azwork.idm.graphentity.http.HttpResponse
 import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
 import au.com.azwork.idm.graphentity.support.FakeGraphService
 import spock.lang.Specification
 import spock.lang.TempDir
 
 /**
- * Runs the contract probe against {@link FakeGraphHttpServer}, which implements the design's documented
- * service semantics (§2). The probe must report exactly those semantics, so when it is pointed at the real
- * service, any difference in its report is a real difference in the service.
+ * Runs the contract probe against {@link FakeGraphHttpServer}, which implements the service's documented
+ * behaviour plus the design's assumptions (FakeGraphService lists which is which). The probe must report exactly
+ * those semantics, so when it is pointed at the real service, any difference in its report is a real difference.
  */
 class ContractProbeSpec extends Specification {
 
@@ -18,12 +19,17 @@ class ContractProbeSpec extends Specification {
 
     /** Foreign (non-probe) data. IDs and values carry a PII- marker so leaks are easy to detect. */
     def setup() {
-        service.seed([ID: 'PII-Sanne', BaseType: 4, attributes: [ID: 'PII-Sanne', name: 'PII-Sanne Groen'], directArchetypes: ['Customer']])
-        service.seed([ID: 'PII-Account-1', BaseType: 2, attributes: [ID: 'PII-Account-1', name: 'PII-Current'], directArchetypes: ['Account']])
-        service.seed([ID: 'PII-Shared-S', BaseType: 4, attributes: [ID: 'PII-Shared-S'], directArchetypes: ['Customer', 'Shared']])
-        service.seed([ID: 'PII-Shared-R', BaseType: 2, attributes: [ID: 'PII-Shared-R'], directArchetypes: ['Account', 'Shared']])
-        service.seedEdge('PII-Sanne', 'PII-Account-1', 'Owns')
+        seedForeign(service)
         server = new FakeGraphHttpServer(service).start()
+    }
+
+    static void seedForeign(FakeGraphService s) {
+        s.seed([id: 'PII-Sanne', baseType: 4, attributes: [name: 'PII-Sanne Groen'], directArchetypes: ['Customer']])
+        s.seed([id: 'PII-Account-1', baseType: 2, attributes: [name: 'PII-Current'], directArchetypes: ['Account']])
+        s.seed([id: 'PII-Shared-S', baseType: 4, attributes: [:], directArchetypes: ['Customer', 'Shared']])
+        s.seed([id: 'PII-Shared-R', baseType: 2, attributes: [:], directArchetypes: ['Account', 'Shared']])
+        s.seedEdge('PII-Sanne', 'PII-Account-1', 'Owns')
+        s.seedManifest('banking', ['Customer'], ['Account', 'Card'])
     }
 
     def cleanup() { server?.close() }
@@ -44,7 +50,8 @@ class ContractProbeSpec extends Specification {
     }
 
     Map snapshot() {
-        [entities: service.entities.keySet().collectEntries { [(it): service.render(it)] }, edges: new HashSet(service.edges)]
+        [entities: service.entities.keySet().collectEntries { [(it): service.renderEntity(it) + [archetypes: service.entities[it].directArchetypes]] },
+         edges: new HashSet(service.edges)]
     }
 
     // ---------------------------------------------------------------- read-only mode
@@ -59,7 +66,7 @@ class ContractProbeSpec extends Specification {
         then:
         p.http.exchanges.every { it.method == 'GET' || (it.method == 'POST' && it.path == '/admin/entities/search') }
         p.http.exchanges.any { it.method == 'POST' }
-        service.requests*.op.unique().sort() == ['GET', 'SEARCH']
+        service.requests*.op.unique().sort() == ['GET', 'MANIFESTS', 'SEARCH']
         snapshot() == before
     }
 
@@ -87,7 +94,17 @@ class ContractProbeSpec extends Specification {
         def p = probe()
 
         then:
-        ['create.duplicate', 'edges', 'ids', 'search.boundary', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
+        ['baseType.create', 'search.createdVisible', 'create.duplicate', 'edges', 'attributes.omission', 'archetypes.replace',
+         'ids', 'paging.updateDuringEnumeration'].every { f(p, it).confidence == 'not-tested' }
+    }
+
+    def "the probe writes the service's write model: lowercase id, numeric base type, string attributes, sourceID/targetID (P17, P18, P20)"() {
+        given:
+        def probeDoc = ContractProbe.probeDoc('x', [ContractProbe.edge('x', 'y')], [a: 'b'], 4, ['Card'])
+
+        expect:
+        probeDoc == [id: 'x', baseType: 4, attributes: [probe: 'ws0', a: 'b'],
+                     relationships: [[sourceID: 'x', targetID: 'y', type: 'Ws0ProbeEdge']], directArchetypes: ['Card']]
     }
 
     def "WS0.10: reports how a missing, wrong and valid API key are answered"() {
@@ -114,39 +131,54 @@ class ContractProbeSpec extends Specification {
         f(p, 'search.path').confidence == 'observed'
     }
 
-    def "WS0.02: finds the search path, the timestamp parameter and the accepted datetime formats"() {
+    def "WS0.02: finds the search path and the field that filters on the ID (P21)"() {
         when:
         def p = probe()
 
         then:
         f(p, 'search.path').answer == '`POST /admin/entities/search` with a JSON body. `{}` returned 4 entities.'
-        f(p, 'search.timestampParam').answer == '`updatedAfter`'
-        p.contract.timestampParam == 'updatedAfter'
-        def formats = p.contract.acceptedDatetimeFormats as List
-        formats.containsAll(['ISO-8601, seconds, Z', 'ISO-8601, milliseconds, Z'])
-        !formats.contains('epoch milliseconds')
-        !formats.contains('date only')
+        f(p, 'search.idFilter').answer == '`ID`: an EQUALS filter on it returns exactly the entity.'
+        p.contract.idFilterField == 'ID'
     }
 
-    def "WS0.02: a known timestamp field skips the guessing"() {
-        when:
-        def p = probe(timestampField: 'updatedAfter')
-
-        then:
-        f(p, 'search.timestampParam').answer == '`updatedAfter`'
-        !f(p, 'search.timestampParam').detail.contains('modifiedSince')
-    }
-
-    def "WS0.03: finds the envelope, page-size and offset parameters, and the ordering"() {
+    def "WS0.15: read-only, the numeric objectClass values show which base type each number means (P18, C6)"() {
         when:
         def p = probe()
 
         then:
-        f(p, 'paging.envelope').answer.startsWith('object, items under `items`; total count: `totalCount`; next-page cursor: none')
+        f(p, 'baseType.objectClass').answer == '4 = Subject, 2 = Resource, as P18 assumes.'
+        f(p, 'baseType.objectClass').detail.contains('`4` → Subject ×2')
+        p.contract.baseTypeNumbering == 'P18 (4 = Subject, 2 = Resource)'
+    }
+
+    def "WS0.15: a service whose numbering is reversed is reported as contradicting P18"() {
+        given:
+        server.close()
+        def reversed = new FakeGraphService() {
+            @Override Map<String, Object> renderSearchItem(String id) {
+                def item = super.renderSearchItem(id)
+                item + [baseType: item.baseType == 'Subject' ? 'Resource' : 'Subject']
+            }
+        }
+        seedForeign(reversed)
+        server = new FakeGraphHttpServer(reversed).start()
+
+        when:
+        def p = probe()
+
+        then:
+        f(p, 'baseType.objectClass').answer.startsWith('4 = Resource, 2 = Subject: this contradicts P18')
+    }
+
+    def "WS0.03: follows the documented paging protocol: pageSize and pagedResultsCookie"() {
+        when:
+        def p = probe()
+
+        then:
+        f(p, 'paging.envelope').answer == 'object, items under `results`; total count: `totalResults`; next-page cursor: `pagedResultsCookie`; `hasMore`: present.'
+        f(p, 'paging.params').answer == 'Yes: `pageSize` is honoured, and sending back `pagedResultsCookie` returns the next page.'
         p.contract.pageSizeParam == 'pageSize'
-        p.contract.offsetParam == 'offset'
-        p.contract.cursorParam == null
-        f(p, 'paging.params').answer == 'offset via `offset`'
+        p.contract.cursorParam == 'pagedResultsCookie'
         f(p, 'paging.ordering').answer == 'Same first page twice: identical order. Order: sorted by ID.'
     }
 
@@ -159,28 +191,59 @@ class ContractProbeSpec extends Specification {
 
         then:
         f(p, 'paging.params').confidence == 'inconclusive'
-        f(p, 'search.timestampParam').confidence == 'inconclusive'
+        f(p, 'search.idFilter').confidence == 'inconclusive'
+        f(p, 'baseType.objectClass').confidence == 'inconclusive'
     }
 
-    def "WS0.06: identifies the last-updated field and its format, and compares search with GET"() {
+    def "WS0.06: compares search items and the read model with the documented fields, and reports lastEvaluated's format"() {
         when:
         def p = probe()
 
         then:
-        p.contract.lastUpdatedField == 'lastUpdated'
-        f(p, 'document.lastUpdatedField').answer == '`lastUpdated`, ISO-8601, no fraction, Z'
-        f(p, 'document.searchVsGet').answer == 'Yes, the same top-level fields.'
-        f(p, 'document.edgeKeys').answer == 'SourceID, type'
+        f(p, 'document.searchFields').answer == 'attributes, baseType, directArchetypes, isArchetypes, lastEvaluated, name, uid (as documented).'
+        f(p, 'document.readModelFields').answer == 'Attributes, baseType, compoundAttributes, id, lastEvaluated, reconciliationStarted, relationships (as documented).'
+        f(p, 'document.lastEvaluated').answer == 'ISO-8601, no fraction, Z'
+        f(p, 'document.edgeKeys').answer == 'source, sourceType, target, type (as documented)'
     }
 
-    def "WS0.08: counts BaseType values and flags archetypes shared across BaseTypes"() {
+    def "WS0.06: GET by ID is tried on an entity that exists, which the first run never did (C1)"() {
         when:
         def p = probe()
 
         then:
-        f(p, 'types.baseTypes').answer == '2: 2, 4: 2'
+        f(p, 'get.existingEntity').answer == 'Yes: 200, the read model.'
+        p.contract.getById == 'works'
+    }
+
+    def "WS0.08: counts base types and flags archetypes shared across base types"() {
+        when:
+        def p = probe()
+
+        then:
+        f(p, 'types.baseTypes').answer == 'Resource: 2, Subject: 2'
         p.contract.ambiguousArchetypes == ['Shared']
         f(p, 'types.archetypes').answer.contains('Shared')
+    }
+
+    def "WS0.15: lists the archetypes the manifests define, per base type (P22)"() {
+        when:
+        def p = probe()
+
+        then:
+        f(p, 'manifests.archetypes').answer == '1 manifest(s). Subject archetypes: Customer. Resource archetypes: Account, Card.'
+        p.contract.resourceArchetypes == ['Account', 'Card']
+    }
+
+    def "WS0.15: a service with no manifests is reported, not treated as a failure"() {
+        given:
+        service.manifests.clear()
+
+        when:
+        def p = probe()
+
+        then:
+        f(p, 'manifests.archetypes').answer.startsWith('404')
+        f(p, 'manifests.archetypes').confidence == 'observed'
     }
 
     def "WS0.05: records the shape of read-only error responses"() {
@@ -188,13 +251,24 @@ class ContractProbeSpec extends Specification {
         def p = probe()
 
         then:
-        f(p, 'errors.getMissing').answer == '404: no content type, empty body'
-        f(p, 'errors.badTimestamp').answer == "400: application/json, JSON object with keys [error]"
+        f(p, 'errors.getMissing').answer == '404: application/problem+json, JSON object with keys [status, title, traceId, type]'
+        f(p, 'errors.badFilter').answer.startsWith('400: application/problem+json')
+        f(p, 'errors.badObjectClass').answer.startsWith('200')   // the fake treats an unknown number as an empty base type
     }
 
     // ---------------------------------------------------------------- write mode
 
-    def "WS0.07/WS0.04/WS0.06: write checks observe every documented edge semantic"() {
+    def "WS0.15: an entity created with base type 4 is a Subject, and is visible to search (P18, C5)"() {
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'baseType.create').answer == 'Yes: created with 4 it is a `Subject`, and created with 2 a `Resource`; a search with objectClass 4 finds it.'
+        f(p, 'search.createdVisible').answer.startsWith('Yes')
+        p.contract.baseTypeOnCreate == 'confirmed: 4 = Subject'
+    }
+
+    def "WS0.07/WS0.04: write checks observe every relationship semantic, including Q07.8"() {
         when:
         def p = probe(allowWrites: true)
 
@@ -203,20 +277,66 @@ class ContractProbeSpec extends Specification {
         f(p, 'create.duplicate').answer.startsWith('409')
         f(p, 'edges.inboundOnCreate').answer.startsWith('Yes')
         f(p, 'edges.getShowsInbound').answer.startsWith('Yes')
-        f(p, 'edges.putOmissionDeletesInbound').answer.startsWith('Yes')
+        f(p, 'edges.readShape').answer == 'source, sourceType, target, type'
+        f(p, 'edges.sourceOmission').answer.startsWith('Yes')
         f(p, 'edges.inboundOnPut').answer.startsWith('Yes')
+        f(p, 'edges.targetOmission').answer.startsWith('Yes')   // the fake assumes both directions (Q07.8)
         f(p, 'edges.putToMissing').answer.startsWith('Dropped silently')
+        f(p, 'edges.relationshipEndpoints').answer.startsWith('DELETE 200: removed. POST 200: added back.')
         f(p, 'edges.deleteCascades').answer.startsWith('Yes')
-        f(p, 'document.lastUpdatedOnPut').answer.startsWith('Ignored')
     }
 
-    def "WS0.02: write checks find that the timestamp filter is strictly after"() {
+    def "WS0.07: every relationship the probe writes is in the P17 shape and names the entity written"() {
+        when:
+        probe(allowWrites: true)
+
+        then:
+        def bodies = service.requests.findAll { it.op in ['POST', 'PUT'] && it.body?.relationships }*.body
+        bodies
+        bodies.every { b -> b.relationships.every { r -> r.keySet() == ['sourceID', 'targetID', 'type'] as Set && b.id in [r.sourceID, r.targetID] } }
+    }
+
+    def "WS0.15: an update that omits an attribute removes it, and one that lists fewer archetypes replaces them (P20, P22)"() {
         when:
         def p = probe(allowWrites: true)
 
         then:
-        f(p, 'search.boundary').answer.startsWith('Strictly after')
-        f(p, 'search.returnsUpdated').answer.startsWith('Yes')
+        f(p, 'attributes.omission').answer == 'Yes: the omitted attribute is gone, and `keep` was updated.'
+        f(p, 'archetypes.replace').answer == 'Yes: Created with both; after an update listing only `Card`, only `Card` remains.'
+    }
+
+    def "WS0.15: a service that merges attributes and archetypes is reported as such"() {
+        given:
+        server.close()
+        def merging = new FakeGraphService() {
+            @Override HttpResponse replace(String id, Map<String, Object> document) {
+                def old = entities[id]
+                if (old == null) return super.replace(id, document)
+                super.replace(id, document + [attributes: (old.attributes as Map) + (document.attributes as Map),
+                                              directArchetypes: ((old.directArchetypes as List) + (document.directArchetypes as List)).unique()])
+            }
+        }
+        seedForeign(merging)
+        server = new FakeGraphHttpServer(merging).start()
+
+        when:
+        def p = probe(allowWrites: true)
+
+        then:
+        f(p, 'attributes.omission').answer.startsWith('No: the omitted attribute is still there')
+        f(p, 'archetypes.replace').answer.startsWith('No:')
+        f(p, 'archetypes.replace').answer.contains('merges')
+    }
+
+    def "WS0.15: --archetypes overrides the manifests, and without either the archetype check is not tested"() {
+        when:
+        def given = probe(allowWrites: true, archetypes: ['X1', 'X2'])
+        service.manifests.clear()
+        def none = probe(allowWrites: true, runId: 't2')
+
+        then:
+        f(given, 'archetypes.replace').answer.contains('only `X2` remains')
+        f(none, 'archetypes.replace').confidence == 'not-tested'
     }
 
     def "WS0.05: write checks record error responses for bad writes"() {
@@ -226,6 +346,7 @@ class ContractProbeSpec extends Specification {
         then:
         f(p, 'errors.postWithoutId').answer.startsWith('400')
         f(p, 'errors.malformedJson').answer.startsWith('400')
+        f(p, 'errors.nonStringAttribute').answer.startsWith('400')
         f(p, 'errors.putMissing').answer.startsWith('404')
         f(p, 'errors.deleteMissing').answer.startsWith('404')
     }
@@ -255,6 +376,7 @@ class ContractProbeSpec extends Specification {
 
         then:
         p.cleanupProblems == []
+        p.cleanupConfirmedBy.values().every { it == 'GET 404' }
         !service.entities.keySet().any { it.startsWith(p.opts.prefix) }
         !service.edges.any { it.any { id -> id.startsWith(p.opts.prefix) } }
         snapshot() == before
@@ -265,9 +387,34 @@ class ContractProbeSpec extends Specification {
         def p = probe(allowWrites: true)
 
         then:
-        def writes = service.requests.findAll { it.op in ['POST', 'PUT', 'DELETE'] }
+        def writes = service.requests.findAll { it.op in ['POST', 'PUT', 'DELETE', 'ADD_RELATIONSHIP', 'DELETE_RELATIONSHIP'] }
         writes
-        writes.every { (it.id ?: it.body?.ID ?: '').startsWith(p.opts.prefix) || it.body?.ID == null }
+        writes.every { w ->
+            String target = w.id ?: w.source ?: w.body?.id
+            target == null ? w.op == 'POST' : target.startsWith(p.opts.prefix)
+        }
+    }
+
+    def "when GET fails and no search can prove absence, cleanup says so instead of claiming success"() {
+        given:
+        server.close()
+        def blind = new FakeGraphService() {
+            @Override HttpResponse get(String id) { requests << [op: 'GET', id: id]; new HttpResponse(status: 500) }
+            @Override HttpResponse search(Map<String, Object> query) {
+                query.filter ? new HttpResponse(status: 400, body: [title: 'no filters', status: 400]) : super.search(query)
+            }
+        }
+        seedForeign(blind)
+        (1..250).each { blind.seed([id: "PII-Bulk-${it}".toString(), baseType: 2, attributes: [:]]) }
+        server = new FakeGraphHttpServer(blind).start()
+
+        when:
+        def p = probe(allowWrites: true, maxPages: 1)
+
+        then:
+        p.contract.idFilterField == null
+        p.cleanupProblems
+        p.cleanupProblems.every { it.startsWith('could not confirm') }
     }
 
     // ---------------------------------------------------------------- failure handling

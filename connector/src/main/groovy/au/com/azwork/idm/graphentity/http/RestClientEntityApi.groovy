@@ -8,7 +8,11 @@ package au.com.azwork.idm.graphentity.http
  */
 class RestClientEntityApi implements EntityApi {
 
+    /** Base for per-entity paths: {@code /admin/entities/{id}}. */
     static final String ENTITIES_PATH = '/admin/entities/'
+    /** Create is a POST to the collection, without a trailing slash, as the definition documents. */
+    static final String CREATE_PATH = '/admin/entities'
+    static final String MANIFESTS_PATH = '/admin/manifests'
     /** Search is a POST with a JSON body of filter and paging fields; {@code {}} means everything (P14). */
     static final String SEARCH_PATH = '/admin/entities/search'
 
@@ -41,6 +45,11 @@ class RestClientEntityApi implements EntityApi {
     @Override
     HttpResponse search(Map<String, Object> fields) {
         throw new UnsupportedOperationException('TODO WS3: RestClientEntityApi.search')
+    }
+
+    @Override
+    HttpResponse manifests() {
+        throw new UnsupportedOperationException('TODO WS3: RestClientEntityApi.manifests')
     }
 
     /** URL-encodes a path segment so IDs containing '/', '?' or spaces address the right entity. TODO WS3. */

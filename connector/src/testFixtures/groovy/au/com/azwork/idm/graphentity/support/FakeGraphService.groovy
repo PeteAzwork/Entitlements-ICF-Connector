@@ -7,27 +7,61 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 /**
- * In-memory model of the remote graph entity service implementing the documented semantics (design §2):
+ * In-memory model of the IDP Entitlements API as the connector uses it (service contract §5; design §2).
+ *
+ * <p><b>Documented behaviour</b>, from the OpenAPI definition:
  * <ul>
- *   <li>POST: 201; edges whose other endpoint does not exist are <b>silently dropped</b> (A7); duplicate → 409.</li>
- *   <li>GET: full document including every edge touching the entity, inbound ones as {@code SourceID}.</li>
- *   <li>PUT: full replacement; every edge touching the entity not in the payload is deleted. 404 if absent.</li>
- *   <li>DELETE: removes the entity and all edges touching it. 404 if absent.</li>
- *   <li>Search: a map of request-body fields (P14): {@code updatedAfter} (ISO instant string) with
- *       {@code offset}/{@code pageSize} paging and a {@code totalCount}. An absent filter means everything.</li>
+ *   <li>Create ({@code POST /admin/entities}) takes the write model, EntityDTO: {@code id}, {@code baseType},
+ *       {@code attributes} as string → string, {@code relationships} as {@code {sourceID, targetID, type}},
+ *       {@code directArchetypes}. 200 with no body; 400 for an invalid body.</li>
+ *   <li>Read ({@code GET /admin/entities/{id}}) returns the read model, Entity: {@code id}, {@code baseType},
+ *       {@code Attributes} as name → {@code {name, type, value}}, {@code compoundAttributes}, {@code relationships}
+ *       as {@code {source, target, type, sourceType}}, {@code lastEvaluated}, {@code reconciliationStarted}. 404 when
+ *       missing.</li>
+ *   <li>Update ({@code PUT /admin/entities/{id}}) takes the write model; 404 when missing.</li>
+ *   <li>Delete ({@code DELETE /admin/entities/{id}}) returns the deleted Entity; 404 when missing.</li>
+ *   <li>Search ({@code POST /admin/entities/search}) takes {@code objectClass}, a {@code filter} tree,
+ *       {@code pageSize} (default 100) and {@code pagedResultsCookie}; returns {@code results} (search items:
+ *       {@code uid}, {@code name}, {@code baseType} as a name, {@code attributes}, {@code isArchetypes},
+ *       {@code directArchetypes}, {@code lastEvaluated}; no relationships), {@code pagedResultsCookie} (null when
+ *       there are no more), {@code totalResults} and {@code hasMore}. Sorted by ID.</li>
+ *   <li>Manifests ({@code GET /admin/manifests}) list the archetype definitions; 404 when there are none.</li>
+ *   <li>Errors are RFC 7807 problem details, {@code application/problem+json}.</li>
+ * </ul>
+ *
+ * <p><b>Assumed behaviour</b>, still to be confirmed (service contract §2, §6; WS0.15). Change these together with
+ * the specs that rely on them when the answers arrive:
+ * <ul>
+ *   <li>A create silently drops a relationship whose other end does not exist (design A7).</li>
+ *   <li>A relationship that does not name the entity being written as source or target is a 400.</li>
+ *   <li>An update replaces every relationship touching the entity, in both directions (P15, Q07.8, design A2),
+ *       and replaces {@code attributes} and {@code directArchetypes} in full (P20, P22).</li>
+ *   <li>A duplicate create is a 409 (Q04.1; the definition documents none, and the probe saw 200).</li>
+ *   <li>Base type 4 is Subject and 2 is Resource (P18; the definition's create samples say the reverse).</li>
+ *   <li>Filter operations are sent by name; EQUALS, CONTAINS, STARTSWITH, AND and OR are supported, matched on
+ *       attributes, and on the entity ID when the left side is {@code "ID"}. Other operations are a 400.</li>
+ *   <li>Attribute values must be strings; any other JSON type is a 400.</li>
  * </ul>
  * Also supports fault injection ({@link #failNextWith}) so operations can be tested against each §13 status.
  */
 class FakeGraphService implements EntityApi {
 
-    /** Canonical edge store: [sourceId, targetId, type]. */
+    static final Map<Integer, String> BASE_TYPE_NAMES = [4: 'Subject', 2: 'Resource']
+    static final Set<String> FILTER_OPERATIONS = ['EQUALS', 'CONTAINS', 'STARTSWITH', 'AND', 'OR'] as Set
+    static final int DEFAULT_PAGE_SIZE = 100
+
+    /** Relationship store: [sourceId, targetId, type]. */
     final Set<List<String>> edges = new LinkedHashSet<>()
+    /** id → [id, baseType (int), attributes (string → string), directArchetypes, isArchetypes]. */
     final Map<String, Map<String, Object>> entities = new LinkedHashMap<>()
-    final Map<String, Instant> updatedAt = [:]
+    final Map<String, Instant> lastEvaluated = [:]
+    /** Manifests as the service returns them; an empty list makes GET /admin/manifests a 404. */
+    final List<Map<String, Object>> manifests = []
     final List<Map> requests = []
-    String timestampParam = 'updatedAfter'
     private Instant clock = Instant.parse('2026-01-01T00:00:00Z')
     private final Deque<HttpResponse> injected = new ArrayDeque<>()
+
+    // ------------------------------------------------------------------ test control
 
     void failNextWith(int status, Map body = null, Map<String, String> headers = [:]) {
         injected.add(new HttpResponse(status: status, body: body, rawBody: body ? groovy.json.JsonOutput.toJson(body) : null, headers: headers))
@@ -40,89 +74,232 @@ class FakeGraphService implements EntityApi {
         injected.isEmpty() ? null : injected.poll()
     }
 
+    List<Map> requestsOf(String op) { requests.findAll { it.op == op } }
+
+    /** Seeds an entity directly from a write-model map (bypasses validation and drop semantics). */
+    void seed(Map<String, Object> doc) {
+        String id = doc.id as String
+        entities[id] = [id: id, baseType: doc.baseType as Integer, attributes: new LinkedHashMap(doc.attributes ?: [:]),
+                        directArchetypes: new ArrayList(doc.directArchetypes ?: []), isArchetypes: new ArrayList(doc.isArchetypes ?: [])]
+        tick(); lastEvaluated[id] = clock
+    }
+
+    void seedEdge(String sourceId, String targetId, String type) { edges << [sourceId, targetId, type] }
+
+    /** Adds a manifest defining the given subject and resource archetype names. */
+    void seedManifest(String name, List<String> subjectArchetypes, List<String> resourceArchetypes) {
+        manifests << [name: name, subjectArchetypes: subjectArchetypes.collect { [name: it] }, resourceArchetypes: resourceArchetypes.collect { [name: it] }]
+    }
+
+    // ------------------------------------------------------------------ EntityApi
+
     @Override
     HttpResponse get(String id) {
         def r = injectedOrNull('GET', [id: id]); if (r) return r
-        if (!entities.containsKey(id)) return new HttpResponse(status: 404)
-        new HttpResponse(status: 200, body: render(id))
+        if (!entities.containsKey(id)) return problem(404, 'Not Found')
+        new HttpResponse(status: 200, body: renderEntity(id), headers: json())
     }
 
     @Override
     HttpResponse create(Map<String, Object> document) {
         def r = injectedOrNull('POST', [body: document]); if (r) return r
-        String id = document.ID
-        if (entities.containsKey(id)) return new HttpResponse(status: 409, body: [error: 'duplicate'])
-        store(id, document, true)
-        new HttpResponse(status: 201, body: render(id))
+        def invalid = validate(document, null)
+        if (invalid) return problem(400, invalid)
+        String id = document.id
+        if (entities.containsKey(id)) return problem(409, 'Conflict')   // assumption, Q04.1
+        store(id, document)
+        new HttpResponse(status: 200)
     }
 
     @Override
     HttpResponse replace(String id, Map<String, Object> document) {
         def r = injectedOrNull('PUT', [id: id, body: document]); if (r) return r
-        if (!entities.containsKey(id)) return new HttpResponse(status: 404)
-        edges.removeAll { it[0] == id || it[1] == id }
-        store(id, document, false)
-        new HttpResponse(status: 200, body: render(id))
+        def invalid = validate(document, id)
+        if (invalid) return problem(400, invalid)
+        if (!entities.containsKey(id)) return problem(404, 'Not Found')
+        edges.removeAll { it[0] == id || it[1] == id }   // assumption: both directions (Q07.8)
+        store(id, document)
+        new HttpResponse(status: 200)
     }
 
     @Override
     HttpResponse delete(String id) {
         def r = injectedOrNull('DELETE', [id: id]); if (r) return r
-        if (!entities.containsKey(id)) return new HttpResponse(status: 404)
-        entities.remove(id); updatedAt.remove(id)
+        if (!entities.containsKey(id)) return problem(404, 'Not Found')
+        def deleted = renderEntity(id)
+        entities.remove(id); lastEvaluated.remove(id)
         edges.removeAll { it[0] == id || it[1] == id }
-        new HttpResponse(status: 204)
+        new HttpResponse(status: 200, body: deleted, headers: json())
     }
 
     @Override
     HttpResponse search(Map<String, Object> query) {
         def r = injectedOrNull('SEARCH', [query: query]); if (r) return r
-        // Any value present is parsed, so a non-ISO value (e.g. epoch millis 0) is a 400 at the HTTP layer, not "everything".
-        def raw = query[timestampParam]
-        Instant since = raw == null ? Instant.EPOCH : Instant.parse(raw as String)
-        int offset = (query.offset ?: 0) as int
-        int pageSize = (query.pageSize ?: 200) as int
-        def ids = entities.keySet().findAll { updatedAt[it].isAfter(since) }.sort()
-        def page = ids.drop(offset).take(pageSize).collect { render(it) }
-        new HttpResponse(status: 200, body: [items: page, totalCount: ids.size(), offset: offset, pageSize: pageSize])
-    }
-
-    // ---- helpers ----
-
-    private void store(String id, Map<String, Object> doc, boolean dropMissing) {
-        entities[id] = [ID: id, BaseType: doc.BaseType, attributes: new LinkedHashMap(doc.attributes ?: [:]),
-                        directArchetypes: new ArrayList(doc.directArchetypes ?: [])]
-        tick(); updatedAt[id] = clock
-        (doc.Relationships ?: []).each { Map e ->
-            String src = e.SourceID ? e.SourceID : id
-            String tgt = e.TargetID ? e.TargetID : id
-            String other = e.SourceID ? src : tgt
-            if (!entities.containsKey(other)) {
-                if (dropMissing) return  // A7: silently dropped on POST
-                return                   // service also cannot link to a missing entity on PUT
-            }
-            edges << [src, tgt, e.type as String]
+        Integer objectClass = null
+        if (query.objectClass != null) {
+            objectClass = baseTypeOf(query.objectClass)
+            if (objectClass == null) return problem(400, "Unknown objectClass ${query.objectClass}")
         }
+        Map filter = query.filter instanceof Map ? query.filter as Map : null
+        if (query.filter != null && filter == null) return problem(400, 'filter must be an object')
+        String filterError = filter ? checkFilter(filter) : null
+        if (filterError) return problem(400, filterError)
+        int pageSize
+        int offset
+        try {
+            pageSize = query.pageSize == null ? DEFAULT_PAGE_SIZE : (query.pageSize as int)
+            offset = query.pagedResultsCookie == null ? 0 : Integer.parseInt(query.pagedResultsCookie as String)
+        } catch (NumberFormatException e) {
+            return problem(400, 'Invalid paging')
+        }
+        if (pageSize < 1 || offset < 0) return problem(400, 'Invalid paging')
+        def ids = entities.keySet().findAll { id ->
+            (objectClass == null || entities[id].baseType == objectClass) && (filter == null || matches(filter, id))
+        }.sort()
+        def page = ids.drop(offset).take(pageSize).collect { renderSearchItem(it) }
+        int next = offset + page.size()
+        boolean more = next < ids.size()
+        new HttpResponse(status: 200, headers: json(), body: [results: page, pagedResultsCookie: more ? (next as String) : null,
+                                                              totalResults: ids.size(), hasMore: more])
     }
 
-    Map<String, Object> render(String id) {
+    @Override
+    HttpResponse manifests() {
+        def r = injectedOrNull('MANIFESTS', [:]); if (r) return r
+        manifests ? new HttpResponse(status: 200, body: manifests.collect { new LinkedHashMap(it) }, headers: json()) : problem(404, 'Not Found')
+    }
+
+    // ------------------------------------------------------------------ relationship endpoints (HTTP only)
+
+    /** POST /admin/entities/{id}/relationships with one {sourceID, targetID, type}. */
+    HttpResponse addRelationship(String id, Map<String, Object> rel) {
+        def r = injectedOrNull('ADD_RELATIONSHIP', [id: id, body: rel]); if (r) return r
+        def invalid = validateEdge(rel, id)
+        if (invalid) return problem(400, invalid)
+        if (!entities.containsKey(id)) return problem(404, 'Not Found')
+        String other = rel.sourceID == id ? rel.targetID : rel.sourceID
+        if (entities.containsKey(other)) edges << [rel.sourceID as String, rel.targetID as String, rel.type as String]   // assumption: A7 drop
+        new HttpResponse(status: 200)
+    }
+
+    /** DELETE /admin/entities/{source}/relationships/{target}[/{type}]. */
+    HttpResponse deleteRelationship(String sourceId, String targetId, String type) {
+        def r = injectedOrNull('DELETE_RELATIONSHIP', [source: sourceId, target: targetId, type: type]); if (r) return r
+        edges.removeAll { it[0] == sourceId && it[1] == targetId && (type == null || it[2] == type) }
+        new HttpResponse(status: 200)
+    }
+
+    // ------------------------------------------------------------------ rendering
+
+    /** The read model, Entity. */
+    Map<String, Object> renderEntity(String id) {
         def e = entities[id]
-        def rels = edges.findAll { it[0] == id || it[1] == id }.collect {
-            it[0] == id ? [TargetID: it[1], type: it[2]] : [SourceID: it[0], type: it[2]]
+        [id                   : id,
+         lastEvaluated        : DateTimeFormatter.ISO_INSTANT.format(lastEvaluated[id]),
+         reconciliationStarted: null,
+         baseType             : e.baseType,
+         Attributes           : (e.attributes as Map).collectEntries { k, v -> [(k): [name: k, type: 'string', value: v]] },
+         compoundAttributes   : [:],
+         relationships        : edges.findAll { it[0] == id || it[1] == id }.collect {
+             [source: it[0], target: it[1], type: it[2], sourceType: baseTypeName(entities[it[0]]?.baseType)]
+         }]
+    }
+
+    /** One search result item. */
+    Map<String, Object> renderSearchItem(String id) {
+        def e = entities[id]
+        [uid             : id,
+         name            : id,
+         baseType        : baseTypeName(e.baseType),
+         attributes      : new LinkedHashMap(e.attributes as Map),
+         isArchetypes    : new ArrayList(e.isArchetypes as List),
+         directArchetypes: new ArrayList(e.directArchetypes as List),
+         lastEvaluated   : DateTimeFormatter.ISO_INSTANT.format(lastEvaluated[id])]
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    static String baseTypeName(Object baseType) {
+        baseType == null ? null : (BASE_TYPE_NAMES[baseType as Integer] ?: baseType as String)
+    }
+
+    /** A number, numeric string or name → the numeric base type, or null when unknown. */
+    static Integer baseTypeOf(Object v) {
+        if (v instanceof Number) return (v as Number).intValue()
+        String s = v as String
+        if (s ==~ /\d+/) return Integer.parseInt(s)
+        BASE_TYPE_NAMES.find { k, name -> name.equalsIgnoreCase(s) }?.key
+    }
+
+    private static Map<String, String> json() { ['Content-Type': 'application/json; charset=utf-8'] }
+
+    private static HttpResponse problem(int status, String title) {
+        def body = [type: "https://tools.ietf.org/html/rfc9110#section-15.5.${status == 400 ? 1 : (status == 404 ? 5 : 10)}".toString(),
+                    title: title, status: status, traceId: '00-fake-00']
+        new HttpResponse(status: status, body: body, rawBody: groovy.json.JsonOutput.toJson(body),
+            headers: ['Content-Type': 'application/problem+json; charset=utf-8'])
+    }
+
+    /** Returns an error message for an invalid write-model document, or null. */
+    private String validate(Map<String, Object> doc, String pathId) {
+        if (!(doc.id instanceof String) || !(doc.id as String).trim()) return 'id is required'
+        if (pathId != null && doc.id != pathId) return 'id does not match the path'
+        if (baseTypeOf(doc.baseType) == null) return 'baseType is required'
+        def attrs = doc.attributes ?: [:]
+        if (!(attrs instanceof Map)) return 'attributes must be an object'
+        def bad = (attrs as Map).find { k, v -> !(v instanceof String) }
+        if (bad) return "attributes.${bad.key} must be a string"
+        if (doc.directArchetypes != null && !(doc.directArchetypes instanceof List)) return 'directArchetypes must be an array'
+        if (doc.relationships != null && !(doc.relationships instanceof List)) return 'relationships must be an array'
+        for (rel in (doc.relationships ?: [])) {
+            def e = validateEdge(rel instanceof Map ? rel as Map : null, doc.id as String)
+            if (e) return e
         }
-        [ID: id, BaseType: e.BaseType, attributes: new LinkedHashMap(e.attributes), Relationships: rels,
-         directArchetypes: new ArrayList(e.directArchetypes),
-         lastUpdated: DateTimeFormatter.ISO_INSTANT.format(updatedAt[id])]
+        null
     }
 
-    /** Convenience for seeding state directly (bypasses drop semantics). */
-    void seed(Map<String, Object> doc) {
-        entities[doc.ID as String] = [ID: doc.ID, BaseType: doc.BaseType, attributes: new LinkedHashMap(doc.attributes ?: [:]),
-                                       directArchetypes: new ArrayList(doc.directArchetypes ?: [])]
-        tick(); updatedAt[doc.ID as String] = clock
+    private static String validateEdge(Map rel, String entityId) {
+        if (rel == null) return 'relationship must be an object'
+        if (!(['sourceID', 'targetID', 'type'].every { rel[it] instanceof String && (rel[it] as String).trim() })) return 'relationship needs sourceID, targetID and type'
+        if (rel.sourceID != entityId && rel.targetID != entityId) return 'relationship must involve the entity'   // assumption
+        null
     }
 
-    void seedEdge(String sourceId, String targetId, String type) { edges << [sourceId, targetId, type] }
+    private void store(String id, Map<String, Object> doc) {
+        def existing = entities[id]
+        entities[id] = [id: id, baseType: baseTypeOf(doc.baseType), attributes: new LinkedHashMap(doc.attributes ?: [:]),
+                        directArchetypes: new ArrayList(doc.directArchetypes ?: []),
+                        isArchetypes: new ArrayList(existing?.isArchetypes ?: [])]
+        tick(); lastEvaluated[id] = clock
+        (doc.relationships ?: []).each { Map e ->
+            String other = e.sourceID == id ? e.targetID : e.sourceID
+            if (other == id || entities.containsKey(other)) edges << [e.sourceID as String, e.targetID as String, e.type as String]
+            // else: silently dropped (assumption, design A7)
+        }
+    }
 
-    List<Map> requestsOf(String op) { requests.findAll { it.op == op } }
+    private static String checkFilter(Map f) {
+        String op = (f.operation as String)?.toUpperCase()
+        if (!(op in FILTER_OPERATIONS)) return "Unsupported filter operation ${f.operation}"
+        if (op in ['AND', 'OR']) {
+            if (!(f.left instanceof Map) || !(f.right instanceof Map)) return "${op} needs two filter operands"
+            return checkFilter(f.left as Map) ?: checkFilter(f.right as Map)
+        }
+        if (!(f.left instanceof String)) return 'left must be an attribute name'
+        null
+    }
+
+    private boolean matches(Map f, String id) {
+        String op = (f.operation as String).toUpperCase()
+        boolean result
+        if (op == 'AND') result = matches(f.left as Map, id) && matches(f.right as Map, id)
+        else if (op == 'OR') result = matches(f.left as Map, id) || matches(f.right as Map, id)
+        else {
+            String left = f.left as String
+            String actual = left.equalsIgnoreCase('ID') ? id : (entities[id].attributes as Map)[left] as String
+            String expected = f.right as String
+            result = actual != null && (op == 'EQUALS' ? actual == expected : op == 'CONTAINS' ? actual.contains(expected) : actual.startsWith(expected))
+        }
+        f.not == true ? !result : result
+    }
 }

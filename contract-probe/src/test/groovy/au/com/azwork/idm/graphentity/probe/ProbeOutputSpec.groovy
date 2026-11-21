@@ -22,9 +22,10 @@ class ProbeOutputSpec extends Specification {
 
     def setupSpec() {
         def service = new FakeGraphService()
-        service.seed([ID: 'PII-Sanne', BaseType: 4, attributes: [ID: 'PII-Sanne', name: 'PII-Sanne Groen', mail: 'PII-mail@example.com'], directArchetypes: ['Customer']])
-        service.seed([ID: 'PII-Account-1', BaseType: 2, attributes: [ID: 'PII-Account-1', name: 'PII-Current'], directArchetypes: ['Account']])
+        service.seed([id: 'PII-Sanne', baseType: 4, attributes: [name: 'PII-Sanne Groen', mail: 'PII-mail@example.com'], directArchetypes: ['Customer']])
+        service.seed([id: 'PII-Account-1', baseType: 2, attributes: [name: 'PII-Current'], directArchetypes: ['Account']])
         service.seedEdge('PII-Sanne', 'PII-Account-1', 'Owns')
+        service.seedManifest('m', ['Customer'], ['Account', 'Card'])
         def server = new FakeGraphHttpServer(service).start()
         try {
             probe = new ContractProbe(new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
@@ -57,16 +58,18 @@ class ProbeOutputSpec extends Specification {
 
     def "foreign entities keep their shape in recordings so they stay useful"() {
         given:
-        def withForeign = new File(dir, 'exchanges.jsonl').readLines().collect { new JsonSlurper().parseText(it) }
-            .collectMany { (it.body instanceof Map && it.body.items) ? it.body.items : [] }
-            .find { it.ID?.startsWith('scrubbed-') && it.directArchetypes == ['Customer'] }
+        def exchanges = new File(dir, 'exchanges.jsonl').readLines().collect { new JsonSlurper().parseText(it) }
+        def item = exchanges.collectMany { (it.body instanceof Map && it.body.results) ? it.body.results : [] }
+            .find { it.uid?.startsWith('scrubbed-') && it.directArchetypes == ['Customer'] }
+        def entity = exchanges.find { it.method == 'GET' && it.status == 200 && it.body instanceof Map && it.body.id?.startsWith('scrubbed-') }.body
 
         expect:
-        withForeign.BaseType == 4
-        withForeign.attributes.keySet() == ['ID', 'name', 'mail'] as Set
-        withForeign.attributes.name == Scrubber.REDACTED
-        withForeign.Relationships == [[TargetID: withForeign.Relationships[0].TargetID, type: 'Owns']]
-        withForeign.Relationships[0].TargetID.startsWith('scrubbed-')
+        item.baseType == 'Subject'
+        item.attributes.keySet() == ['name', 'mail'] as Set
+        item.attributes.name == Scrubber.REDACTED
+        entity.relationships.size() == 1
+        entity.relationships[0].type == 'Owns'
+        [entity.relationships[0].source, entity.relationships[0].target].every { it.startsWith('scrubbed-') }
     }
 
     def "the report has a section per WS0 task with evidence references, and records cleanup"() {
@@ -74,11 +77,15 @@ class ProbeOutputSpec extends Specification {
         def md = new File(dir, 'report.md').text
 
         expect:
-        ['WS0.02', 'WS0.03', 'WS0.04', 'WS0.05', 'WS0.06', 'WS0.07', 'WS0.08', 'WS0.09', 'WS0.10'].every { md.contains("### ${it}") }
+        ['WS0.02', 'WS0.03', 'WS0.04', 'WS0.05', 'WS0.06', 'WS0.07', 'WS0.08', 'WS0.09', 'WS0.10', 'WS0.15'].every { md.contains("### ${it}") }
         md =~ /\| #\d+/
-        md.contains('| Timestamp field (request body) | `updatedAfter` |')
+        md.contains('| Base-type numbering (objectClass) | P18 (4 = Subject, 2 = Resource) |')
+        md.contains('| Base type of a created entity | confirmed: 4 = Subject |')
+        md.contains('| ID filter field | `ID` |')
+        md.contains('| Manifest archetypes | Subject: Customer; Resource: Account, Card |')
         md.contains('| Search request | `POST /admin/entities/search` with a JSON body |')
         md.contains('probe entity IDs were deleted and confirmed gone')
+        !md.contains('Timestamp')
     }
 
     def "a non-JSON body is only written for error responses, truncated"() {
@@ -107,8 +114,10 @@ class ProbeOutputSpec extends Specification {
 
         expect:
         json.mode == 'read-write'
-        json.contract.timestampParam == 'updatedAfter'
+        json.contract.idFilterField == 'ID'
         json.contract.pageSizeParam == 'pageSize'
+        json.contract.cursorParam == 'pagedResultsCookie'
+        !json.contract.toString().contains('PII-')
         json.findings.every { it.confidence in Finding.CONFIDENCE }
         json.cleanupProblems == []
     }
@@ -122,13 +131,13 @@ class ProbeOutputSpec extends Specification {
         def resp = HttpClient.newHttpClient().send(
             HttpRequest.newBuilder(URI.create("http://localhost:${wm.port()}/admin/entities/search"))
                 .header('Content-Type', 'application/json')
-                .POST(HttpRequest.BodyPublishers.ofString('{"updatedAfter":"1970-01-01T00:00:00Z"}')).build(),
+                .POST(HttpRequest.BodyPublishers.ofString('{"pageSize":1}')).build(),
             HttpResponse.BodyHandlers.ofString())
 
         then:
         wm.listAllStubMappings().mappings.size() == new File(dir, 'wiremock/mappings').listFiles().size()
         resp.statusCode() == 200
-        new JsonSlurper().parseText(resp.body()).items instanceof List
+        new JsonSlurper().parseText(resp.body()).results.size() == 1
 
         cleanup:
         wm.stop()

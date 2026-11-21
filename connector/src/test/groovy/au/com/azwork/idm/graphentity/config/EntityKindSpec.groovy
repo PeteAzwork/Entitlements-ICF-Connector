@@ -35,23 +35,38 @@ class EntityKindSpec extends Specification {
         value << [null, '', 'person', '4', 'subjects']
     }
 
+    def "P18 numbering: subject is 4 and resource is 2, the design's numbering"() {
+        expect:
+        EntityKind.SUBJECT.baseType == 4
+        EntityKind.RESOURCE.baseType == 2
+        EntityKind.SUBJECT.serviceName == 'Subject'
+        EntityKind.RESOURCE.serviceName == 'Resource'
+    }
+
     @Unroll
-    def "BaseType #baseType decodes to #expected"() {
+    def "base type #baseType decodes to #expected"() {
         expect:
         EntityKind.fromBaseType(baseType) == expected
 
         where:
-        baseType | expected
-        4        | EntityKind.SUBJECT
-        2        | EntityKind.RESOURCE
+        baseType   | expected
+        4          | EntityKind.SUBJECT
+        2          | EntityKind.RESOURCE
+        4L         | EntityKind.SUBJECT
+        '4'        | EntityKind.SUBJECT
+        '2'        | EntityKind.RESOURCE
+        'Subject'  | EntityKind.SUBJECT
+        'Resource' | EntityKind.RESOURCE
+        'subject'  | EntityKind.SUBJECT
+        'RESOURCE' | EntityKind.RESOURCE
     }
 
     @Unroll
-    def "unknown BaseType #baseType decodes to null rather than failing a read"() {
+    def "unknown base type #baseType decodes to null rather than failing a read"() {
         expect:
         EntityKind.fromBaseType(baseType) == null
 
         where:
-        baseType << [null, 0, 1, 3, 99]
+        baseType << [null, 0, 1, 3, 99, '', 'Action', 'Environment', '3']
     }
 }

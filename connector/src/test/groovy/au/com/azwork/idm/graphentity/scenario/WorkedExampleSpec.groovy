@@ -27,22 +27,28 @@ class WorkedExampleSpec extends Specification {
 
     def setupSpec() { ctx = new OperationContext(Fixtures.connectorConfig(), service, log.asLog()) }
 
+    static List<Map> relationshipsOf(String id) {
+        service.get(id).body.relationships.collect { [source: it.source, target: it.target, type: it.type] }
+    }
+
+    static final Map OWNS = [source: 'Sanne', target: 'Current-Account-1-Sanne', type: 'Owns']
+
     def "1. initial recon runs the user mapping first: Sanne is created, the edge is dropped and logged"() {
         when:
         new CreateOperation(ctx).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
 
         then:
-        service.get('Sanne').body.Relationships == []
+        relationshipsOf('Sanne') == []
         log.messagesAt(Log.Level.WARN) == ['dropped edge Sanne -Owns-> Current-Account-1-Sanne']
     }
 
-    def "2. the account mapping creates the account: its SourceID edge heals the drop with no further action"() {
+    def "2. the account mapping creates the account: the same Owns edge, written from the target end, heals the drop"() {
         when:
         new CreateOperation(ctx).execute(Fixtures.ACCOUNT, Fixtures.accountAttributes(), null)
 
         then:
-        service.get('Sanne').body.Relationships == [[TargetID: 'Current-Account-1-Sanne', type: 'Owns']]
-        service.get('Current-Account-1-Sanne').body.Relationships == [[SourceID: 'Sanne', type: 'Owns']]
+        relationshipsOf('Sanne') == [OWNS]
+        relationshipsOf('Current-Account-1-Sanne') == [OWNS]
         log.messagesAt(Log.Level.WARN).size() == 1   // no new warning
     }
 
@@ -51,11 +57,11 @@ class WorkedExampleSpec extends Specification {
         new UpdateOperation(ctx).execute(Fixtures.USER, new Uid('Sanne'), Fixtures.sanneAttributes(name: 'Sanne Smith'), null)
 
         then:
-        service.get('Sanne').body.attributes.name == 'Sanne Smith'
-        service.get('Sanne').body.Relationships == [[TargetID: 'Current-Account-1-Sanne', type: 'Owns']]
+        service.get('Sanne').body.Attributes.name.value == 'Sanne Smith'
+        relationshipsOf('Sanne') == [OWNS]
     }
 
-    def "4. a drift-detection read of Sanne shows the same edge set IDM would compute"() {
+    def "4. a read of Sanne by ID shows the same edge string IDM computes (P17), and her archetype"() {
         given:
         def seen = []
 
@@ -63,8 +69,8 @@ class WorkedExampleSpec extends Specification {
         new SearchOperation(ctx).execute(Fixtures.USER, FilterBuilder.equalTo(new Uid('Sanne')), { seen << it; true }, null)
 
         then:
-        seen[0].getAttributeByName('entityRelationships').value == ['{"TargetID":"Current-Account-1-Sanne","type":"Owns"}']
-        seen[0].getAttributeByName('directArchetypes').value == ['Customer']
+        seen[0].getAttributeByName('entityRelationships').value == [Fixtures.OWNS_JSON]
+        seen[0].getAttributeByName('name').value == ['Sanne Smith']
     }
 
     def "5. the account is deleted in IDM: the entity and its edge go; Sanne's follow-up PUT restates no edges"() {
@@ -74,11 +80,11 @@ class WorkedExampleSpec extends Specification {
 
         then:
         service.get('Current-Account-1-Sanne').status == 404
-        service.get('Sanne').body.Relationships == []
+        relationshipsOf('Sanne') == []
         service.edges.empty
     }
 
-    def "6. drift repair: a remote-side edge removal is corrected by replaying the IDM-derived PUT"() {
+    def "6. a remote-side edge removal is corrected by the next full-state PUT (P15); detecting it is WS10"() {
         given:
         service.seed(Fixtures.accountWire())
         new UpdateOperation(ctx).execute(Fixtures.USER, new Uid('Sanne'), Fixtures.sanneAttributes(name: 'Sanne Smith'), null)

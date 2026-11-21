@@ -18,8 +18,7 @@ class ScriptHarness {
     static final File SCRIPT_DIR = new File('src/main/scripts')
 
     static Object fakeConfiguration(String serviceAddress, Map<String, Object> propertyBag = [:]) {
-        def bag = [objectTypes: Fixtures.objectTypesJson(), timestampSearchParam: 'updatedAfter',
-                   pageSizeDefault: 200, deleteMissingTolerated: true] + propertyBag
+        def bag = [objectTypes: Fixtures.objectTypesJson(), pageSizeDefault: 200, deleteMissingTolerated: true] + propertyBag
         // The Scripted REST `password` property carries the API key (decision P13); there is no username.
         new Expando(serviceAddress: new URI(serviceAddress),
             password: new GuardedString(Fixtures.API_KEY.toCharArray()), propertyBag: bag,

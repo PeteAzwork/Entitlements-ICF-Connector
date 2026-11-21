@@ -47,7 +47,7 @@ class ProbeMainSpec extends Specification {
     def "parses every option"() {
         when:
         def o = ProbeMain.parse(['--base-url', 'http://h:1', '--api-key-env', 'X', '--api-key-header', 'X-Other-Key', '--allow-writes', '--out', dir.path,
-                                 '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--timestamp-field', 'modifiedSince', '--run-id', 'abc-1'], [X: 'p'])
+                                 '--max-pages', '9', '--timeout-seconds', '3', '--search-path', '/x', '--archetypes', 'Card, Account', '--run-id', 'abc-1'], [X: 'p'])
 
         then:
         String.valueOf(o.apiKey) == 'p'
@@ -57,7 +57,7 @@ class ProbeMainSpec extends Specification {
         o.maxPages == 9
         o.timeoutSeconds == 3
         o.searchPath == '/x'
-        o.timestampField == 'modifiedSince'
+        o.archetypes == ['Card', 'Account']
         o.prefix == 'ws0-probe-abc-1-'
     }
 
@@ -89,7 +89,8 @@ class ProbeMainSpec extends Specification {
         'a flag without a value'     | ['--base-url']                                                | ENV                                 | 'needs a value'
         'the create path as search'  | ['--base-url', 'http://h', '--search-path', '/admin/entities'] | ENV                                | 'create endpoint'
         'a relative search path'     | ['--base-url', 'http://h', '--search-path', 'search']         | ENV                                 | 'must start with /'
-        'a bad timestamp field'      | ['--base-url', 'http://h', '--timestamp-field', 'a b']        | ENV                                 | '--timestamp-field'
+        'one archetype only'         | ['--base-url', 'http://h', '--archetypes', 'Card']            | ENV                                 | '--archetypes'
+        'the removed timestamp flag' | ['--base-url', 'http://h', '--timestamp-field', 'x']          | ENV                                 | 'Unknown argument'
     }
 
     def "there is no option to disable TLS verification"() {
@@ -106,7 +107,7 @@ class ProbeMainSpec extends Specification {
     def "end to end: a key given with --api-key authenticates, and appears in no output or console text"() {
         given:
         def service = new FakeGraphService()
-        service.seed([ID: 'E1', BaseType: 4, attributes: [ID: 'E1'], directArchetypes: ['Customer']])
+        service.seed([id: 'E1', baseType: 4, attributes: [:], directArchetypes: ['Customer']])
         def server = new FakeGraphHttpServer(service, 'arg-key-123').start()
         def out = new ByteArrayOutputStream()
         def err = new ByteArrayOutputStream()

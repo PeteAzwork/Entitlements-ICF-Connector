@@ -6,8 +6,11 @@ import org.identityconnectors.framework.common.objects.SearchResult
 import org.identityconnectors.framework.common.objects.filter.Filter
 
 /**
- * Search / Get (design §9.4). The handler is the Groovy connector's {@code handler} closure; it is called
- * once per ConnectorObject. Returns the SearchResult carrying the paged-results cookie.
+ * Search / Get (design §9.4; decisions P19, P21). A read by ID uses GET or, with {@code byIdLookup: search}, a
+ * search with an EQUALS filter on the ID; it checks only the base type. Enumeration posts the type's
+ * {@code objectClass} and filter tree, follows {@code pagedResultsCookie}, and keeps only entities carrying the
+ * type's scope archetype. The handler is the Groovy connector's {@code handler} closure; it is called once per
+ * ConnectorObject. Returns the SearchResult carrying the paged-results cookie.
  */
 class SearchOperation {
     private final OperationContext ctx

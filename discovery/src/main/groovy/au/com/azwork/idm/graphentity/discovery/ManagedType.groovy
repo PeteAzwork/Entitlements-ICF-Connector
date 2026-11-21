@@ -9,6 +9,11 @@ class ManagedType {
     /** Scalar/complex property names → their schema fragment. Relationship properties are excluded here. */
     Map<String, Map> properties = [:]
     List<ManagedRelationship> relationships = []
+    /**
+     * Properties that cannot be synced, name → reason. Decision P20: the service's attributes are single-valued
+     * strings, so array-typed (multi-valued) properties are excluded here and reported as warnings at generation.
+     */
+    Map<String, String> excludedProperties = [:]
     /** Candidate natural keys (e.g. properties with a unique index or userName-like names). */
     List<String> naturalKeyCandidates = []
 

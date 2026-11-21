@@ -16,15 +16,15 @@ When a question changes state, apply WS0.12 in the delivery plan: change the cod
 
 ## 1. How to collect the answers
 
-Most questions can be answered by observation with the contract probe in `contract-probe/`. The probe was tested against an in-memory model of the documented semantics; it has not yet been run against the real service.
+Most questions can be answered by observation with the contract probe in `contract-probe/`. Its first real run was on 2026-11-21 (section 7). It was then realigned to the OpenAPI definition and decisions P17–P22 (plan WS0.15): it writes the service's EntityDTO shape and reads back by search wherever GET by ID fails.
 
-**Step 1. Read-only run.** This is safe against any environment, because it only reads. It sends GET requests and search POSTs to `/admin/entities/search`, which read, and it refuses a search path that would create entities. If you know the request-body field that filters by last-updated time, add `--timestamp-field NAME`:
+**Step 1. Read-only run.** This is safe against any environment, because it only reads. It sends GET requests and search POSTs to `/admin/entities/search`, which read, and it refuses a search path that would create entities. It also reads `/admin/manifests`, recording only archetype names:
 
 ```bash
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY"
 ```
 
-**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never touches any other entity.
+**Step 2. Write run, against a test instance only.** It creates, changes and deletes entities whose IDs start with `ws0-probe-<run>-`, and deletes them all at the end, even after a failure. It never writes to any other entity. It creates one entity with base type 4, so it is the run that confirms or refutes P18 before anything else creates entities. The archetype check (P22) stamps two Resource archetypes on a probe entity: by default the first two the manifests define, or the ones given with `--archetypes A,B`.
 
 ```bash
 ./gradlew :contract-probe:run --args="--base-url https://graph.test.example --api-key KEY --allow-writes"
@@ -34,12 +34,12 @@ Most questions can be answered by observation with the contract probe in `contra
 
 | File | Contents |
 |---|---|
-| `report.md` | Answers grouped by WS0 task, suggested configuration values and cleanup status |
+| `report.md` | Answers grouped by WS0 task (the decision checks under WS0.15), suggested configuration values and cleanup status |
 | `findings.json` | The same, machine-readable |
 | `exchanges.jsonl` | Every request and response, numbered, so answers can cite evidence such as `#12` |
 | `wiremock/mappings/` | Each exchange as a WireMock stub, the raw material for WS0.11 |
 
-**Safe to share.** No output contains request headers or credentials. Every entity the probe did not create is scrubbed: its ID and attribute values are replaced, and its shape (BaseType, archetypes, field names, edge types, timestamp formats) is kept. Tests in `ProbeOutputSpec` enforce this.
+**Safe to share.** No output contains request headers or credentials. Every entity the probe did not create is scrubbed: its ID and attribute values are replaced, and its shape (base type, archetypes, field names, relationship types, timestamp formats) is kept. A search filter's value is aliased or redacted unless it is a probe ID, and manifests are reduced to archetype names, because their instance lists can name entities. Tests in `ProbeOutputSpec` enforce this.
 
 **What the probe needs.** The service's API key, given with `--api-key`. That option keeps the key in shell history and shows it in the process list. To avoid that, leave it out and set the `GRAPH_PROBE_API_KEY` environment variable instead, or another variable named with `--api-key-env`. If both are given, `--api-key` wins. The key never appears in any output file. It is sent raw in the `X-API-KEY` header; `--api-key-header` overrides the name. Because every consumer shares one key, the key used for the write run can write anywhere that key is valid. Point `--allow-writes` only at a test instance, and check T11 below before assuming test and production keys differ. There is no option to disable TLS verification.
 
@@ -54,18 +54,18 @@ Most questions can be answered by observation with the contract probe in `contra
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
 | Q02.1 | Which request serves search? | **Answered:** `POST /admin/entities/search` with a JSON body; `{}` is the unfiltered search. `GET /admin/entities` returns 405 | `search.path` | Done 2026-11-21 (P14): `EntityApi.search` takes body fields, plus the fake service, probe and specs | **Confirmed** by the project owner, 2026-11-21. Probe run `20261121-150804` #4 and #5 showed the 405 |
-| Q02.2 | What is the request-body field that filters by last-updated time called? | `updatedAfter` (`ConnectorConfig.DEFAULT_TIMESTAMP_PARAM`, configurable) | `search.timestampParam` | Default value, `Fixtures`, `FakeGraphService.timestampParam` | Open |
-| Q02.3 | Which datetime formats does it accept, at what precision? | ISO-8601 instant with `Z` (`SearchPlanner`, `SearchPlanner.EPOCH`) | `search.datetimeFormats` | `SearchPlanner`, `SearchPlannerSpec` | Open |
-| Q02.4 | Is the filter strictly-after or inclusive? | Undecided. `GreaterThan` and `GreaterThanOrEqual` map identically | `search.boundary` (write run) | `SearchPlanner` (WS4.04) | Open |
-| Q02.5 | Does the search return updated entities as well as created ones? | Yes (design §2) | `search.returnsUpdated` (write run) | Design §11 if not | Open |
+| Q02.2 | What is the request-body field that filters by last-updated time called? | None: the connector refuses timestamp searches (P16) | — | WS10.01 | **Answered by the definition:** the search has no timestamp filter. Deferred to WS10 (P16) |
+| Q02.3 | Which datetime formats does it accept, at what precision? | — | `document.lastEvaluated` reports the format of `lastEvaluated` | WS10 | **Moot** until the service offers a timestamp filter (P16) |
+| Q02.4 | Is the filter strictly-after or inclusive? | — | — | WS10 | **Moot** until the service offers a timestamp filter (P16) |
+| Q02.5 | Does the search return updated entities as well as created ones? | — | `search.createdVisible` (write run) checks created entities are found at all (C5) | WS10 | **Moot** for timestamps (P16). C5 is open |
 
 ### WS0.03 — Paging protocol
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
-| Q03.1 | What is the response envelope? | Object with `items`, plus optional `totalCount` or `nextCursor` (P6) | `paging.envelope` | `PageCursor.next`, `FakeGraphService.search` | Open |
-| Q03.2 | Which request-body field sets the page size? | `pageSize` | `paging.pageSizeParam` | `PageCursor.toQuery`, `PageCursorSpec` | Open |
-| Q03.3 | Offset, page number or cursor, and which request-body field? | `offset`, or an opaque `cursor` when the response supplies one | `paging.params` | `PageCursor`, `PageCursorSpec` | Open |
+| Q03.1 | What is the response envelope? | **Answered by the definition:** `results`, `pagedResultsCookie`, `totalResults`, `hasMore` | `paging.envelope` | Done in WS0.14 (`PageCursor`, `FakeGraphService.search`) | **Documented**; probe confirms |
+| Q03.2 | Which request-body field sets the page size? | `pageSize` (definition; default 100) | `paging.params` | Done in WS0.14 | **Documented**; probe confirms |
+| Q03.3 | Offset, page number or cursor, and which request-body field? | An opaque `pagedResultsCookie`, sent back as returned (definition) | `paging.params` | Done in WS0.14 | **Documented**; probe confirms |
 | Q03.4 | What is the maximum page size? | 1000 (`ConnectorConfig.MAX_PAGE_SIZE`) | `paging.maxPageSize` | `MAX_PAGE_SIZE`, `ConnectorConfigSpec` | Open |
 | Q03.5 | Is ordering stable across pages, and what is it ordered by? | Stable | `paging.ordering` | Design §9.4 if not | Open |
 | Q03.6 | Can an entity updated mid-enumeration be skipped? (Returned twice is harmless.) | Not skipped | `paging.updateDuringEnumeration` (write run) | Risk register §9. A skip would undermine target recon | Open |
@@ -88,9 +88,9 @@ Most questions can be answered by observation with the contract probe in `contra
 
 | ID | Question | Assumes | Probe | Changes | Status |
 |---|---|---|---|---|---|
-| Q06.1 | Which field carries last-updated, in what format? | `lastUpdated`, ISO-8601 string (`EntityDocument.fromWire`) | `document.lastUpdatedField` | `EntityDocument`, `EntityDecoder`, `Fixtures` | Open |
-| Q06.2 | Do search and GET return the same document shape? | Yes | `document.searchVsGet` | `EntityDecoder` (WS4.08) | Open |
-| Q06.3 | What happens if a PUT carries the last-updated field? | Never sent (`EntityDocument.toWire` omits it) | `document.lastUpdatedOnPut` (write run) | None, if ignored or rejected | Open |
+| Q06.1 | Which field carries last-updated, in what format? | `lastEvaluated`, read-only (definition). Its format | `document.lastEvaluated` | `EntityDecoder` | **Documented**; format open |
+| Q06.2 | Do search and GET return the same document shape? | **Answered by the definition:** no. Search items and the read model differ (section 5; design §2.1) | `document.searchFields`, `document.readModelFields` | Done in WS0.14 (`EntityDocument.fromEntity`, `fromSearchItem`) | **Documented**; probe confirms |
+| Q06.3 | What happens if a PUT carries the last-updated field? | Never sent: the write model has no such field | — | None | **Moot** |
 | Q06.4 | Do relationship entries carry more than `TargetID`/`SourceID`/`type`? | No | `document.edgeKeys` | `Edge.fromWire` strictness | Open |
 
 ### WS0.07 — Edge semantics
@@ -99,12 +99,12 @@ Most questions can be answered by observation with the contract probe in `contra
 |---|---|---|---|---|---|
 | Q07.1 | Does POST silently drop edges to missing entities? (A7) | Yes | `edges.postToMissing` | Design §9.1 if not | Open |
 | Q07.2 | Does an inbound edge in a POST link to an existing entity? | Yes (§2.2) | `edges.inboundOnCreate` | Design §9.1 self-healing depends on it | Open |
-| Q07.3 | Does GET show inbound edges as `SourceID`? | Yes | `edges.getShowsInbound` | `EntityDecoder`, recon comparison | Open |
+| Q07.3 | Does GET of the target show the relationship, with the other entity as `source`? | Yes | `edges.getShowsInbound` | `EntityDecoder`, recon comparison | Open |
 | Q07.4 | Does a write that omits a relationship delete it? | **Answered:** yes. Relationships can be written through the entity's `relationships` collection on create and update, or through `POST /admin/entities/{id}/relationships`. Any relationship missing from the collection is removed | `edges.putOmissionDeletesInbound` | Done: decision P15 keeps the design's full-state model | **Confirmed** by the project owner, 2026-11-21 |
 | Q07.5 | Does an inbound edge in a PUT link the entities? | Yes | `edges.inboundOnPut` | Design §8 | Open |
 | Q07.6 | Is a PUT edge to a missing entity dropped, rejected or kept? | Dropped silently (the fake's behaviour) | `edges.putToMissing` | `FakeGraphService.store`. If dropped, consider a verification GET after PUT | Open |
 | Q07.7 | Does DELETE cascade the entity's edges? | Yes | `edges.deleteCascades` | Design §9.3 | Open |
-| Q07.8 | Does a write of entity A also remove relationships where A is the **target** and that are missing from A's collection? | Yes (design A2 gathers both directions from IDM) | Not yet (WS0.15) | `buildRelationships` (WS5.05): whether each entity's collection must list inbound relationships | Open |
+| Q07.8 | Does a write of entity A also remove relationships where A is the **target** and that are missing from A's collection? | Yes (design A2 gathers both directions from IDM) | `edges.targetOmission` (write run) | `buildRelationships` (WS5.05): whether each entity's collection must list inbound relationships | Open |
 
 ### WS0.08 — Type discrimination
 
@@ -264,16 +264,37 @@ These need a decision before WS1 starts, because the configuration model, payloa
 
 ## 7. Status of the contract probe against this API
 
-The probe's read-side checks (auth, search, paging, document fields, type discrimination) work against this API. Since 2026-11-21:
-- its scrubber recognises `uid`, `id` and the read model's attribute objects, and fails closed;
-- any answer that depends on a failed read is reported as "cannot tell".
+**First real run, 2026-11-21.** The read-side checks worked. The write checks sent the design's document shape (`ID`, `BaseType`, `Relationships` with `TargetID`/`SourceID`), and every GET by ID returned 500 (C1), so the write-mode answers were unreliable. The scrubber has since been fixed to recognise `uid`, `id` and the read model's attribute objects, and to fail closed. Any answer that depends on a failed read is reported as "cannot tell".
 
-Its **write checks still send the design's document shape** (`ID`, numeric `BaseType`, `Relationships` with `TargetID`/`SourceID`). The service may bind those names case-insensitively, but the relationship and base-type semantics differ. Treat write-mode results as unreliable until the write checks are realigned to EntityDTO and the relationship endpoints (plan task WS0.15).
+**Realigned, 2026-11-21 (plan WS0.15).** The probe now:
+
+- writes the EntityDTO shape: lowercase `id`, numeric `baseType` (4 for a Subject, 2 for a Resource, P18), string attributes (P20), and relationships as `{sourceID, targetID, type}` (P17);
+- reads the read model on GET and search items from the search, and reads back by an `EQUALS` filter on the ID whenever GET fails (C1). Relationships are only in the read model, so relationship answers stay "cannot tell" while GET fails;
+- tries GET on an entity that exists (`get.existingEntity`), which the first run never did;
+- adds checks for the decisions' open conditions:
+
+| Finding | Question | Gates |
+|---|---|---|
+| `baseType.objectClass` | Read-only: which base type does each numeric `objectClass` select? | P18 (C6) |
+| `baseType.create` | Is an entity created with base type 4 a Subject? | P18: any create against a shared service; WS1.02 |
+| `search.idFilter` | Which filter field matches the entity ID? | P21: the by-ID search fallback |
+| `search.createdVisible` | Is a newly created entity found by search? | C5 |
+| `edges.targetOmission` | Does writing the target without a relationship delete it? | Q07.8: WS5.05 |
+| `edges.relationshipEndpoints` | Do the single-relationship endpoints work? | P15 (informational: the connector does not use them) |
+| `attributes.omission` | Does an update that omits an attribute remove it? | P20: WS2.07 |
+| `archetypes.replace` | Does an update replace `directArchetypes` in full? | P22: WS2.07 |
+| `manifests.archetypes` | Which archetypes do the manifests define? | P22: the Test operation; `objectTypes` archetypes |
+| `errors.nonStringAttribute` | What does a non-string attribute value get? | P20 |
+
+The timestamp checks are gone: the service has no timestamp search (P16). Cleanup confirms each probe entity is gone by GET 404 or, while GET fails, by a search on its ID that finds nothing.
+
+**Next:** re-run read and write modes against a test instance, and fold the answers in through WS0.12.
 
 ## 8. Change log
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Probe realigned to the OpenAPI definition and P17–P22 (plan WS0.15): EntityDTO writes, search read-backs while GET fails, and new checks for P18, P20, P22, C5 and Q07.8 (section 7). The timestamp questions Q02.2–Q02.5 are answered by the definition (no timestamp search) and deferred to WS10. `--timestamp-field` is removed; `--archetypes` added. |
 | 2026-11-04 | Register created. Contract probe added. No answers confirmed yet: no instance of the service was reachable from the environment that wrote this. |
 | 2026-11-21 | The project owner decided D2 and D5–D9 (plan P17–P22), recorded in `docs/design-decisions-2026-11-21.md`. D5 keeps the design's numbering (4 = Subject), against the API's create samples; WS0.15 confirms it before any create. |
 | 2026-11-21 | The project owner confirmed relationship writes: through the entity's `relationships` collection or the single-relationship endpoint, and any relationship missing from the collection is removed (Q07.4, D1 → P15). Q07.8 added. Drift detection deferred to the plan's final workstream (D3, D4 → P16). |

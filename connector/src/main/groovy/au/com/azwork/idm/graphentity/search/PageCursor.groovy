@@ -4,17 +4,18 @@ import au.com.azwork.idm.graphentity.http.HttpResponse
 import groovy.transform.Canonical
 
 /**
- * Paging state carried through ICF's paged-results cookie (design §9.4). The remote paging protocol is
- * unconfirmed (§15), so the cursor is abstracted: it encodes to/decodes from an opaque string and knows how
- * to derive the next cursor from a response. The assumed protocol pins {@code offset}/{@code pageSize}
- * query parameters and a {@code nextCursor}-or-{@code totalCount} response field; see SearchPlannerSpec.
+ * Paging state carried through ICF's paged-results cookie (design §9.4). The service pages with an opaque
+ * {@code pagedResultsCookie}: send back the one the previous response returned, and stop when it is null
+ * ({@code hasMore} false). The ICF cookie wraps the service's cookie (URL-safe base64 of compact JSON), so a
+ * corrupt ICF cookie can be detected rather than silently restarting from the first page. All paging knowledge
+ * stays in this class (P6 superseded).
  */
 @Canonical
 class PageCursor {
-    int offset = 0
-    String opaque
+    /** The service's cookie for the next page; null for the first page. */
+    String serviceCookie
 
-    /** TODO WS4. Null/blank cookie → first page. */
+    /** TODO WS4. Null/blank cookie → first page. Anything undecodable → IllegalArgumentException. */
     static PageCursor decode(String cookie) {
         throw new UnsupportedOperationException('TODO WS4: PageCursor.decode')
     }
@@ -24,13 +25,18 @@ class PageCursor {
         throw new UnsupportedOperationException('TODO WS4: PageCursor.encode')
     }
 
-    /** Request-body fields for this page, merged into the search POST body (P14). TODO WS4. */
+    /** Request-body fields for this page: {@code pageSize}, plus {@code pagedResultsCookie} after the first page. TODO WS4. */
     Map<String, Object> toQuery(int pageSize) {
         throw new UnsupportedOperationException('TODO WS4: PageCursor.toQuery')
     }
 
-    /** Next cursor after {@code response}; null when the last page has been read. TODO WS4. */
-    PageCursor next(HttpResponse response, int itemsOnPage, int pageSize) {
+    /** Cursor for the next page from a search response; null when {@code pagedResultsCookie} is null. TODO WS4. */
+    static PageCursor next(HttpResponse response) {
         throw new UnsupportedOperationException('TODO WS4: PageCursor.next')
+    }
+
+    /** {@code totalResults} from a search response, or -1 when absent or unknown. TODO WS4. */
+    static int totalResults(HttpResponse response) {
+        throw new UnsupportedOperationException('TODO WS4: PageCursor.totalResults')
     }
 }

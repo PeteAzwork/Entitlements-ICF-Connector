@@ -28,7 +28,7 @@ class SchemaFactorySpec extends Specification {
 
         then:
         info.type == 'user'
-        info.attributeInfo*.name as Set == [Name.NAME, 'name', 'mail', 'telephoneNumber', 'directArchetypes', 'entityRelationships', 'lastUpdated'] as Set
+        info.attributeInfo*.name as Set == [Name.NAME, 'name', 'mail', 'telephoneNumber', 'directArchetypes', 'entityRelationships', 'lastEvaluated'] as Set
     }
 
     @Unroll
@@ -62,9 +62,9 @@ class SchemaFactorySpec extends Specification {
         name << ['directArchetypes', 'entityRelationships']
     }
 
-    def "lastUpdated is read-only (not creatable, not updatable) and not returned by default"() {
+    def "lastEvaluated is read-only (not creatable, not updatable): the service's evaluation time, not a modification time"() {
         given:
-        def info = attr(Fixtures.userType(), 'lastUpdated')
+        def info = attr(Fixtures.userType(), 'lastEvaluated')
 
         expect:
         info.type == String
@@ -108,7 +108,7 @@ class SchemaFactorySpec extends Specification {
         t.attributes = []
 
         expect:
-        SchemaFactory.objectClassInfo(t).attributeInfo*.name as Set == [Name.NAME, 'directArchetypes', 'entityRelationships', 'lastUpdated'] as Set
+        SchemaFactory.objectClassInfo(t).attributeInfo*.name as Set == [Name.NAME, 'directArchetypes', 'entityRelationships', 'lastEvaluated'] as Set
     }
 
     def "the schema is deterministic for the same configuration"() {

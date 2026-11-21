@@ -50,9 +50,10 @@ class OperationScriptsSpec extends Specification {
         !new File(ScriptHarness.SCRIPT_DIR, 'SyncScript.groovy').exists()
     }
 
-    def "TestScript: 200 from the search endpoint passes"() {
+    def "TestScript: a one-item search and a manifest that defines the configured archetypes pass (§9.5, P22)"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[],"totalCount":0}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"results":[],"pagedResultsCookie":null,"totalResults":0,"hasMore":false}')))
+        wm.stubFor(get(urlEqualTo('/admin/manifests')).willReturn(okJson('[{"name":"test","subjectArchetypes":["Customer"],"resourceArchetypes":["Account"]}]')))
 
         when:
         ScriptHarness.run('TestScript.groovy', bindings())
@@ -60,6 +61,7 @@ class OperationScriptsSpec extends Specification {
         then:
         noExceptionThrown()
         wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search')).withRequestBody(matchingJsonPath('$.pageSize', equalTo('1'))))
+        wm.verify(getRequestedFor(urlEqualTo('/admin/manifests')))
     }
 
     def "TestScript: 401 → InvalidCredentialException"() {
@@ -82,10 +84,10 @@ class OperationScriptsSpec extends Specification {
         schema.objectClassInfo*.type as Set == ['user', 'account'] as Set
     }
 
-    def "CreateScript POSTs, verifies, and returns a Uid"() {
+    def "CreateScript POSTs the EntityDTO to /admin/entities, verifies with a GET of the read model, and returns a Uid"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/')).willReturn(aResponse().withStatus(201)))
-        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(JsonOutput.toJson(Fixtures.sanneWire() + [Relationships: []]))))
+        wm.stubFor(post(urlEqualTo('/admin/entities')).willReturn(aResponse().withStatus(200)))
+        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(JsonOutput.toJson(Fixtures.sanneEntity() + [relationships: []]))))
 
         when:
         def uid = ScriptHarness.run('CreateScript.groovy', bindings(objectClass: Fixtures.USER, attributes: Fixtures.sanneAttributes(), options: null))
@@ -93,7 +95,7 @@ class OperationScriptsSpec extends Specification {
         then:
         uid instanceof Uid
         uid.uidValue == 'Sanne'
-        wm.verify(postRequestedFor(urlEqualTo('/admin/entities/')).withRequestBody(equalToJson(JsonOutput.toJson(Fixtures.sanneWire()))))
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities')).withRequestBody(equalToJson(JsonOutput.toJson(Fixtures.sanneWire()))))
         log.messagesAt(org.identityconnectors.common.logging.Log.Level.WARN) == ['dropped edge Sanne -Owns-> Current-Account-1-Sanne']
     }
 
@@ -109,7 +111,8 @@ class OperationScriptsSpec extends Specification {
         uid.uidValue == 'Sanne'
         wm.verify(putRequestedFor(urlEqualTo('/admin/entities/Sanne'))
             .withRequestBody(matchingJsonPath('$.attributes.name', equalTo('Sanne Smith')))
-            .withRequestBody(matchingJsonPath('$.Relationships[0].TargetID', equalTo('Current-Account-1-Sanne'))))
+            .withRequestBody(matchingJsonPath('$.relationships[0].sourceID', equalTo('Sanne')))
+            .withRequestBody(matchingJsonPath('$.relationships[0].targetID', equalTo('Current-Account-1-Sanne'))))
         wm.verify(0, getRequestedFor(urlPathMatching('/admin/entities/.*')))
     }
 
@@ -150,7 +153,7 @@ class OperationScriptsSpec extends Specification {
 
     def "SearchScript by uid calls the handler closure once and returns a SearchResult"() {
         given:
-        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(JsonOutput.toJson(Fixtures.sanneWire()))))
+        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(JsonOutput.toJson(Fixtures.sanneEntity()))))
         def seen = []
 
         when:
@@ -162,10 +165,10 @@ class OperationScriptsSpec extends Specification {
         seen*.uid*.uidValue == ['Sanne']
     }
 
-    def "SearchScript unfiltered enumerates with the configured timestamp field and page size in the POST body"() {
+    def "SearchScript unfiltered enumerates with the type's objectClass and the page size in the POST body"() {
         given:
         wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson(JsonOutput.toJson(
-            [items: [Fixtures.sanneWire(), Fixtures.accountWire()], totalCount: 2]))))
+            [results: [Fixtures.sanneSearchItem()], pagedResultsCookie: null, totalResults: 1, hasMore: false]))))
         def seen = []
 
         when:
@@ -175,13 +178,14 @@ class OperationScriptsSpec extends Specification {
         then:
         seen*.uid*.uidValue == ['Sanne']
         wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search'))
-            .withRequestBody(matchingJsonPath('$.updatedAfter', equalTo('1970-01-01T00:00:00Z')))
+            .withRequestBody(matchingJsonPath('$.objectClass', equalTo('4')))
             .withRequestBody(matchingJsonPath('$.pageSize', equalTo('200'))))
     }
 
     def "scripts never log the API key"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(aResponse().withStatus(500).withBody('{"error":"x"}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(aResponse().withStatus(500)
+            .withHeader('Content-Type', 'application/problem+json').withBody('{"title":"x","status":500}')))
 
         when:
         try { ScriptHarness.run('TestScript.groovy', bindings()) } catch (ignored) {}

@@ -10,6 +10,7 @@
           "sn": { "type": "string" },
           "mail": { "type": "string" },
           "telephoneNumber": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" }, "title": "Aliases" },
           "password": { "type": "string", "isProtected": true },
           "effectiveRoles": { "type": "array", "isVirtual": true, "items": { "type": "object" } },
           "owns": {

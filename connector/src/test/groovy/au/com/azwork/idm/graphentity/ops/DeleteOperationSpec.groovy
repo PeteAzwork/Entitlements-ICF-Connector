@@ -82,6 +82,28 @@ class DeleteOperationSpec extends OperationSpecBase {
         service.requests.empty
     }
 
+    def "a 200 for a missing entity, as the probe observed (C3), is success too: the outcome is 'gone' either way"() {
+        given:
+        service.failNextWith(200)
+
+        when:
+        new DeleteOperation(ctx(deleteMissingTolerated: false)).execute(Fixtures.USER, new Uid('Ghost'), null)
+
+        then:
+        noExceptionThrown()
+    }
+
+    def "the service's 200 response body (the deleted entity) is not needed and not logged above DEBUG"() {
+        given:
+        service.seed(Fixtures.sanneWire() + [attributes: [name: 'Sanne Groen', mail: 'sanne@example.com']])
+
+        when:
+        new DeleteOperation(ctx()).execute(Fixtures.USER, new Uid('Sanne'), null)
+
+        then:
+        !log.entries.findAll { it.level != org.identityconnectors.common.logging.Log.Level.OK }.any { it.message.contains('sanne@example.com') }
+    }
+
     def "delete does not GET first"() {
         when:
         new DeleteOperation(ctx()).execute(Fixtures.USER, new Uid('Sanne'), null)

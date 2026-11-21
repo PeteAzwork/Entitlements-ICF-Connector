@@ -1,17 +1,20 @@
 package au.com.azwork.idm.graphentity.ops
 
+import au.com.azwork.idm.graphentity.config.ConnectorConfig
+import au.com.azwork.idm.graphentity.http.EntityApi
 import au.com.azwork.idm.graphentity.support.Fixtures
 import org.identityconnectors.common.logging.Log
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException
+import org.identityconnectors.framework.common.exceptions.ConnectorException
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException
 import org.identityconnectors.framework.common.exceptions.ConnectorSecurityException
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException
 import org.identityconnectors.framework.common.objects.ObjectClass
 
-/** Design §9.1 — create and the silently-dropped-edge problem. */
+/** Design §9.1; decisions P15, P17 — create, and the silently-dropped-relationship problem. */
 class CreateOperationSpec extends OperationSpecBase {
 
-    def "POSTs the total Appendix A document and returns the Uid equal to the remote ID"() {
+    def "POSTs Sanne's write model (the Appendix A create) and returns the Uid equal to the remote id"() {
         when:
         def uid = new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
 
@@ -30,7 +33,7 @@ class CreateOperationSpec extends OperationSpecBase {
         service.requestsOf('GET')[0].id == 'Sanne'
     }
 
-    def "logs each dropped edge at WARN with both endpoint IDs and the type when the other endpoint does not exist"() {
+    def "logs each dropped relationship at WARN, source -type-> target, when the other entity does not exist yet"() {
         when:
         new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
 
@@ -38,7 +41,7 @@ class CreateOperationSpec extends OperationSpecBase {
         log.messagesAt(Log.Level.WARN) == ['dropped edge Sanne -Owns-> Current-Account-1-Sanne']
     }
 
-    def "logs nothing at WARN when every edge was established"() {
+    def "logs nothing at WARN when every relationship was established"() {
         given:
         service.seed(Fixtures.accountWire())
 
@@ -50,12 +53,12 @@ class CreateOperationSpec extends OperationSpecBase {
         service.edges == [['Sanne', 'Current-Account-1-Sanne', 'Owns']] as Set
     }
 
-    def "the create still succeeds (returns the Uid) when edges were dropped: the model is self-healing"() {
+    def "the create still succeeds when relationships were dropped: the model is self-healing"() {
         expect:
         new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(), null).uidValue == 'Sanne'
     }
 
-    def "an inbound edge asserted from the account side heals the earlier drop (Appendix A)"() {
+    def "creating the account afterwards heals the drop, because it carries the same relationship (Appendix A)"() {
         given:
         new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
 
@@ -64,8 +67,7 @@ class CreateOperationSpec extends OperationSpecBase {
 
         then:
         service.edges == [['Sanne', 'Current-Account-1-Sanne', 'Owns']] as Set
-        service.get('Sanne').body.Relationships == [[TargetID: 'Current-Account-1-Sanne', type: 'Owns']]
-        service.get('Current-Account-1-Sanne').body.Relationships == [[SourceID: 'Sanne', type: 'Owns']]
+        service.get('Sanne').body.relationships == [[source: 'Sanne', target: 'Current-Account-1-Sanne', type: 'Owns', sourceType: 'Subject']]
     }
 
     def "aggressive mode re-PUTs the entity when verification found drops (off by default)"() {
@@ -84,7 +86,15 @@ class CreateOperationSpec extends OperationSpecBase {
         service.requestsOf('PUT').empty
     }
 
-    def "a 409 from the service → AlreadyExistsException so recon can link-and-update"() {
+    def "with byIdLookup: search there is no verification read, because search results carry no relationships"() {
+        when:
+        new CreateOperation(ctx(byIdLookup: ConnectorConfig.ByIdLookup.SEARCH)).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
+
+        then:
+        service.requests*.op == ['POST']
+    }
+
+    def "a 409 → AlreadyExistsException so recon can link-and-update (assumed status; Q04.1)"() {
         given:
         service.seed(Fixtures.sanneWire())
 
@@ -95,9 +105,9 @@ class CreateOperationSpec extends OperationSpecBase {
         thrown(AlreadyExistsException)
     }
 
-    def "a 400 → InvalidAttributeValueException and the body is logged at ERROR"() {
+    def "a 400 → InvalidAttributeValueException and the problem details are logged at ERROR"() {
         given:
-        service.failNextWith(400, [error: 'name is required'])
+        service.failNextWith(400, [title: 'name is required', status: 400])
 
         when:
         new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
@@ -131,7 +141,7 @@ class CreateOperationSpec extends OperationSpecBase {
 
     def "a transport IOException → ConnectorIOException"() {
         given:
-        def failing = new OperationContext(Fixtures.connectorConfig(), Mock(au.com.azwork.idm.graphentity.http.EntityApi) {
+        def failing = new OperationContext(Fixtures.connectorConfig(), Mock(EntityApi) {
             create(_) >> { throw new IOException('connection refused') }
         }, log.asLog())
 
@@ -142,10 +152,10 @@ class CreateOperationSpec extends OperationSpecBase {
         thrown(ConnectorIOException)
     }
 
-    def "a failing verification GET does not fail the create; it is logged at WARN"() {
+    def "a failing verification GET (the 500s of C1) does not fail the create; it is logged at WARN (P11)"() {
         given:
-        service.failNextWith(201, Fixtures.sanneWire())   // POST ok
-        service.failNextWith(500)                         // GET fails
+        service.failNextWith(200)   // POST
+        service.failNextWith(500)   // verification GET
 
         when:
         def uid = new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(), null)
@@ -160,11 +170,11 @@ class CreateOperationSpec extends OperationSpecBase {
         new CreateOperation(ctx()).execute(new ObjectClass('group'), Fixtures.sanneAttributes(), null)
 
         then:
-        thrown(org.identityconnectors.framework.common.exceptions.ConnectorException)
+        thrown(ConnectorException)
         service.requests.empty
     }
 
-    def "a malformed edge is rejected before any HTTP call"() {
+    def "a malformed relationship is rejected before any HTTP call"() {
         when:
         new CreateOperation(ctx()).execute(Fixtures.USER, Fixtures.sanneAttributes(entityRelationships: ['bad']), null)
 
@@ -173,16 +183,26 @@ class CreateOperationSpec extends OperationSpecBase {
         service.requests.empty
     }
 
-    def "an account create carries BaseType 2 and its inbound edge verbatim"() {
+    def "a relationship that does not involve the entity is rejected before any HTTP call (P17)"() {
+        when:
+        new CreateOperation(ctx()).execute(Fixtures.USER,
+            Fixtures.sanneAttributes(entityRelationships: ['{"sourceID":"X","targetID":"Y","type":"Owns"}']), null)
+
+        then:
+        thrown(InvalidAttributeValueException)
+        service.requests.empty
+    }
+
+    def "the account create carries base type 2, its archetype and the same relationship verbatim"() {
         when:
         new CreateOperation(ctx()).execute(Fixtures.ACCOUNT, Fixtures.accountAttributes(), null)
 
         then:
         with(service.requestsOf('POST')[0].body) {
-            BaseType == 2
-            Relationships == [[SourceID: 'Sanne', type: 'Owns']]
+            baseType == 2
+            relationships == [[sourceID: 'Sanne', targetID: 'Current-Account-1-Sanne', type: 'Owns']]
             directArchetypes == ['Account']
-            attributes.ID == 'Current-Account-1-Sanne'
+            attributes == [name: 'Current Account', productCode: 'CA1']
         }
     }
 

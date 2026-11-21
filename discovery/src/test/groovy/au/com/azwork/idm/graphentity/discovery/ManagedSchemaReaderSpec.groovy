@@ -22,6 +22,26 @@ class ManagedSchemaReaderSpec extends Specification {
         user.properties.keySet() == ['userName', 'givenName', 'sn', 'mail', 'telephoneNumber'] as Set
     }
 
+    def "a multi-valued (array) property is excluded and recorded with a reason (P20: attributes are single-valued strings)"() {
+        when:
+        def user = ManagedSchemaReader.read(managed).find { it.name == 'user' }
+
+        then:
+        !user.properties.containsKey('aliases')
+        user.excludedProperties.keySet() == ['aliases'] as Set
+        user.excludedProperties.aliases.toLowerCase().contains('multi-valued')
+    }
+
+    def "virtual and relationship arrays are not reported as excluded attributes: they are excluded for their own reasons"() {
+        when:
+        def user = ManagedSchemaReader.read(managed).find { it.name == 'user' }
+
+        then:
+        !user.excludedProperties.containsKey('effectiveRoles')
+        !user.excludedProperties.containsKey('owns')
+        !user.excludedProperties.containsKey('reports')
+    }
+
     def "relationship properties are surfaced with reverse name, collection and cardinality"() {
         when:
         def user = ManagedSchemaReader.read(managed).find { it.name == 'user' }

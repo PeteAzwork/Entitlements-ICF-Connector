@@ -32,8 +32,8 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
   --timeout-seconds N    Per-request timeout (default 15)
   --search-path PATH     Search endpoint, called with POST and a JSON body
                          (default /admin/entities/search)
-  --timestamp-field NAME Request-body field that filters by last-updated time.
-                         Without it, common names are tried.
+  --archetypes A,B       Two Resource archetypes for the archetype-replacement check (P22).
+                         Without it, they are taken from the manifests.
   --run-id ID            Override the run identifier (letters, digits and dashes)
 '''
 
@@ -70,9 +70,9 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
                     if (!o.searchPath.startsWith('/')) throw new UsageException('--search-path must start with /')
                     if (o.searchPath in ContractProbe.CREATE_PATHS) throw new UsageException("--search-path ${o.searchPath} is the create endpoint: a POST there creates entities")
                     break
-                case '--timestamp-field':
-                    o.timestampField = next(a)
-                    if (!(o.timestampField ==~ /[A-Za-z0-9_.-]{1,64}/)) throw new UsageException('--timestamp-field must be a field name')
+                case '--archetypes':
+                    o.archetypes = next(a).split(',')*.trim().findAll() as List<String>
+                    if (o.archetypes.size() < 2 || o.archetypes.any { !(it ==~ /[^\u0000-\u001f\u007f]{1,128}/) }) throw new UsageException('--archetypes needs two or more comma-separated archetype names')
                     break
                 case '--run-id':
                     o.runId = next(a)

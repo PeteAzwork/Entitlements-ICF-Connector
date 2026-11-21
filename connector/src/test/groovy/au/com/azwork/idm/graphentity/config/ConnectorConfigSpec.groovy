@@ -17,7 +17,6 @@ class ConnectorConfigSpec extends Specification {
         String.valueOf(cfg.apiKey) == Fixtures.API_KEY
         cfg.apiKeyHeader == 'X-API-KEY'
         cfg.objectTypes.keySet() == ['user', 'account'] as Set
-        cfg.timestampSearchParam == 'updatedAfter'
         cfg.pageSizeDefault == 200
         cfg.deleteMissingTolerated
         !cfg.rePutOnDroppedEdges
@@ -40,7 +39,7 @@ class ConnectorConfigSpec extends Specification {
 
         where:
         key                      | expected
-        'timestampSearchParam'   | 'updatedAfter'
+        'byIdLookup'             | ConnectorConfig.ByIdLookup.GET
         'pageSizeDefault'        | 200
         'deleteMissingTolerated' | true
         'rePutOnDroppedEdges'    | false
@@ -191,8 +190,42 @@ class ConnectorConfigSpec extends Specification {
         e.message.contains('ownedBy') || e.message.contains('owns')
     }
 
-    def "timestampSearchParam is configurable because the real parameter name is unconfirmed (§15)"() {
+    @Unroll
+    def "byIdLookup '#raw' selects #expected (P21: the search fallback while GET by ID fails)"() {
         expect:
-        ConnectorConfig.from(Fixtures.connectorProps(timestampSearchParam: 'modifiedSince')).timestampSearchParam == 'modifiedSince'
+        ConnectorConfig.from(Fixtures.connectorProps(byIdLookup: raw)).byIdLookup == expected
+
+        where:
+        raw      | expected
+        'get'    | ConnectorConfig.ByIdLookup.GET
+        'search' | ConnectorConfig.ByIdLookup.SEARCH
+        'SEARCH' | ConnectorConfig.ByIdLookup.SEARCH
+    }
+
+    def "an unknown byIdLookup is a ConfigurationException naming it"() {
+        when:
+        ConnectorConfig.from(Fixtures.connectorProps(byIdLookup: 'cache'))
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('byIdLookup')
+    }
+
+    def "there is no timestamp-search setting: the service has none, and drift detection is deferred (P16)"() {
+        expect:
+        !ConnectorConfig.declaredFields*.name.any { it.toLowerCase().contains('timestamp') }
+    }
+
+    def "loading runs the P19 scope-archetype rule"() {
+        given:
+        def m = Fixtures.objectTypesMap()
+        m.employee = [idmResource: 'managed/employee', entityKind: 'subject', idProperty: 'employeeId', archetypes: ['Customer']]
+
+        when:
+        ConnectorConfig.from(Fixtures.connectorProps(objectTypes: m))
+
+        then:
+        def e = thrown(ConfigurationException)
+        e.message.contains('Customer')
     }
 }

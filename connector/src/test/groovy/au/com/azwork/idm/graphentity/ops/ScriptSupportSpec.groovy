@@ -21,7 +21,6 @@ class ScriptSupportSpec extends Specification {
         !props.containsKey('password')
         !props.containsKey('username')
         props.objectTypes instanceof String
-        props.timestampSearchParam == 'updatedAfter'
         props.pageSizeDefault == 200
         props.deleteMissingTolerated == true
     }

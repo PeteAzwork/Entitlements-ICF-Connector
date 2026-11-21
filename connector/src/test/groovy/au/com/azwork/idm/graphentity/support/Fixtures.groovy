@@ -77,7 +77,7 @@ class Fixtures {
         def cfg = new ConnectorConfig(
             serviceAddress: 'http://localhost:5276', apiKey: API_KEY.toCharArray(),
             objectTypes: [user: userType(), account: accountType()],
-            timestampSearchParam: 'updatedAfter', pageSizeDefault: 200, deleteMissingTolerated: true)
+            pageSizeDefault: 200, deleteMissingTolerated: true)
         overrides.each { k, v -> cfg."$k" = v }
         cfg
     }
@@ -88,7 +88,6 @@ class Fixtures {
             serviceAddress        : 'http://localhost:5276',
             apiKey                : API_KEY,
             objectTypes           : objectTypesJson(),
-            timestampSearchParam  : 'updatedAfter',
             pageSizeDefault       : 200,
             deleteMissingTolerated: true
         ] as Map<String, Object>
@@ -96,21 +95,52 @@ class Fixtures {
         m
     }
 
-    // ---- documents (Appendix A) ----
+    // ---- Appendix A, in the service's real shapes (decisions P17, P18, P20) ----
+
+    /** Sanne owns her current account. The same string encodes the relationship whichever end is written (P17). */
+    static final String OWNS_JSON = '{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}'
+    static final String EVALUATED = '2026-01-01T00:00:10Z'
+
+    static Edge owns() { Edge.of(SANNE, SANNE_ACCOUNT, 'Owns') }
 
     static EntityDocument sanneDoc() {
-        new EntityDocument(id: SANNE, baseType: 4, attributes: [ID: SANNE, name: 'Sanne Groen'],
-            relationships: [Edge.outbound(SANNE_ACCOUNT, 'Owns')], directArchetypes: ['Customer'])
+        new EntityDocument(id: SANNE, baseType: 4, attributes: [name: 'Sanne Groen'],
+            relationships: [owns()], directArchetypes: ['Customer'])
     }
 
+    /** Write model (EntityDTO) for Sanne: a Subject, base type 4 (P18). */
     static Map<String, Object> sanneWire() {
-        [ID: SANNE, BaseType: 4, attributes: [ID: SANNE, name: 'Sanne Groen'],
-         Relationships: [[TargetID: SANNE_ACCOUNT, type: 'Owns']], directArchetypes: ['Customer']]
+        [id: SANNE, baseType: 4, attributes: [name: 'Sanne Groen'],
+         relationships: [[sourceID: SANNE, targetID: SANNE_ACCOUNT, type: 'Owns']], directArchetypes: ['Customer']]
     }
 
+    /** Write model (EntityDTO) for the account: a Resource, base type 2 (P18). */
     static Map<String, Object> accountWire() {
-        [ID: SANNE_ACCOUNT, BaseType: 2, attributes: [ID: SANNE_ACCOUNT, name: 'Current Account', productCode: 'CA1'],
-         Relationships: [[SourceID: SANNE, type: 'Owns']], directArchetypes: ['Account']]
+        [id: SANNE_ACCOUNT, baseType: 2, attributes: [name: 'Current Account', productCode: 'CA1'],
+         relationships: [[sourceID: SANNE, targetID: SANNE_ACCOUNT, type: 'Owns']], directArchetypes: ['Account']]
+    }
+
+    /** Read model (Entity) for Sanne, as GET returns it. It carries no archetypes. */
+    static Map<String, Object> sanneEntity() {
+        [id: SANNE, lastEvaluated: EVALUATED, reconciliationStarted: null, baseType: 4,
+         Attributes: [name: [name: 'name', type: 'string', value: 'Sanne Groen']], compoundAttributes: [:],
+         relationships: [[source: SANNE, target: SANNE_ACCOUNT, type: 'Owns', sourceType: 'Subject']]]
+    }
+
+    /** Search item for Sanne. It carries no relationships; the base type is a name. */
+    static Map<String, Object> sanneSearchItem() {
+        [uid: SANNE, name: SANNE, baseType: 'Subject', attributes: [name: 'Sanne Groen'],
+         isArchetypes: [], directArchetypes: ['Customer'], lastEvaluated: EVALUATED]
+    }
+
+    static Map<String, Object> accountSearchItem() {
+        [uid: SANNE_ACCOUNT, name: SANNE_ACCOUNT, baseType: 'Resource', attributes: [name: 'Current Account', productCode: 'CA1'],
+         isArchetypes: [], directArchetypes: ['Account'], lastEvaluated: EVALUATED]
+    }
+
+    /** A manifest defining the archetypes the fixture types use (P22). */
+    static void seedManifest(FakeGraphService service) {
+        service.seedManifest('test', ['Customer'], ['Account'])
     }
 
     // ---- ICF attribute sets ----
@@ -120,7 +150,7 @@ class Fixtures {
             __NAME__            : SANNE,
             name                : 'Sanne Groen',
             directArchetypes    : ['Customer'],
-            entityRelationships : ['{"TargetID":"Current-Account-1-Sanne","type":"Owns"}']
+            entityRelationships : [OWNS_JSON]
         ]
         attrs.putAll(overrides)
         toAttributes(attrs)
@@ -132,7 +162,7 @@ class Fixtures {
             name                : 'Current Account',
             productCode         : 'CA1',
             directArchetypes    : ['Account'],
-            entityRelationships : ['{"SourceID":"Sanne","type":"Owns"}']
+            entityRelationships : [OWNS_JSON]
         ]
         attrs.putAll(overrides)
         toAttributes(attrs)

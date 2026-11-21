@@ -29,15 +29,15 @@ class RestClientEntityApiSpec extends Specification {
 
     def "GET /admin/entities/{id} returns the parsed document; the raw API key is sent and no Authorization header"() {
         given:
-        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(groovy.json.JsonOutput.toJson(Fixtures.sanneWire()))))
+        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(groovy.json.JsonOutput.toJson(Fixtures.sanneEntity()))))
 
         when:
         def r = api.get('Sanne')
 
         then:
         r.status == 200
-        r.body.ID == 'Sanne'
-        r.body.Relationships == [[TargetID: 'Current-Account-1-Sanne', type: 'Owns']]
+        r.body.id == 'Sanne'
+        r.body.relationships == [[source: 'Sanne', target: 'Current-Account-1-Sanne', type: 'Owns', sourceType: 'Subject']]
         wm.verify(getRequestedFor(urlEqualTo('/admin/entities/Sanne'))
             .withHeader('X-API-KEY', equalTo(Fixtures.API_KEY))
             .withoutHeader('Authorization')
@@ -52,18 +52,17 @@ class RestClientEntityApiSpec extends Specification {
         api.get('nobody').status == 404
     }
 
-    def "POST /admin/entities/ sends the document as JSON and returns the status and body"() {
+    def "POST /admin/entities (no trailing slash) sends the write model as JSON; the service answers 200 with no body"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/')).willReturn(aResponse().withStatus(201)
-            .withHeader('Content-Type', 'application/json').withBody('{"ID":"Sanne"}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities')).willReturn(aResponse().withStatus(200)))
 
         when:
         def r = api.create(Fixtures.sanneWire())
 
         then:
-        r.status == 201
-        r.body.ID == 'Sanne'
-        wm.verify(postRequestedFor(urlEqualTo('/admin/entities/'))
+        r.status == 200
+        r.body == null
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities'))
             .withHeader('Content-Type', containing('application/json'))
             .withRequestBody(equalToJson(groovy.json.JsonOutput.toJson(Fixtures.sanneWire()))))
     }
@@ -78,36 +77,54 @@ class RestClientEntityApiSpec extends Specification {
         then:
         r.status == 200
         wm.verify(putRequestedFor(urlEqualTo('/admin/entities/Sanne'))
-            .withRequestBody(matchingJsonPath('$.Relationships[0].TargetID', equalTo('Current-Account-1-Sanne'))))
+            .withRequestBody(matchingJsonPath('$.relationships[0].sourceID', equalTo('Sanne')))
+            .withRequestBody(matchingJsonPath('$.relationships[0].targetID', equalTo('Current-Account-1-Sanne'))))
     }
 
-    def "DELETE /admin/entities/{id} returns the status"() {
+    def "DELETE /admin/entities/{id} returns 200 with the deleted entity"() {
         given:
-        wm.stubFor(delete(urlEqualTo('/admin/entities/Sanne')).willReturn(aResponse().withStatus(204)))
+        wm.stubFor(delete(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(groovy.json.JsonOutput.toJson(Fixtures.sanneEntity()))))
 
-        expect:
-        api.delete('Sanne').status == 204
+        when:
+        def r = api.delete('Sanne')
+
+        then:
+        r.status == 200
+        r.body.id == 'Sanne'
+    }
+
+    def "GET /admin/manifests returns the manifest list (P22)"() {
+        given:
+        wm.stubFor(get(urlEqualTo('/admin/manifests')).willReturn(okJson('[{"name":"m","subjectArchetypes":[{"name":"Customer"}],"resourceArchetypes":[{"name":"Account"}]}]')))
+
+        when:
+        def r = api.manifests()
+
+        then:
+        r.status == 200
+        r.body*.name == ['m']
+        wm.verify(getRequestedFor(urlEqualTo('/admin/manifests')).withHeader('X-API-KEY', equalTo(Fixtures.API_KEY)))
     }
 
     def "search POSTs the filter and paging fields as a JSON body to /admin/entities/search (P14)"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[],"totalCount":0}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"results":[],"pagedResultsCookie":null,"totalResults":0,"hasMore":false}')))
 
         when:
-        def r = api.search([updatedAfter: '1970-01-01T00:00:00Z', pageSize: 200, offset: 0])
+        def r = api.search([objectClass: 4, filter: [operation: 'EQUALS', left: 'name', right: 'x'], pageSize: 200, pagedResultsCookie: '200'])
 
         then:
         r.status == 200
-        r.body.items == []
+        r.body.results == []
         wm.verify(postRequestedFor(urlEqualTo('/admin/entities/search'))
             .withHeader('Content-Type', containing('application/json'))
             .withHeader('X-API-KEY', equalTo(Fixtures.API_KEY))
-            .withRequestBody(equalToJson('{"updatedAfter":"1970-01-01T00:00:00Z","pageSize":200,"offset":0}')))
+            .withRequestBody(equalToJson('{"objectClass":4,"filter":{"operation":"EQUALS","left":"name","right":"x"},"pageSize":200,"pagedResultsCookie":"200"}')))
     }
 
     def "an unfiltered search sends {} as the body, not an empty request"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[]}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"results":[]}')))
 
         when:
         api.search([:])
@@ -118,10 +135,10 @@ class RestClientEntityApiSpec extends Specification {
 
     def "search never uses GET: the service answers GET on the collection with 405"() {
         given:
-        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"items":[]}')))
+        wm.stubFor(post(urlEqualTo('/admin/entities/search')).willReturn(okJson('{"results":[]}')))
 
         when:
-        api.search([updatedAfter: '1970-01-01T00:00:00Z'])
+        api.search([objectClass: 4])
 
         then:
         wm.verify(0, getRequestedFor(urlPathMatching('/admin/entities.*')))

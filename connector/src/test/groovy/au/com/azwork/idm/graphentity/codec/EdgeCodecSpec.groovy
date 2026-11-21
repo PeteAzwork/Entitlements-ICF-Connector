@@ -1,21 +1,22 @@
 package au.com.azwork.idm.graphentity.codec
 
 import au.com.azwork.idm.graphentity.model.Edge
+import au.com.azwork.idm.graphentity.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException
 import spock.lang.Specification
 import spock.lang.Unroll
 
-/** Design §8.3 — ICF attribute encoding of edges. */
+/** Design §8.3, decision P17 — the entityRelationships ICF attribute encoding. */
 class EdgeCodecSpec extends Specification {
 
-    def "serialises an outbound edge to the compact canonical form from the design"() {
+    def "serialises to the compact canonical form: sourceID, targetID, type, no whitespace"() {
         expect:
-        EdgeCodec.serialise(Edge.outbound('Current-Account-1-Sanne', 'Owns')) == '{"TargetID":"Current-Account-1-Sanne","type":"Owns"}'
+        EdgeCodec.serialise(Fixtures.owns()) == Fixtures.OWNS_JSON
     }
 
-    def "serialises an inbound edge with SourceID first"() {
+    def "the same relationship serialises identically whichever end is being written"() {
         expect:
-        EdgeCodec.serialise(Edge.inbound('Sanne', 'Owns')) == '{"SourceID":"Sanne","type":"Owns"}'
+        EdgeCodec.serialise(Edge.of('Sanne', 'Current-Account-1-Sanne', 'Owns')) == Fixtures.OWNS_JSON
     }
 
     @Unroll
@@ -24,12 +25,11 @@ class EdgeCodecSpec extends Specification {
         EdgeCodec.parse(json) == expected
 
         where:
-        json                                              | expected
-        '{"TargetID":"a","type":"Owns"}'                  | Edge.outbound('a', 'Owns')
-        '{"SourceID":"b","type":"Owns"}'                  | Edge.inbound('b', 'Owns')
-        ' { "type" : "Owns" , "TargetID" : "a" } '        | Edge.outbound('a', 'Owns')
-        '{"TargetID":"with \\"quote\\"","type":"T"}'      | Edge.outbound('with "quote"', 'T')
-        '{"TargetID":"ünïcödé","type":"T"}'               | Edge.outbound('ünïcödé', 'T')
+        json                                                             | expected
+        '{"sourceID":"a","targetID":"b","type":"Owns"}'                  | Edge.of('a', 'b', 'Owns')
+        ' { "type" : "Owns" , "targetID" : "b", "sourceID" : "a" } '     | Edge.of('a', 'b', 'Owns')
+        '{"sourceID":"with \\"quote\\"","targetID":"b","type":"T"}'      | Edge.of('with "quote"', 'b', 'T')
+        '{"sourceID":"ünïcödé","targetID":"b","type":"T"}'               | Edge.of('ünïcödé', 'b', 'T')
     }
 
     @Unroll
@@ -41,14 +41,15 @@ class EdgeCodecSpec extends Specification {
         thrown(InvalidAttributeValueException)
 
         where:
-        json << [null, '', 'Owns', '{"type":"Owns"}', '{"TargetID":"a"}', '{"TargetID":"a","SourceID":"b","type":"T"}',
-                 '["TargetID","a"]', '{"TargetID":1,"type":"T"}', '{"TargetID":"a","type":"T"} trailing']
+        json << [null, '', 'Owns', '{"targetID":"b","type":"Owns"}', '{"sourceID":"a","type":"T"}',
+                 '{"sourceID":"a","targetID":"b"}', '{"TargetID":"b","type":"T"}', '["a","b"]',
+                 '{"sourceID":1,"targetID":"b","type":"T"}', '{"sourceID":"a","targetID":"b","type":"T"} trailing']
     }
 
-    def "parseAll parses every value and collapses duplicates"() {
+    def "parseAll parses every value and collapses duplicates, keeping first-seen order"() {
         expect:
-        EdgeCodec.parseAll(['{"TargetID":"a","type":"T"}', '{"type":"T","TargetID":"a"}', '{"SourceID":"b","type":"T"}']) ==
-            [Edge.outbound('a', 'T'), Edge.inbound('b', 'T')]
+        EdgeCodec.parseAll(['{"sourceID":"a","targetID":"b","type":"T"}', '{"type":"T","targetID":"b","sourceID":"a"}',
+                            '{"sourceID":"c","targetID":"a","type":"T"}']) == [Edge.of('a', 'b', 'T'), Edge.of('c', 'a', 'T')]
     }
 
     def "parseAll of null or empty is an empty list"() {
@@ -59,16 +60,16 @@ class EdgeCodecSpec extends Specification {
 
     def "parseAll reports the offending value in the exception"() {
         when:
-        EdgeCodec.parseAll(['{"TargetID":"a","type":"T"}', 'garbage'])
+        EdgeCodec.parseAll(['{"sourceID":"a","targetID":"b","type":"T"}', 'garbage'])
 
         then:
         def e = thrown(InvalidAttributeValueException)
         e.message.contains('garbage')
     }
 
-    def "serialiseAll is canonical: sorted, so set comparison in recon is stable regardless of input order"() {
+    def "serialiseAll is canonical and sorted, so set comparison in recon is stable regardless of order"() {
         given:
-        def edges = [Edge.outbound('b', 'T'), Edge.inbound('a', 'T'), Edge.outbound('a', 'T')]
+        def edges = [Edge.of('b', 'c', 'T'), Edge.of('a', 'b', 'T'), Edge.of('a', 'b', 'U')]
 
         expect:
         EdgeCodec.serialiseAll(edges) == EdgeCodec.serialiseAll(edges.reverse())
@@ -76,15 +77,7 @@ class EdgeCodecSpec extends Specification {
     }
 
     def "serialise/parse round-trips"() {
-        given:
-        def edge = Edge.outbound('Current-Account-1-Sanne', 'Owns')
-
         expect:
-        EdgeCodec.parse(EdgeCodec.serialise(edge)) == edge
-    }
-
-    def "serialise contains no whitespace so values are compact in logs and recon diffs"() {
-        expect:
-        !EdgeCodec.serialise(Edge.outbound('a', 'T')).contains(' ')
+        EdgeCodec.parse(EdgeCodec.serialise(Fixtures.owns())) == Fixtures.owns()
     }
 }

@@ -150,13 +150,22 @@ describe('buildRelationships (§8.2, A1/A2)', () => {
     let openidm, lib;
     beforeEach(() => { openidm = fakeOpenidm(appendixAStore()); lib = load(openidm).lib; });
 
-    test('user side: Sanne → one outbound Owns edge to the account REMOTE id (accountId), not the IDM _id', () => {
+    test('user side: Sanne → one Owns edge naming both ends by REMOTE id (userName, accountId), not the IDM _id (P17)', () => {
         const edges = lib.buildRelationships('u-1', lib.loadTypeConfig('user'));
-        assert.deepEqual(edges, ['{"TargetID":"Current-Account-1-Sanne","type":"Owns"}']);
+        assert.deepEqual(edges, ['{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}']);
     });
-    test('account side: one inbound Owns edge from Sanne (userName), same type string', () => {
+    test('account side: the inbound Owns edge is the SAME string as the user side emits (P17)', () => {
         const edges = lib.buildRelationships('a-1', lib.loadTypeConfig('account'));
-        assert.deepEqual(edges, ['{"SourceID":"Sanne","type":"Owns"}']);
+        assert.deepEqual(edges, ['{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}']);
+    });
+    test('both ends of one relationship encode it identically, so IDM compares like with like', () => {
+        assert.deepEqual(lib.buildRelationships('u-1', lib.loadTypeConfig('user')),
+            lib.buildRelationships('a-1', lib.loadTypeConfig('account')));
+    });
+    test('the source object\'s own remote id comes from its type\'s idProperty', () => {
+        const store = appendixAStore(); store['managed/user/u-1'].userName = 'Sanne2';
+        lib = load(fakeOpenidm(store)).lib;
+        assert.equal(JSON.parse(lib.buildRelationships('u-1', lib.loadTypeConfig('user'))[0]).sourceID, 'Sanne2');
     });
     test('reads the source with relationship expansion (fields "*" and "*_ref")', () => {
         lib.buildRelationships('u-1', lib.loadTypeConfig('user'));
@@ -184,7 +193,7 @@ describe('buildRelationships (§8.2, A1/A2)', () => {
         store['managed/user/u-1'].owns.push({ _ref: 'managed/account/a-2', _refResourceCollection: 'managed/account', _refResourceId: 'a-2' });
         lib = load(fakeOpenidm(store)).lib;
         assert.deepEqual(lib.buildRelationships('u-1', lib.loadTypeConfig('user')),
-            ['{"TargetID":"Current-Account-1-Sanne","type":"Owns"}', '{"TargetID":"Savings-2-Sanne","type":"Owns"}']);
+            ['{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}', '{"sourceID":"Sanne","targetID":"Savings-2-Sanne","type":"Owns"}']);
     });
     test('a relationship marked sync:false is skipped', () => {
         const ot = objectTypes(); ot.user.relationships.owns.sync = false;
@@ -208,16 +217,16 @@ describe('buildRelationships (§8.2, A1/A2)', () => {
         store['managed/user/u-1'].owns.push({ _ref: 'managed/device/d-1', _refResourceCollection: 'managed/device', _refResourceId: 'd-1' });
         store['managed/device/d-1'] = { _id: 'd-1', serial: 'X' };
         const loaded = load(fakeOpenidm(store));
-        assert.deepEqual(loaded.lib.buildRelationships('u-1', loaded.lib.loadTypeConfig('user')), ['{"TargetID":"Current-Account-1-Sanne","type":"Owns"}']);
+        assert.deepEqual(loaded.lib.buildRelationships('u-1', loaded.lib.loadTypeConfig('user')), ['{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}']);
         assert.ok(loaded.logs.some(l => l[0] === 'warn' && /device/.test(l[1])));
     });
     test('a missing source object throws (the mapping must not PUT an empty edge set for an unknown source)', () => {
         assert.throws(() => lib.buildRelationships('nope', lib.loadTypeConfig('user')), /nope/);
     });
-    test('edge JSON is canonical: key order TargetID/SourceID then type, no whitespace', () => {
+    test('edge JSON is canonical: key order sourceID, targetID, type, no whitespace (P17)', () => {
         const edges = lib.buildRelationships('u-1', lib.loadTypeConfig('user'));
         assert.equal(edges[0].indexOf(' '), -1);
-        assert.ok(edges[0].startsWith('{"TargetID"'));
+        assert.deepEqual(Object.keys(JSON.parse(edges[0])), ['sourceID', 'targetID', 'type']);
     });
     test('the same IDM state always produces the same edge set (pure function, §8.1)', () => {
         const a = lib.buildRelationships('u-1', lib.loadTypeConfig('user'));
@@ -227,7 +236,7 @@ describe('buildRelationships (§8.2, A1/A2)', () => {
     test('an unlisted relationship property falls back to the convention using managed.json', () => {
         const ot = objectTypes(); delete ot.account.relationships.ownedBy;
         lib = load(fakeOpenidm(appendixAStore(), { objectTypes: ot })).lib;
-        assert.deepEqual(lib.buildRelationships('a-1', lib.loadTypeConfig('account')), ['{"SourceID":"Sanne","type":"Owns"}']);
+        assert.deepEqual(lib.buildRelationships('a-1', lib.loadTypeConfig('account')), ['{"sourceID":"Sanne","targetID":"Current-Account-1-Sanne","type":"Owns"}']);
     });
     test('an unlisted, unresolvable relationship property throws rather than guessing a direction', () => {
         const ot = objectTypes();

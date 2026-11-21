@@ -19,8 +19,11 @@ class ProbeOptions {
     int timeoutSeconds = 15
     /** Search endpoint, called with POST and a JSON body. Null means /admin/entities/search. */
     String searchPath
-    /** Request-body field that filters by last-updated time, if known. Null means try the candidates. */
-    String timestampField
+    /**
+     * Two or more Resource archetypes for the archetype-replacement check (P22). Null means take them from the
+     * manifests. They must be defined there, or the service may reject the writes.
+     */
+    List<String> archetypes
     File outDir
     String runId = LocalDateTime.now().format(DateTimeFormatter.ofPattern('yyyyMMdd-HHmmss'))
 
