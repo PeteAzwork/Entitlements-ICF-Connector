@@ -202,7 +202,7 @@ class CreateOperationSpec extends OperationSpecBase {
             baseType == 2
             relationships == [[sourceID: 'Sanne', targetID: 'Current-Account-1-Sanne', type: 'Owns']]
             directArchetypes == ['Account']
-            attributes == [name: 'Current Account', productCode: 'CA1']
+            attributes == [ID: 'Current-Account-1-Sanne', name: 'Current Account', productCode: 'CA1']   // attributes.ID by design (C8)
         }
     }
 

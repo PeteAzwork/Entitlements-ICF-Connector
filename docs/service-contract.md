@@ -155,17 +155,19 @@ The probe cannot observe these. Send this section ahead of the WS0.01 session.
 
 ## 4. Harness contract (WS3.01)
 
-These are questions about Ping IDM's Scripted REST harness, not about the service. They are recorded here so that every external contract lives in one place. They are answered in WS3.01, from the connector bundle's sample scripts or the vendor documentation.
+These are questions about Ping IDM's Scripted REST harness, not about the service. They are recorded here so that every external contract lives in one place. They were answered in WS3.01 (2026-11-21) from Ping's ICF documentation: the Scripted REST connector reference, "Custom configuration initialization", "ICF operations with Groovy scripts" and the per-script references (create, update, delete, search, schema, test) under `docs.pingidentity.com/openicf/`. The connector bundle's own sample scripts are on ForgeRock's customer Stash server and were not reachable.
 
-| ID | Question | Assumes today | Status |
+| ID | Question | Answer | Status |
 |---|---|---|---|
-| H1 | Which binding carries the HTTP client the customizer's `decorate` closure returns: `connection` or `customizedConnection`? | `connection`. The vendor docs suggest `customizedConnection` | Open |
-| H2 | What are the signatures of the customizer's `init`, `decorate` and `release` closures? | `init(HttpClientBuilder)`, `release(...)`. No `decorate` yet | Open |
-| H7 | Is `password` the right home for the API key, or does `customSensitiveConfiguration` reach the scripts decrypted? | `password`, read through `GuardedString.access()` (P13) | Open |
-| H3 | Does a create script receive an `id` binding? | Not used | Open |
-| H4 | May a search script return a `SearchResult` to pass the paged-results cookie? | Yes | Open |
-| H5 | Does the schema script return a `Schema`, or call `builder.schema { }`? | Returns a `Schema` | Open |
-| H6 | Which `operation` values does the update script receive? | `UPDATE`, plus `ADD_ATTRIBUTE_VALUES` and `REMOVE_ATTRIBUTE_VALUES` (WS3.10) | Open |
+| H1 | Which binding carries the HTTP client the customizer's `decorate` closure returns? | `customizedConnection`. The reference's sample script reads `def httpClient = connection as HttpClient` and `def connection = customizedConnection as RESTClient`: `connection` is the Apache client built from `init`, and `customizedConnection` is what `decorate` returns. (Its prose says "the `connection` variable is the output of `decorate`", which describes the sample's local variable.) The scripts take `customizedConnection` when bound, else `connection`; `ScriptSupport` wraps a bare `HttpClient` in a `RESTClient` itself, so authentication holds either way | Answered |
+| H2 | What are the signatures of the customizer's `init`, `decorate` and `release` closures? | `init { HttpClientBuilder builder -> }` with the `ScriptedRESTConfiguration` as the closure's delegate (`def c = delegate as ScriptedRESTConfiguration`); it returns nothing. `decorate` returns the object bound as `customizedConnection`; its argument is not shown, and is taken to be the built `HttpClient`. `ClientCustomizer.decorate` accepts anything: given an `HttpClient` it wraps it, otherwise it sets the key header on the `RESTClient` itself. `release` is named in the dev guide (some versions say `destroy`); ours does nothing | Answered, `decorate`'s argument assumed |
+| H7 | Is `password` the right home for the API key, or does `customSensitiveConfiguration` reach the scripts decrypted? | The reference is silent. `password`, read through `GuardedString.access()` (P13), stays | Open |
+| H3 | Does a create script receive an `id` binding? | Yes: "The UID of the object to be created, if specified … corresponds to the ICF `__NAME__` attribute". `CreateScript` restores `__NAME__` from `id` when the attributes lack it | Answered |
+| H4 | May a search script return a `SearchResult` to pass the paged-results cookie? | Yes: "a `SearchResult` object or … a `String` that represents the `pagedResultsCookie`". The `handler` binding is a Closure, called with a `ConnectorObject` | Answered |
+| H5 | Does the schema script return a `Schema`, or call `builder.schema { }`? | It calls `builder.schema { objectClass { type …; attribute …; attributes { }; disable … } }` on the `builder` binding (an `ICFObjectBuilder`) and returns nothing. There is no `connectorClass` binding, so the previous script would have failed in IDM. `SchemaScript` now hands `SchemaFactory`'s schema to the DSL (`SchemaDsl`), disabling Sync, Authenticate and ResolveUsername per class. `disable`'s parameter type is not documented; SPI classes are passed, and a refusal is logged at WARN | Answered, `disable`'s argument assumed |
+| H6 | Which `operation` values does the update script receive? | `UPDATE`, `ADD_ATTRIBUTE_VALUES` and `REMOVE_ATTRIBUTE_VALUES` are all in the operation list. `UpdateScript` refuses the latter two (WS3.10), because a value delta turned into a full-state PUT would delete whatever it omits (P15) | Answered |
+
+To confirm against a real IDM: H2's `decorate` argument and H5's `disable` argument. Both have fallbacks, so neither can stop authentication or the schema; a wrong guess shows as a WARN in the connector log.
 
 ---
 
@@ -395,6 +397,7 @@ Answered:
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | WS3.01: harness contract answered from Ping's ICF documentation (section 4). H1, H3, H4, H6 answered; H2 and H5 answered with one assumed argument type each; H7 open. The schema script must use the `builder` DSL, which the previous script did not. |
 | 2026-11-21 | Added `C1-GET-BY-ID-NOTE.md` at the repository root for the service team. Every failing GET (and the C4/C8 POST 500s) looks like an unhandled exception: Kestrel, empty body, no `x-request-id`. GET fails for a missing ID, for a long-standing entity, and while an entity's relationship points at a missing entity or after the single-relationship DELETE. |
 | 2026-11-21 | Service owner: relationships are deleted with `DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}`. An empty list should purge, and the current behaviour is a bug (C17). Rewriting with the same relationship changes nothing. P20 amended (option a): `""` clears an attribute and reads as absent. Probe WS0.15h: starting-state checks, resurfacing detection, `edges.reassertSame`. |
 | 2026-11-21 | Folded in write run `20261121-215954`. An empty `relationships` list removed nothing within 10 s (C17), against the service owner's statement. Added C18: a replaced relationship resurfaced once its replacement was deleted, and the single-relationship POST did not add. An attribute written as `""` is stored empty, not removed. |

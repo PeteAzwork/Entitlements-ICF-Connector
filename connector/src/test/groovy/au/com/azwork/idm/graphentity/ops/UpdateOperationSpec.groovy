@@ -25,7 +25,8 @@ class UpdateOperationSpec extends OperationSpecBase {
         uid.uidValue == 'Sanne'
         service.requests*.op == ['PUT']
         service.requestsOf('PUT')[0].id == 'Sanne'
-        service.requestsOf('PUT')[0].body == Fixtures.sanneWire() + [attributes: [name: 'Sanne Smith']]
+        // Every configured attribute, "" when empty (P20 amended), with attributes.ID (C8).
+        service.requestsOf('PUT')[0].body == Fixtures.sanneWire() + [attributes: Fixtures.sanneWire().attributes + [name: 'Sanne Smith']]
     }
 
     def "never reads the remote entity before writing (pure IDM-derived payload, §8.1)"() {

@@ -17,8 +17,8 @@ class ObjectTypeConfig {
     String archetypeProperty
     Map<String, RelationshipConfig> relationships = [:]
 
-    /** Relationship entries that participate in sync ({@code sync != false}). TODO WS1. */
+    /** Relationship entries that participate in sync ({@code sync != false}), in configuration order. */
     Map<String, RelationshipConfig> syncedRelationships() {
-        throw new UnsupportedOperationException('TODO WS1: ObjectTypeConfig.syncedRelationships')
+        relationships.findAll { k, v -> v.sync } as LinkedHashMap<String, RelationshipConfig>
     }
 }

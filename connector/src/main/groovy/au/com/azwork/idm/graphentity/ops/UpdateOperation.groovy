@@ -1,5 +1,11 @@
 package au.com.azwork.idm.graphentity.ops
 
+import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
+import au.com.azwork.idm.graphentity.http.HttpErrorMapper
+import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.graphentity.http.OpContext
+import au.com.azwork.idm.graphentity.payload.EntityPayloadBuilder
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException
 import org.identityconnectors.framework.common.objects.Attribute
 import org.identityconnectors.framework.common.objects.ObjectClass
 import org.identityconnectors.framework.common.objects.OperationOptions
@@ -16,8 +22,22 @@ class UpdateOperation {
 
     UpdateOperation(OperationContext ctx) { this.ctx = ctx }
 
-    /** TODO WS3. */
     Uid execute(ObjectClass objectClass, Uid uid, Set<Attribute> attributes, OperationOptions options) {
-        throw new UnsupportedOperationException('TODO WS3: UpdateOperation.execute')
+        ObjectTypeConfig type = ObjectClassResolver.resolve(objectClass, ctx.config)
+        if (uid?.uidValue == null) throw new InvalidAttributeValueException("${type.name}: an update needs a Uid")
+        Set<String> names = (attributes ?: [] as Set)*.name as Set
+        [EntityPayloadBuilder.ATTR_ENTITY_RELATIONSHIPS, EntityPayloadBuilder.ATTR_DIRECT_ARCHETYPES].each { String required ->
+            if (!(required in names)) {
+                throw new InvalidAttributeValueException("${type.name} '${uid.uidValue}': the update omits ${required}. The service replaces it in full on every update, so a PUT without it would delete it (P4, P15); map it, empty if there are none")
+            }
+        }
+        String id = uid.uidValue
+        Map<String, Object> wire = EntityPayloadBuilder.build(id, type, attributes).toWire()
+
+        HttpResponse response = Transport.call { ctx.api.replace(id, wire) }
+        if (response.status == 400) Logs.error(ctx.log, "update of ${type.name} '${id}' refused: ${HttpErrorMapper.message(response, OpContext.UPDATE, ctx.config)}")
+        HttpErrorMapper.raise(response, OpContext.UPDATE, ctx.config)
+        Logs.ok(ctx.log, "updated ${type.name} '${id}'")
+        uid
     }
 }

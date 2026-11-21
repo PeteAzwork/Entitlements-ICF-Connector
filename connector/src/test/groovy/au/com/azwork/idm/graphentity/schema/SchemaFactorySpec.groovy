@@ -39,7 +39,7 @@ class SchemaFactorySpec extends Specification {
         expect:
         info.type == String
         !info.multiValued
-        info.creatable
+        info.createable
         info.updateable
         info.readable
 
@@ -55,7 +55,7 @@ class SchemaFactorySpec extends Specification {
         expect:
         info.type == String
         info.multiValued
-        info.creatable
+        info.createable
         info.updateable
 
         where:
@@ -68,10 +68,11 @@ class SchemaFactorySpec extends Specification {
 
         expect:
         info.type == String
-        !info.creatable
+        !info.createable
         !info.updateable
         info.readable
         !info.multiValued
+        info.returnedByDefault   // WS1.14 decision: every read carries it at no cost, and mappings ignore it
     }
 
     def "__NAME__ is required"() {

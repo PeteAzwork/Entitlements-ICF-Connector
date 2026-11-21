@@ -97,7 +97,7 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
     def "test on an empty service is still healthy"() {
         expect:
         new TestOperation(ctx()).execute() == null
-        service.entities.empty
+        service.entities.isEmpty()   // not .empty: on a Map that reads a key named 'empty'
     }
 
     def "401 → InvalidCredentialException"() {

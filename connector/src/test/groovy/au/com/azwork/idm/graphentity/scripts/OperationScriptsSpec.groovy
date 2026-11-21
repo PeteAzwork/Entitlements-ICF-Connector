@@ -1,6 +1,7 @@
 package au.com.azwork.idm.graphentity.scripts
 
 import au.com.azwork.idm.graphentity.support.CapturingLog
+import au.com.azwork.idm.graphentity.support.FakeSchemaBuilder
 import au.com.azwork.idm.graphentity.support.Fixtures
 import au.com.azwork.idm.graphentity.support.ScriptHarness
 import com.github.tomakehurst.wiremock.WireMockServer
@@ -16,6 +17,7 @@ import org.identityconnectors.framework.common.objects.Uid
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder
 import spock.lang.Shared
 import spock.lang.Specification
+import spock.lang.Unroll
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*
 
@@ -75,13 +77,21 @@ class OperationScriptsSpec extends Specification {
         thrown(InvalidCredentialException)
     }
 
-    def "SchemaScript returns a Schema built from the objectTypes in the propertyBag"() {
+    def "SchemaScript defines the schema through the harness's builder DSL (WS3.01), with no connectorClass binding"() {
+        given:
+        def builder = new FakeSchemaBuilder()
+
         when:
-        def schema = ScriptHarness.run('SchemaScript.groovy', bindings(connectorClass: org.identityconnectors.framework.spi.Connector))
+        def schema = ScriptHarness.run('SchemaScript.groovy', bindings(builder: builder))
 
         then:
-        schema instanceof Schema
+        builder.objectClasses*.type as Set == ['user', 'account'] as Set
+        builder.objectClasses.find { it.type == 'user' }.attributes*.name as Set ==
+            ['__NAME__', 'name', 'mail', 'telephoneNumber', 'directArchetypes', 'entityRelationships', 'lastEvaluated'] as Set
+        builder.objectClasses.every { it.disabled*.simpleName as Set == ['SyncOp', 'AuthenticateOp', 'ResolveUsernameOp'] as Set }
+        schema instanceof Schema   // also returned; the harness ignores it
         schema.objectClassInfo*.type as Set == ['user', 'account'] as Set
+        wm.allServeEvents.empty
     }
 
     def "CreateScript POSTs the EntityDTO to /admin/entities, verifies with a GET of the read model, and returns a Uid"() {
@@ -114,6 +124,71 @@ class OperationScriptsSpec extends Specification {
             .withRequestBody(matchingJsonPath('$.relationships[0].sourceID', equalTo('Sanne')))
             .withRequestBody(matchingJsonPath('$.relationships[0].targetID', equalTo('Current-Account-1-Sanne'))))
         wm.verify(0, getRequestedFor(urlPathMatching('/admin/entities/.*')))
+    }
+
+    def "CreateScript takes the name from the harness's id binding when __NAME__ is not among the attributes (WS3.01)"() {
+        given:
+        wm.stubFor(post(urlEqualTo('/admin/entities')).willReturn(aResponse().withStatus(200)))
+        wm.stubFor(get(urlEqualTo('/admin/entities/Sanne')).willReturn(okJson(JsonOutput.toJson(Fixtures.sanneEntity()))))
+
+        when:
+        def uid = ScriptHarness.run('CreateScript.groovy', bindings(objectClass: Fixtures.USER, id: 'Sanne',
+            attributes: Fixtures.sanneAttributes(__NAME__: null), options: null))
+
+        then:
+        uid.uidValue == 'Sanne'
+        wm.verify(postRequestedFor(urlEqualTo('/admin/entities')).withRequestBody(matchingJsonPath('$.id', equalTo('Sanne'))))
+    }
+
+    def "UpdateScript with operation UPDATE proceeds as a full replacement"() {
+        given:
+        wm.stubFor(put(urlEqualTo('/admin/entities/Sanne')).willReturn(ok()))
+
+        when:
+        def uid = ScriptHarness.run('UpdateScript.groovy', bindings(operation: 'UPDATE', objectClass: Fixtures.USER, uid: new Uid('Sanne'),
+            attributes: Fixtures.sanneAttributes(), options: null))
+
+        then:
+        uid.uidValue == 'Sanne'
+    }
+
+    @Unroll
+    def "UpdateScript refuses #operation: a value delta turned into a PUT would delete what it omits (WS3.10, P15)"() {
+        when:
+        ScriptHarness.run('UpdateScript.groovy', bindings(operation: operation, objectClass: Fixtures.USER, uid: new Uid('Sanne'),
+            attributes: Fixtures.sanneAttributes(), options: null))
+
+        then:
+        thrown(UnsupportedOperationException)
+        wm.allServeEvents.empty
+
+        where:
+        operation << ['ADD_ATTRIBUTE_VALUES', 'REMOVE_ATTRIBUTE_VALUES']
+    }
+
+    def "the scripts authenticate through the customizer's client: the decorated client sends the key (WS3.01)"() {
+        given:
+        wm.stubFor(delete(urlEqualTo('/admin/entities/Sanne')).willReturn(ok()))
+
+        when:
+        ScriptHarness.run('DeleteScript.groovy', bindings(objectClass: Fixtures.USER, uid: new Uid('Sanne'), options: null))
+
+        then:
+        wm.verify(deleteRequestedFor(urlEqualTo('/admin/entities/Sanne'))
+            .withHeader('X-API-KEY', equalTo(Fixtures.API_KEY)).withoutHeader('Authorization'))
+    }
+
+    def "without a decorated client the scripts wrap the harness's HttpClient themselves, keeping its key header"() {
+        given:
+        wm.stubFor(delete(urlEqualTo('/admin/entities/Sanne')).willReturn(ok()))
+        def b = bindings(objectClass: Fixtures.USER, uid: new Uid('Sanne'), options: null)
+        b.remove('customizedConnection')
+
+        when:
+        ScriptHarness.run('DeleteScript.groovy', b)
+
+        then:
+        wm.verify(deleteRequestedFor(urlEqualTo('/admin/entities/Sanne')).withHeader('X-API-KEY', equalTo(Fixtures.API_KEY)))
     }
 
     def "UpdateScript: 404 → UnknownUidException"() {

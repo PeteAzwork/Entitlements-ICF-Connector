@@ -1,5 +1,6 @@
 package au.com.azwork.idm.graphentity.model
 
+import au.com.azwork.idm.graphentity.config.EntityKind
 import groovy.transform.EqualsAndHashCode
 import groovy.transform.ToString
 
@@ -47,30 +48,116 @@ class EntityDocument {
     /** Policy evaluation time, read-only. Not a modification time. */
     String lastEvaluated
 
+    /** The attribute the service requires to equal the id (C8). Never a domain attribute. */
+    static final String ID_ATTRIBUTE = 'ID'
+
     /**
      * Write model. Always emits {@code relationships} and {@code directArchetypes}, even when empty, because
      * the service removes anything a write omits (P15). Adds {@code attributes.ID} equal to {@code id}, which the
-     * service requires (C8). Never emits read-only fields. TODO WS2.
+     * service requires (C8). Never emits read-only fields.
      */
     Map<String, Object> toWire() {
-        throw new UnsupportedOperationException('TODO WS2: EntityDocument.toWire')
+        Map<String, String> wireAttributes = new LinkedHashMap<>()
+        wireAttributes[ID_ATTRIBUTE] = id
+        (attributes ?: [:]).each { k, v -> if (k != ID_ATTRIBUTE) wireAttributes[k] = v }
+        Map<String, Object> m = new LinkedHashMap<>()
+        m.id = id
+        m.baseType = baseType
+        m.attributes = wireAttributes
+        m.relationships = (relationships ?: []).collect { it.toWire() }
+        m.directArchetypes = new ArrayList<String>(directArchetypes ?: [])
+        m
     }
 
-    /** Parses a write-model document (a create or update body); {@code attributes.ID} is dropped. TODO WS2. */
+    /** Parses a write-model document (a create or update body); {@code attributes.ID} is dropped. */
     static EntityDocument fromWire(Map<String, Object> wire) {
-        throw new UnsupportedOperationException('TODO WS2: EntityDocument.fromWire')
+        if (wire == null) throw new IllegalArgumentException('An entity document must be an object')
+        new EntityDocument(
+            id: requiredId(wire.id, 'id'),
+            baseType: baseTypeOf(wire.baseType),
+            attributes: plainAttributes(wire.attributes),
+            relationships: list(wire.relationships, 'relationships').collect { Edge.fromWire(it as Map<String, Object>) },
+            directArchetypes: strings(wire.directArchetypes))
     }
 
-    /** Parses the read model returned by GET and DELETE. Archetypes are unknown (null). TODO WS2. */
+    /** Parses the read model returned by GET and DELETE. Archetypes are unknown (null). */
     static EntityDocument fromEntity(Map<String, Object> entity) {
-        throw new UnsupportedOperationException('TODO WS2: EntityDocument.fromEntity')
+        if (entity == null) throw new IllegalArgumentException('An entity must be an object')
+        Object attrs = entity.containsKey('Attributes') ? entity.Attributes : entity.attributes
+        new EntityDocument(
+            id: requiredId(entity.id, 'id'),
+            baseType: baseTypeOf(entity.baseType),
+            attributes: attributeObjects(attrs),
+            relationships: list(entity.relationships, 'relationships').collect { Edge.fromRead(it as Map<String, Object>) },
+            directArchetypes: null,
+            lastEvaluated: entity.lastEvaluated?.toString())
     }
 
     /**
      * Parses one search result item. Relationships are unknown (null). {@code isArchetypes} is kept as reported;
-     * {@code directArchetypes} is null unless the item reports some there (C9). TODO WS2.
+     * {@code directArchetypes} is null unless the item reports some there (C9).
      */
     static EntityDocument fromSearchItem(Map<String, Object> item) {
-        throw new UnsupportedOperationException('TODO WS2: EntityDocument.fromSearchItem')
+        if (item == null) throw new IllegalArgumentException('A search result item must be an object')
+        Object uid = item.uid
+        String id = uid instanceof CharSequence && uid.toString().trim() ? uid.toString() : requiredId(item.name, 'uid or name')
+        List<String> direct = strings(item.directArchetypes)
+        new EntityDocument(
+            id: id,
+            baseType: baseTypeOf(item.baseType),
+            attributes: plainAttributes(item.attributes),
+            relationships: null,
+            directArchetypes: direct ? direct : null,
+            isArchetypes: item.isArchetypes == null ? null : strings(item.isArchetypes),
+            lastEvaluated: item.lastEvaluated?.toString())
+    }
+
+    private static String requiredId(Object v, String what) {
+        if (!(v instanceof CharSequence) || !v.toString().trim()) throw new IllegalArgumentException("The entity has no ${what}")
+        v.toString()
+    }
+
+    /** A number is kept as is; a name is mapped through EntityKind (P18); anything else is unknown (null). */
+    private static Integer baseTypeOf(Object raw) {
+        if (raw instanceof Number) {
+            Number n = raw as Number
+            return n.doubleValue() == n.intValue() ? n.intValue() : null
+        }
+        EntityKind.fromBaseType(raw)?.baseType
+    }
+
+    /** Name → value attributes (write model, search item), as strings; {@code ID} and null values dropped (P20). */
+    private static Map<String, String> plainAttributes(Object raw) {
+        Map<String, String> out = new LinkedHashMap<>()
+        if (raw == null) return out
+        if (!(raw instanceof Map)) throw new IllegalArgumentException('attributes must be an object')
+        (raw as Map).each { k, v ->
+            String name = k as String
+            if (name != ID_ATTRIBUTE && v != null) out[name] = v.toString()
+        }
+        out
+    }
+
+    /** The read model's name → {name, type, value} attributes, as strings; {@code ID} and null values dropped. */
+    private static Map<String, String> attributeObjects(Object raw) {
+        Map<String, String> out = new LinkedHashMap<>()
+        if (raw == null) return out
+        if (!(raw instanceof Map)) throw new IllegalArgumentException('Attributes must be an object')
+        (raw as Map).each { k, v ->
+            String name = k as String
+            Object value = v instanceof Map ? (v as Map).value : v
+            if (name != ID_ATTRIBUTE && value != null) out[name] = value.toString()
+        }
+        out
+    }
+
+    private static List list(Object raw, String what) {
+        if (raw == null) return []
+        if (!(raw instanceof Collection)) throw new IllegalArgumentException("${what} must be a list")
+        new ArrayList(raw as Collection)
+    }
+
+    private static List<String> strings(Object raw) {
+        list(raw, 'archetypes').findAll { it != null }.collect { it.toString() } as List<String>
     }
 }

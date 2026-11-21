@@ -2,5 +2,5 @@
 import au.com.azwork.idm.graphentity.ops.CreateOperation
 import au.com.azwork.idm.graphentity.ops.ScriptSupport
 
-def ctx = ScriptSupport.contextFrom(configuration, connection, log)
-return new CreateOperation(ctx).execute(objectClass, attributes, options)
+def ctx = ScriptSupport.contextFrom(configuration, ScriptSupport.connectionOf(binding), log)
+return new CreateOperation(ctx).execute(objectClass, ScriptSupport.createAttributes(binding), ScriptSupport.optional(binding, 'options'))
