@@ -331,7 +331,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | **Integration total** (needs Docker; `./gradlew :integration:test -Pidm`) | | **25 (+3)** | **25 (+3)** |
 | **Grand total** | | | **1046 (+3 opt-in)** |
 
-Current result (2026-11-21, after WS7/WS9 work): **every suite is green**: connector 696 / 696, discovery 77 / 77, mapping library 116 / 116, contract probe 126 / 126, `:discovery:lintMappings`, `:connector:compileWithIdmGroovy`, and **integration 18 / 18 inside IDM 7.5** (library as sources; the jar mode passes too), plus the opt-in scale spec. No `TODO WSn` stub remains in the code.
+Current result (2026-11-21, after the deployment guide): **every suite is green**: connector 701 / 701, discovery 77 / 77, mapping library 117 / 117, contract probe 126 / 126, `:discovery:lintMappings`, `:connector:compileWithIdmGroovy`, and **integration 25 / 25 inside IDM 7.5** in both library modes, and in sources mode with IDM limited to 1 CPU (`-PidmCpus=1`, the condition that reproduced H21); the opt-in scale spec passes at 50,000 users. `dev/deploy-walkthrough.sh` runs end to end on a brand-new IDM 7.5. No `TODO WSn` stub remains in the code.
 
 Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83. The mapping library stood at 3 pass / 66 fail before WS5, and discovery at 0 / 45 before WS6.
 
