@@ -242,7 +242,7 @@ Runs: `20261121-155100` (the first write run, design-shaped documents), `2026112
 
 | ID | Definition says | Probe observed |
 |---|---|---|
-| C1 | GET of an entity: 200 or 404 | **Unreliable.** 500 for a long-standing real entity (`173141` #18, `190350` #29), for missing IDs, and for a probe entity just after any write that touches it (`190350` #47–#58). 200 with the documented read model once the entity has been left alone (#60–#69). A missing entity never got 404. Reads by ID need `byIdLookup: search` (`173141` #9) |
+| C1 | GET of an entity: 200 or 404 | **Unreliable.** 500 for a long-standing real entity (`173141` #18, `190350` #29), for missing IDs, and for a probe entity just after any write that touches it (`190350` #47–#58). 200 with the documented read model once the entity has been left alone (#60–#69). A missing entity never got 404. Reads by ID need `byIdLookup: search` (`173141` #9) Details and questions for the service team: [`C1-GET-BY-ID-NOTE.md`](../C1-GET-BY-ID-NOTE.md) |
 | C2 | PUT to a missing entity: 404 | **200, and the PUT creates the entity (upsert).** `155100` PUT the never-created ID `…-never-created`, and that entity is still found by search (`190350` #35) |
 | C3 | DELETE of a missing entity: 404 | 200 (`155100`; `173153` #36) |
 | C4 | Invalid create: 400 | 500 for a create without an ID (`173153` #32). Malformed JSON and a non-string attribute do get 400 (#33 #34) |
@@ -395,6 +395,7 @@ Answered:
 
 | Date | Change |
 |---|---|
+| 2026-11-21 | Added `C1-GET-BY-ID-NOTE.md` at the repository root for the service team. Every failing GET (and the C4/C8 POST 500s) looks like an unhandled exception: Kestrel, empty body, no `x-request-id`. GET fails for a missing ID, for a long-standing entity, and while an entity's relationship points at a missing entity or after the single-relationship DELETE. |
 | 2026-11-21 | Service owner: relationships are deleted with `DELETE /admin/entities/{sourceID}/relationships/{targetID}/{type}`. An empty list should purge, and the current behaviour is a bug (C17). Rewriting with the same relationship changes nothing. P20 amended (option a): `""` clears an attribute and reads as absent. Probe WS0.15h: starting-state checks, resurfacing detection, `edges.reassertSame`. |
 | 2026-11-21 | Folded in write run `20261121-215954`. An empty `relationships` list removed nothing within 10 s (C17), against the service owner's statement. Added C18: a replaced relationship resurfaced once its replacement was deleted, and the single-relationship POST did not add. An attribute written as `""` is stored empty, not removed. |
 | 2026-11-21 | Service owner: an empty `relationships` list purges all of the entity's relationships (P15). C17's relationship half is reframed as probable delayed removal. Probe WS0.15g waits for removals, and adds checks for non-empty replacement, clearing an attribute with an empty string, and the endpoints and delete cascade on entities of their own. |

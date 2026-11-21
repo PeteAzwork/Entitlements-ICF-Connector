@@ -442,7 +442,7 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
 
 #### Part A — Contract questions still open
 
-- [ ] **WS0.01 Hold the service-team session (S).** The question pack is `docs/service-contract.md` §2, §3 and §5.5. Lead with C1 (GET by ID returns 500), C6 (base-type numbering), Q07.8 and T1 (another relationship writer). Booking it needs a person.
+- [ ] **WS0.01 Hold the service-team session (S).** The question pack is `docs/service-contract.md` §2, §3 and §5.5. Lead with C1 (GET by ID returns 500), C6 (base-type numbering), Q07.8 and T1 (another relationship writer). Booking it needs a person. The C1 questions, with evidence, are in [`C1-GET-BY-ID-NOTE.md`](../C1-GET-BY-ID-NOTE.md).
 - [ ] **WS0.07 Relationship semantics (M).** Mostly answered by runs `211859`–`215954`:
   - inbound links on create and update work;
   - a relationship to a missing entity is dropped on PUT;
