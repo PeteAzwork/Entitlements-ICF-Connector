@@ -43,6 +43,9 @@ import java.time.format.DateTimeFormatter
  *   <li>Attribute values must be strings; any other JSON type is a 400.</li>
  * </ul>
  * Also supports fault injection ({@link #failNextWith}) so operations can be tested against each §13 status.
+ *
+ * <p>Helpers are {@code protected}, not {@code private}: closures in this class dispatch on the runtime object, so a
+ * private method called from a closure is invisible when a spec subclasses the fake to model a real behaviour.
  */
 class FakeGraphService implements EntityApi {
 
@@ -58,8 +61,8 @@ class FakeGraphService implements EntityApi {
     /** Manifests as the service returns them; an empty list makes GET /admin/manifests a 404. */
     final List<Map<String, Object>> manifests = []
     final List<Map> requests = []
-    private Instant clock = Instant.parse('2026-01-01T00:00:00Z')
-    private final Deque<HttpResponse> injected = new ArrayDeque<>()
+    protected Instant clock = Instant.parse('2026-01-01T00:00:00Z')
+    protected final Deque<HttpResponse> injected = new ArrayDeque<>()
 
     // ------------------------------------------------------------------ test control
 
@@ -69,7 +72,7 @@ class FakeGraphService implements EntityApi {
 
     void tick() { clock = clock.plusSeconds(1) }
 
-    private HttpResponse injectedOrNull(String op, Map detail) {
+    protected HttpResponse injectedOrNull(String op, Map detail) {
         requests << ([op: op] + detail)
         injected.isEmpty() ? null : injected.poll()
     }
@@ -231,9 +234,9 @@ class FakeGraphService implements EntityApi {
         BASE_TYPE_NAMES.find { k, name -> name.equalsIgnoreCase(s) }?.key
     }
 
-    private static Map<String, String> json() { ['Content-Type': 'application/json; charset=utf-8'] }
+    protected static Map<String, String> json() { ['Content-Type': 'application/json; charset=utf-8'] }
 
-    private static HttpResponse problem(int status, String title) {
+    protected static HttpResponse problem(int status, String title) {
         def body = [type: "https://tools.ietf.org/html/rfc9110#section-15.5.${status == 400 ? 1 : (status == 404 ? 5 : 10)}".toString(),
                     title: title, status: status, traceId: '00-fake-00']
         new HttpResponse(status: status, body: body, rawBody: groovy.json.JsonOutput.toJson(body),
@@ -241,7 +244,7 @@ class FakeGraphService implements EntityApi {
     }
 
     /** Returns an error message for an invalid write-model document, or null. */
-    private String validate(Map<String, Object> doc, String pathId) {
+    protected String validate(Map<String, Object> doc, String pathId) {
         if (!(doc.id instanceof String) || !(doc.id as String).trim()) return 'id is required'
         if (pathId != null && doc.id != pathId) return 'id does not match the path'
         if (baseTypeOf(doc.baseType) == null) return 'baseType is required'
@@ -258,14 +261,14 @@ class FakeGraphService implements EntityApi {
         null
     }
 
-    private static String validateEdge(Map rel, String entityId) {
+    protected static String validateEdge(Map rel, String entityId) {
         if (rel == null) return 'relationship must be an object'
         if (!(['sourceID', 'targetID', 'type'].every { rel[it] instanceof String && (rel[it] as String).trim() })) return 'relationship needs sourceID, targetID and type'
         if (rel.sourceID != entityId && rel.targetID != entityId) return 'relationship must involve the entity'   // assumption
         null
     }
 
-    private void store(String id, Map<String, Object> doc) {
+    protected void store(String id, Map<String, Object> doc) {
         def existing = entities[id]
         entities[id] = [id: id, baseType: baseTypeOf(doc.baseType), attributes: new LinkedHashMap(doc.attributes ?: [:]),
                         directArchetypes: new ArrayList(doc.directArchetypes ?: []),
@@ -278,7 +281,7 @@ class FakeGraphService implements EntityApi {
         }
     }
 
-    private static String checkFilter(Map f) {
+    protected static String checkFilter(Map f) {
         String op = (f.operation as String)?.toUpperCase()
         if (!(op in FILTER_OPERATIONS)) return "Unsupported filter operation ${f.operation}"
         if (op in ['AND', 'OR']) {
@@ -289,7 +292,7 @@ class FakeGraphService implements EntityApi {
         null
     }
 
-    private boolean matches(Map f, String id) {
+    protected boolean matches(Map f, String id) {
         String op = (f.operation as String).toUpperCase()
         boolean result
         if (op == 'AND') result = matches(f.left as Map, id) && matches(f.right as Map, id)

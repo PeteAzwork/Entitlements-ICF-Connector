@@ -41,6 +41,25 @@ class ContractProbe {
     /** objectClass values tried read-only to learn the base-type numbering (P18, C6). */
     static final List<Object> OBJECT_CLASS_CANDIDATES = [SUBJECT, RESOURCE, 'Subject', 'Resource']
 
+    /**
+     * Create-body variants tried one at a time (check {@code create.shape}). The first run's design-shaped creates
+     * succeeded and the documented EntityDTO got 500 for every create (run 20261121-173153), so each variant changes
+     * one thing between the two. The first accepted variant is used for every later write in the run.
+     */
+    static final List<Map<String, Object>> CREATE_VARIANTS = [
+        [name: 'documented EntityDTO'],
+        [name: 'EntityDTO + attributes.ID', mirrorId: true],
+        [name: 'EntityDTO + a direct archetype', archetype: true],
+        [name: 'EntityDTO + attributes.ID + a direct archetype', mirrorId: true, archetype: true],
+        [name: 'EntityDTO without empty arrays', omitEmpty: true],
+        [name: 'EntityDTO, path with a trailing slash', trailingSlash: true],
+        [name: 'design casing (ID, BaseType, Relationships)', legacyKeys: true],
+        [name: 'design document as the first run sent it', legacyKeys: true, mirrorId: true, archetype: true, trailingSlash: true]
+    ].asImmutable() as List<Map<String, Object>>
+    static final Map<String, String> LEGACY_KEYS = [id: 'ID', baseType: 'BaseType', relationships: 'Relationships']
+    /** The archetype the first run stamped on its entities, which the service accepted. */
+    static final String PROBE_ARCHETYPE = 'Ws0Probe'
+
     static final List<String> ITEM_KEYS = ['results', 'items', 'data', 'entities', 'resources', 'content', 'value', 'result']
     static final List<String> TOTAL_KEYS = ['totalResults', 'totalCount', 'total', 'count', 'total_count', 'resultCount']
     static final List<String> CURSOR_KEYS = ['pagedResultsCookie', '_pagedResultsCookie', 'nextCursor', 'next', 'cursor', 'continuationToken', 'nextPageToken', 'pageToken']
@@ -54,6 +73,14 @@ class ContractProbe {
     final List<String> cleanupProblems = []
     /** How each probe entity's removal was confirmed: "GET 404" or "search". */
     final Map<String, String> cleanupConfirmedBy = [:]
+    /** Probe entities deleted with a 2xx whose removal no read could prove (GET fails and search is not trusted). */
+    final List<String> cleanupUnconfirmed = []
+    /** Probe IDs whose create or update was accepted. Only these need their removal proved. */
+    final Set<String> written = new LinkedHashSet<>()
+    /** The create variant adopted by {@code create.shape}; the documented EntityDTO until then. */
+    Map<String, Object> createShape = CREATE_VARIANTS[0]
+    /** Relationship form for writes: 'P17' ({sourceID, targetID, type}) or 'design' ({TargetID|SourceID, type}). */
+    String relationshipForm = 'P17'
     /** What was discovered about the API, for the "suggested values" part of the report. */
     final Map<String, Object> contract = [:]
 
@@ -64,7 +91,7 @@ class ContractProbe {
     ContractProbe(ProbeOptions opts, ProbeHttp http = null) {
         this.opts = opts
         this.http = http ?: new ProbeHttp(opts.baseUrl, opts.apiKeyHeader, opts.apiKey, Duration.ofSeconds(opts.timeoutSeconds))
-        this.scrubber = new Scrubber(opts.prefix, [opts.searchPath ?: SEARCH_PATH])
+        this.scrubber = new Scrubber(opts.prefix, [opts.searchPath ?: SEARCH_PATH], ProbeOptions.NAMESPACE)
     }
 
     // ------------------------------------------------------------------ orchestration
@@ -72,7 +99,11 @@ class ContractProbe {
     ContractProbe run() {
         try {
             step('WS0.10') { checkAuth() }
-            if (opts.allowWrites) step('WS0.03') { seed() }
+            boolean writable = false
+            if (opts.allowWrites) {
+                step('WS0.15') { writable = checkCreateShape() }
+                if (writable) step('WS0.03') { seed() }
+            }
             step('WS0.02') { checkSearchEndpoint() }
             step('WS0.15') { checkObjectClassNumbering() }
             step('WS0.02') { checkIdFilter() }
@@ -81,7 +112,10 @@ class ContractProbe {
             step('WS0.08') { checkTypeDiscrimination() }
             step('WS0.15') { checkManifests() }
             step('WS0.05') { checkErrorsReadOnly() }
-            if (opts.allowWrites) {
+            step('WS0.15') { checkLeftovers() }
+            if (opts.allowWrites && writable) {
+                step('WS0.15') { checkRelationshipShape() }
+                step('WS0.02') { checkSearchReflectsDelete() }
                 step('WS0.15') { checkBaseTypeOnCreate() }
                 step('WS0.07') { checkEdgeSemantics() }
                 step('WS0.15') { checkAttributeOmission() }
@@ -90,14 +124,20 @@ class ContractProbe {
                 step('WS0.09') { checkIds() }
                 step('WS0.03') { checkPagingStability() }
             } else {
-                notTested('WS0.15', 'baseType.create', 'Is an entity created with base type 4 a Subject (P18)?')
-                notTested('WS0.02', 'search.createdVisible', 'Is a newly created entity found by search (C5)?')
-                notTested('WS0.04', 'create.duplicate', 'What does a duplicate POST return?')
-                notTested('WS0.07', 'edges', 'Relationship semantics on POST, PUT, GET and DELETE, including Q07.8')
-                notTested('WS0.15', 'attributes.omission', 'Does an update that omits an attribute remove it (P20)?')
-                notTested('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?')
-                notTested('WS0.09', 'ids', 'ID characters, length and case sensitivity')
-                notTested('WS0.03', 'paging.updateDuringEnumeration', 'Can an entity updated mid-enumeration be skipped or returned twice?')
+                String why = opts.allowWrites ? 'Not tested: no create variant was accepted (see `create.shape`).' : null
+                if (!opts.allowWrites) {
+                    notTested('WS0.15', 'create.shape', 'Which create body does the service accept?')
+                }
+                notTested('WS0.15', 'create.relationshipShape', 'Which relationship form does a create accept (P17)?', why)
+                notTested('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?', why)
+                notTested('WS0.15', 'baseType.create', 'Is an entity created with base type 4 a Subject (P18)?', why)
+                notTested('WS0.02', 'search.createdVisible', 'Is a newly created entity found by search (C5)?', why)
+                notTested('WS0.04', 'create.duplicate', 'What does a duplicate POST return?', why)
+                notTested('WS0.07', 'edges', 'Relationship semantics on POST, PUT, GET and DELETE, including Q07.8', why)
+                notTested('WS0.15', 'attributes.omission', 'Does an update that omits an attribute remove it (P20)?', why)
+                notTested('WS0.15', 'archetypes.replace', 'Does an update replace directArchetypes in full (P22)?', why)
+                notTested('WS0.09', 'ids', 'ID characters, length and case sensitivity', why)
+                notTested('WS0.03', 'paging.updateDuringEnumeration', 'Can an entity updated mid-enumeration be skipped or returned twice?', why)
             }
             http.currentCheck = 'WS0.10'
             checkLimitHeaders()
@@ -130,8 +170,8 @@ class ContractProbe {
         f
     }
 
-    private void notTested(String task, String key, String question) {
-        add(task, key, question, 'Not tested: needs --allow-writes against a test instance.', 'not-tested')
+    private void notTested(String task, String key, String question, String why = null) {
+        add(task, key, question, why ?: 'Not tested: needs --allow-writes against a test instance.', 'not-tested')
     }
 
     // ------------------------------------------------------------------ helpers: documents
@@ -148,14 +188,41 @@ class ContractProbe {
     /** One relationship in the write shape (P17). */
     static Map edge(String source, String target) { [sourceID: source, targetID: target, type: EDGE_TYPE] }
 
-    Exchange createProbe(Map doc) {
-        touched << (doc.id as String)
-        http.post(CREATE_PATH, doc)
+    Exchange createProbe(Map doc) { createAs(doc, createShape) }
+
+    Exchange createAs(Map doc, Map<String, Object> variant) {
+        String id = doc.id as String
+        touched << id
+        def ex = http.post(variant.trailingSlash ? CREATE_PATH + '/' : CREATE_PATH, shaped(doc, variant))
+        if (ex.success) written << id
+        ex
     }
 
     Exchange putProbe(Map doc) {
-        touched << (doc.id as String)
-        http.put(entityPath(doc.id as String), doc)
+        String id = doc.id as String
+        touched << id
+        def ex = http.put(entityPath(id), shaped(doc, createShape))
+        if (ex.success) written << id
+        ex
+    }
+
+    String defaultArchetype() { opts.archetypes ? opts.archetypes[0] : PROBE_ARCHETYPE }
+
+    /** Applies a create variant, and the adopted relationship form, to a probe write model. */
+    Map shaped(Map doc, Map<String, Object> variant) {
+        Map d = new LinkedHashMap(doc)
+        String id = d.id as String
+        if (variant.mirrorId) d.attributes = [ID: id] + (d.attributes as Map)
+        if (variant.archetype && !d.directArchetypes) d.directArchetypes = [defaultArchetype()]
+        if (relationshipForm == 'design') d.relationships = (d.relationships as List).collect { Map r -> designEdge(r, id) }
+        if (variant.omitEmpty) d = d.findAll { k, v -> !(v instanceof List && (v as List).isEmpty()) }
+        if (variant.legacyKeys) d = d.collectEntries { k, v -> [(LEGACY_KEYS[k as String] ?: k): v] }
+        d
+    }
+
+    /** A relationship in the design's one-sided form, from the point of view of the entity written. */
+    static Map designEdge(Map r, String self) {
+        r.sourceID == self ? [TargetID: r.targetID, type: r.type] : [SourceID: r.sourceID, type: r.type]
     }
 
     static List<Map> relationshipsOf(Map doc) {
@@ -508,6 +575,24 @@ class ContractProbe {
             edgeKeys ? 'observed' : 'inconclusive', null, [got])
     }
 
+    /**
+     * The structure of a JSON value without its values: field names of objects and list elements, and types.
+     * Keys of an object nested two levels down are only counted, because they could be data.
+     */
+    static String outline(Object v, int depth = 0) {
+        if (v instanceof Map) {
+            Map m = v as Map
+            if (depth >= 2) return "object (${m.size()} fields)"
+            return '{' + m.collect { k, x -> "${k}: ${outline(x, depth + 1)}" }.join(', ') + '}'
+        }
+        if (v instanceof List) {
+            List l = v as List
+            def first = l.find { it != null }
+            return "list of ${l.size()}" + (first == null ? '' : " × ${outline(first, depth)}")
+        }
+        v == null ? 'null' : (v instanceof Number ? 'number' : (v instanceof Boolean ? 'boolean' : 'string'))
+    }
+
     private static String fieldComparison(Set<String> actual, List<String> documented) {
         def extra = (actual - documented).sort(), missing = (documented - actual).sort()
         String list = actual.toList().sort().join(', ')
@@ -545,8 +630,9 @@ class ContractProbe {
         def ex = http.get(MANIFESTS_PATH)
         if (!(ex.success && ex.body instanceof List)) {
             add('WS0.15', 'manifests.archetypes', 'Which archetypes do the manifests define (P22)?',
-                ex.status == 404 ? '404: the service has no manifests, so no archetype is defined.' : "Cannot tell: ${ex.status}, ${shape(ex)}.",
-                ex.status == 404 ? 'observed' : 'inconclusive', null, [ex])
+                ex.status == 404 ? '404: the service has no manifests, so no archetype is defined.' :
+                    (ex.success ? "Cannot tell: 200, but not the documented list of manifests. Outline: ${outline(ex.body)}." : "Cannot tell: ${ex.status}, ${shape(ex)}."),
+                ex.status == 404 ? 'observed' : 'inconclusive', 'The outline gives field names and types only, never values.', [ex])
             return
         }
         List<Map> ms = (ex.body as List).findAll { it instanceof Map } as List<Map>
@@ -587,6 +673,101 @@ class ContractProbe {
         add('WS0.05', 'errors.putMissing', 'What does a PUT to a missing entity return (C2)?',
             "${putMissing.status}: ${shape(putMissing)}${upsert}", 'observed', null, [putMissing, rb?.get, rb?.search])
         add('WS0.05', 'errors.deleteMissing', 'What does a DELETE of a missing entity return (C3)?', "${delMissing.status}: ${shape(delMissing)}", 'observed', null, [delMissing])
+    }
+
+    // ------------------------------------------------------------------ WS0.15 create shape (writes)
+
+    /**
+     * Tries each {@link #CREATE_VARIANTS} body once, under its own probe ID, and adopts the first one accepted.
+     * Returns false when none is, so the remaining write checks are skipped rather than all failing the same way.
+     */
+    boolean checkCreateShape() {
+        List<Exchange> ev = []
+        List<String> lines = []
+        Map<String, Object> adopted = null
+        CREATE_VARIANTS.eachWithIndex { Map<String, Object> v, int i ->
+            def ex = createAs(probeDoc(pid("shape-${i + 1}")), v)
+            ev << ex
+            lines << "${i + 1}. ${v.name} → ${ex.status}".toString()
+            if (ex.success && adopted == null) adopted = v
+        }
+        contract.createShape = adopted?.name
+        if (adopted == null) {
+            add('WS0.15', 'create.shape', 'Which create body does the service accept?',
+                'None of the variants was accepted, so the other write checks were skipped. The service log for any of these requests should say why.',
+                'error', lines.join('; '), ev)
+            return false
+        }
+        createShape = adopted
+        String answer = adopted.is(CREATE_VARIANTS[0]) ? 'The documented EntityDTO is accepted.' :
+            "The documented EntityDTO is not accepted; the first variant that is: ${adopted.name}. The rest of this run writes that way, and the connector's payload builder must too."
+        add('WS0.15', 'create.shape', 'Which create body does the service accept?', answer, 'observed',
+            "Each variant changes one thing between the documented EntityDTO and the design document the first run sent. Archetype used: ${defaultArchetype()}. " + lines.join('; '), ev)
+        true
+    }
+
+    /** Which relationship form does a create accept? Only accepted or refused: the stored result needs GET (C1). */
+    void checkRelationshipShape() {
+        String T = pid('rel-target'), P = pid('rel-p17'), D = pid('rel-design')
+        def t = createProbe(probeDoc(T))
+        def p17 = createProbe(probeDoc(P, [edge(P, T)]))
+        String saved = relationshipForm
+        relationshipForm = 'design'
+        def design = createProbe(probeDoc(D, [edge(D, T)]))
+        relationshipForm = p17.success || !design.success ? saved : 'design'
+        contract.relationshipForm = p17.success ? 'P17 {sourceID, targetID, type}' : (design.success ? 'design {TargetID|SourceID, type}' : null)
+        add('WS0.15', 'create.relationshipShape', 'Which relationship form does a create accept (P17)?',
+            !t.success ? "Cannot tell: creating the target entity failed (${t.status})." :
+                "P17 `{sourceID, targetID, type}` → ${p17.status}; design `{TargetID, type}` → ${design.status}." +
+                    (p17.success ? '' : (design.success ? ' Only the design form is accepted: P17 needs revisiting, and the rest of this run writes the design form.' : ' Neither form is accepted.')),
+            t.success ? 'observed' : 'inconclusive',
+            'Whether the relationship was stored needs GET, which fails (C1); this only shows the body is accepted.', [t, p17, design])
+    }
+
+    /**
+     * Does search stop returning an entity once it is deleted? The 19 entities the first write run left behind
+     * suggest not: either DELETE does nothing, or search keeps deleted entities. Until this answers yes, a search
+     * miss cannot prove a deletion (see {@link #cleanup}).
+     */
+    void checkSearchReflectsDelete() {
+        String Z = pid('delete-check')
+        def c = createProbe(probeDoc(Z))
+        Map before = c.success ? findInSearch(Z) : null
+        if (!c.success || !before.searched || !before.item) {
+            add('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?',
+                !c.success ? "Cannot tell: the create failed (${c.status})." : 'Cannot tell: the created entity is not found by search, so its removal cannot be seen there (C5).',
+                'inconclusive', null, [c, before?.exchange])
+            return
+        }
+        def d = http.delete(entityPath(Z))
+        Map after = findInSearch(Z)
+        if (after.item && opts.settleSeconds > 0) {
+            sleep(opts.settleSeconds * 1000L)
+            after = findInSearch(Z)
+        }
+        if (!after.searched) {
+            add('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?', "Cannot tell: the search after DELETE failed (${after.exchange?.status}).", 'inconclusive', null, [c, before.exchange, d, after.exchange])
+            return
+        }
+        contract.searchReflectsDelete = after.item == null
+        add('WS0.02', 'search.reflectsDelete', 'Does search stop returning an entity once it is deleted?',
+            after.item == null ? "Yes: after DELETE (${d.status}) a search no longer finds it." :
+                "No: after DELETE (${d.status}) a search still finds it${opts.settleSeconds > 0 ? " ${opts.settleSeconds}s later" : ''}. Either DELETE does nothing or search keeps deleted entities. GET fails (C1), so the probe cannot tell which; a search miss is not proof of deletion in this run.",
+            'observed', null, [c, before.exchange, d, after.exchange])
+    }
+
+    /** Read-only: entities left by earlier probe runs (any ID under the probe namespace but not this run's prefix). */
+    void checkLeftovers() {
+        String ns = ProbeOptions.NAMESPACE
+        List<Map> found = contract.idFilterField ?
+            enumerate([filter: [operation: 'STARTSWITH', left: contract.idFilterField, right: ns]], 200, opts.maxPages) :
+            enumerate([:], 200, opts.maxPages)
+        List<String> ids = found.collect { idOf(it) }.findAll { it?.startsWith(ns) && !it.startsWith(opts.prefix) }.unique().sort()
+        Map<String, Integer> byRun = ids.countBy { String id -> (id.substring(ns.length()) =~ /^(\d{8}-\d{6}|[^-]+)/).with { it.find() ? it.group(1) : '?' } }
+        contract.leftoverProbeEntities = ids.size()
+        add('WS0.15', 'probe.leftovers', 'Are entities from earlier probe runs still in the service?',
+            ids ? "Yes: ${ids.size()}, from run(s) ${byRun.collect { k, v -> "${k} ×${v}" }.join(', ')}. Remove them by hand; their IDs are in the detail." : 'None found.',
+            'observed', ids ? ids.take(60).join(', ') + (ids.size() > 60 ? ", and ${ids.size() - 60} more" : '') : null)
     }
 
     // ------------------------------------------------------------------ WS0.15 decision checks (writes)
@@ -807,7 +988,7 @@ class ContractProbe {
         Map gone = readBack(id)
         String via = g.success ? 'read back by GET' : "GET by the encoded ID returned ${g.status}, but a search finds it"
         String answer = back == id ?
-            (d.success && gone.found == false ? "Yes: created, ${via} unchanged, and deleted." : "Created and ${via}, but delete returned ${d.status} and removal was ${gone.found == null ? 'not confirmed' : (gone.found ? 'not effective' : 'confirmed')}.") :
+            (d.success && gone.found == false ? "Yes: created, ${via} unchanged, and deleted${gone.via == 'search' ? ' (no longer found by search)' : ''}." : "Created and ${via}, but delete returned ${d.status} and removal was ${gone.found == null ? 'not confirmed' : (gone.found ? "not visible: ${gone.via == 'search' ? 'search' : 'GET'} still finds it" : 'confirmed')}.") :
             (back ? "Created, but read back as a different ID (${scrubber.isProbeId(back) ? back : 'other'})." :
                 "Created, but neither GET by the encoded ID (${g.status}) nor a search finds it.")
         add('WS0.09', "ids.${label}", "Is an ID with ${label} accepted and addressable when percent-encoded?", answer,
@@ -859,9 +1040,10 @@ class ContractProbe {
     // ------------------------------------------------------------------ cleanup
 
     /**
-     * Deletes every probe ID, then confirms each is gone: a GET 404, or, while GET fails (C1), a search on the ID
-     * that answers and finds nothing. Since a DELETE of a missing entity also answers 200 (C3), only a read can
-     * confirm removal; anything else is reported as unconfirmed.
+     * Deletes every probe ID, then checks each is gone. A GET 404 proves it. While GET fails (C1), a search that
+     * finds nothing proves it only once {@code search.reflectsDelete} has shown that search drops deleted entities;
+     * otherwise the ID is listed as unconfirmed. An ID whose writes were all refused needs no proof, but if a search
+     * finds it anyway, that is reported too.
      */
     void cleanup() {
         http.currentCheck = 'cleanup'
@@ -869,10 +1051,15 @@ class ContractProbe {
             def d = http.delete(entityPath(id))
             if (!(d.success || d.status == 404)) cleanupProblems << "DELETE ${id} returned ${d.status}".toString()
         }
+        boolean searchProves = contract.searchReflectsDelete == true
         touched.each { id ->
             Map rb = readBack(id)
-            if (rb.found == true) cleanupProblems << "${id} still exists after cleanup".toString()
-            else if (rb.found == false) cleanupConfirmedBy[id] = rb.via == 'GET' ? 'GET 404' : 'search'
+            boolean wasWritten = id in written
+            if (rb.found == true) cleanupProblems << "${id} still ${rb.via == 'search' ? 'found by search' : 'exists'} after cleanup".toString()
+            else if (rb.found == false && rb.via == 'GET') cleanupConfirmedBy[id] = 'GET 404'
+            else if (!wasWritten) return
+            else if (rb.found == false && searchProves) cleanupConfirmedBy[id] = 'search'
+            else if (rb.found == false) cleanupUnconfirmed << id
             else cleanupProblems << "could not confirm ${id} is gone: GET returned ${rb.get.status == -1 ? 'no response' : rb.get.status} and no search was possible".toString()
         }
     }

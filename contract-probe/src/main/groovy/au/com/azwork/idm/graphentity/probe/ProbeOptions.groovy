@@ -8,6 +8,8 @@ import java.time.format.DateTimeFormatter
 @Canonical
 class ProbeOptions {
     static final String DEFAULT_API_KEY_HEADER = 'X-API-KEY'
+    /** Every probe ID starts with this; each run adds its own run ID after it. */
+    static final String NAMESPACE = 'ws0-probe-'
 
     String baseUrl
     /** Sent raw, as the value of {@link #apiKeyHeader}. */
@@ -27,7 +29,10 @@ class ProbeOptions {
     File outDir
     String runId = LocalDateTime.now().format(DateTimeFormatter.ofPattern('yyyyMMdd-HHmmss'))
 
-    String getPrefix() { "ws0-probe-${runId}-".toString() }
+    /** How long to wait before re-checking that search has dropped a deleted entity. */
+    int settleSeconds = 2
+
+    String getPrefix() { "${NAMESPACE}${runId}-".toString() }
 
     @Override
     String toString() {

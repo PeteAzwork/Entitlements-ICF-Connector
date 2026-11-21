@@ -123,6 +123,7 @@ Usage: contract-probe --base-url URL [--api-key KEY] [options]
         out.println("Report: ${new File(o.outDir, 'report.md').path}")
         def errors = probe.findings.findAll { it.confidence == 'error' }
         if (probe.cleanupProblems) err.println("Cleanup incomplete, see the report: ${probe.cleanupProblems.size()} problem(s)")
+        if (probe.cleanupUnconfirmed) err.println("Removal of ${probe.cleanupUnconfirmed.size()} probe entities could not be confirmed, see the report")
         errors.any { it.key in ['transport', 'auth.valid', 'search.path'] } ? 1 : 0
     }
 

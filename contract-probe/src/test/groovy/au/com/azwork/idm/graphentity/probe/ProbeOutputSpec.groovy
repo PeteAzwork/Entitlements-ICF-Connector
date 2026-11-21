@@ -84,7 +84,9 @@ class ProbeOutputSpec extends Specification {
         md.contains('| ID filter field | `ID` |')
         md.contains('| Manifest archetypes | Subject: Customer; Resource: Account, Card |')
         md.contains('| Search request | `POST /admin/entities/search` with a JSON body |')
-        md.contains('probe entity IDs were deleted and confirmed gone')
+        md.contains('probe entities that were written were deleted and confirmed gone')
+        md.contains('| Create body accepted | documented EntityDTO |')
+        md.contains('| Search drops deleted entities | yes |')
         !md.contains('Timestamp')
     }
 
@@ -120,6 +122,7 @@ class ProbeOutputSpec extends Specification {
         !json.contract.toString().contains('PII-')
         json.findings.every { it.confidence in Finding.CONFIDENCE }
         json.cleanupProblems == []
+        json.cleanupUnconfirmed == []
     }
 
     def "the WireMock mappings load and replay a recorded search"() {

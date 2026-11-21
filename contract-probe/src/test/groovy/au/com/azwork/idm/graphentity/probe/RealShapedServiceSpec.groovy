@@ -14,6 +14,11 @@ import spock.lang.TempDir
  * create without an ID with 500 (C4); existing entities carried archetypes in isArchetypes only. The first probe
  * leaked foreign data and reported answers built on failed reads as "observed". The realigned probe reads back by
  * search when GET fails, so it can still answer everything except relationship questions.
+ *
+ * <p>The second real run (20261121-173153) added two behaviours, modelled here with one possible explanation each:
+ * every documented-EntityDTO create got 500 while the design-shaped creates of the first run were accepted (here:
+ * the service needs {@code attributes.ID}, C8), and entities the first run deleted were still found by search
+ * (here: DELETE answers 200 and does nothing, C10).
  */
 class RealShapedServiceSpec extends Specification {
 
@@ -31,12 +36,13 @@ class RealShapedServiceSpec extends Specification {
 
         @Override
         HttpResponse delete(String id) {
-            entities.containsKey(id) ? super.delete(id) : new HttpResponse(status: 200)
+            requests << [op: 'DELETE', id: id]
+            new HttpResponse(status: 200)
         }
 
         @Override
         HttpResponse create(Map<String, Object> document) {
-            document.id == null ? new HttpResponse(status: 500) : super.create(document)
+            document.id == null || (document.attributes as Map)?.ID != document.id ? new HttpResponse(status: 500) : super.create(document)
         }
     }
 
@@ -50,13 +56,14 @@ class RealShapedServiceSpec extends Specification {
         service.seed([id: 'PII-CC-12345', baseType: 2, attributes: [Recipient: 'PII-Piet'], isArchetypes: ['CreditCardApplication']])
         service.seed([id: 'PII-Card-1', baseType: 2, attributes: [Type: 'Credit Card'], isArchetypes: ['Account']])
         service.seedEdge('PII-Cor', 'PII-Card-1', 'OWNS')
+        service.seed([id: 'ws0-probe-20261121-155100-seed-1', baseType: 2, attributes: [probe: 'ws0'], isArchetypes: ['Ws0Probe']])
         service.manifests << [name: 'PII-manifest-name-is-kept', subjectArchetypes: [[name: 'Customer', subjects: [[name: 'PII-Cor']], reconciliationPath: 'PII-path']],
                               resourceArchetypes: [[name: 'Account', resources: [[name: 'PII-Card-1']]], [name: 'CreditCardApplication']],
                               constraints: [[name: 'c', rules: 'PII-rule']]]
         def server = new FakeGraphHttpServer(service).start()
         try {
             probe = new ContractProbe(new ProbeOptions(baseUrl: server.baseUrl, apiKey: FakeGraphHttpServer.DEFAULT_API_KEY.toCharArray(),
-                runId: 'real', outDir: dir, allowWrites: true, timeoutSeconds: 5)).run()
+                runId: 'real', outDir: dir, allowWrites: true, timeoutSeconds: 5, settleSeconds: 0)).run()
             ProbeReport.write(probe, dir)
         } finally {
             server.close()
@@ -153,11 +160,26 @@ class RealShapedServiceSpec extends Specification {
         f(probe, 'errors.postWithoutId').answer.startsWith('500')
     }
 
-    def "cleanup confirms removal by search when GET fails, and the report says how"() {
+    def "the create shape the service accepts is found and adopted (C8)"() {
         expect:
-        probe.cleanupProblems == []
-        probe.cleanupConfirmedBy.values().every { it == 'search' }
-        new File(dir, 'report.md').text.contains('by a search on the ID finding nothing, because GET failed (C1)')
+        probe.contract.createShape == 'EntityDTO + attributes.ID'
+        f(probe, 'create.shape').detail.contains('1. documented EntityDTO → 500')
+    }
+
+    def "a DELETE that leaves the entity in search is reported, and cleanup lists what it could not remove"() {
+        expect:
+        f(probe, 'search.reflectsDelete').answer.startsWith('No')
+        probe.contract.searchReflectsDelete == false
+        probe.cleanupProblems
+        probe.cleanupProblems.every { it.contains('still found by search') }
+        new File(dir, 'report.md').text.contains('**Some probe entities may remain.**')
+        !new File(dir, 'report.md').text.contains('confirmed gone')
+    }
+
+    def "the first run's leftover entities are reported, and do not count as real entities"() {
+        expect:
+        f(probe, 'probe.leftovers').answer.startsWith('Yes: 1, from run(s) 20261121-155100 ×1')
+        f(probe, 'types.baseTypes').answer == 'Resource: 2, Subject: 1'
     }
 
     def "foreign entities are never written to"() {

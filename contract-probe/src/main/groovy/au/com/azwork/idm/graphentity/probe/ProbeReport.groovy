@@ -60,7 +60,8 @@ class ProbeReport {
         new File(dir, 'findings.json').text = JsonOutput.prettyPrint(JsonOutput.toJson([
             runId: probe.opts.runId, baseUrl: probe.opts.baseUrl, generatedAt: Instant.now().toString(),
             mode: probe.opts.allowWrites ? 'read-write' : 'read-only', exchanges: probe.http.exchanges.size(),
-            contract: probe.contract, findings: probe.findings, cleanupProblems: probe.cleanupProblems]))
+            contract: probe.contract, findings: probe.findings, cleanupProblems: probe.cleanupProblems,
+            cleanupUnconfirmed: probe.cleanupUnconfirmed]))
 
         new File(dir, 'report.md').text = markdown(probe)
     }
@@ -92,6 +93,9 @@ class ProbeReport {
         sb << "| Setting | Suggested value | Where it goes |\n|---|---|---|\n"
         def c = probe.contract
         sb << "| Search request | ${c.searchPath ? "`POST ${c.searchPath}` with a JSON body" : '—'} | `RestClientEntityApi.search` |\n"
+        sb << "| Create body accepted | ${c.createShape ?: '—'} | `EntityPayloadBuilder`, `EntityDocument.toWire` |\n"
+        sb << "| Relationship form accepted | ${c.relationshipForm ?: '—'} | `EdgeCodec` (P17) |\n"
+        sb << "| Search drops deleted entities | ${c.searchReflectsDelete == null ? '—' : (c.searchReflectsDelete ? 'yes' : '**no**')} | delete verification; WS10 orphan handling |\n"
         sb << "| Base-type numbering (objectClass) | ${c.baseTypeNumbering ?: '—'} | `EntityKind` (P18) |\n"
         sb << "| Base type of a created entity | ${c.baseTypeOnCreate ?: '—'} | `EntityKind` (P18); gates WS1.02 |\n"
         sb << "| GET by ID | ${c.getById ?: '—'} | `byIdLookup` default (P21) |\n"
@@ -101,15 +105,21 @@ class ProbeReport {
         sb << "| Response envelope | ${c.envelope ?: '—'}${c.totalKey ? ", total in `${c.totalKey}`" : ''} | `PageCursor.next`, `FakeGraphService.search` |\n"
         sb << "| `lastEvaluated` format | ${c.lastEvaluatedFormat ?: '—'} | `EntityDecoder` |\n"
         sb << "| Ambiguous archetypes | ${c.ambiguousArchetypes ? (c.ambiguousArchetypes as List).join(', ') : 'none seen'} | `TypeScoper` (P19) |\n"
+        sb << "| Leftover probe entities | ${c.leftoverProbeEntities == null ? '—' : c.leftoverProbeEntities} | remove by hand |\n"
         sb << "| Manifest archetypes | ${c.subjectArchetypes != null ? "Subject: ${(c.subjectArchetypes as List).join(', ') ?: 'none'}; Resource: ${(c.resourceArchetypes as List).join(', ') ?: 'none'}" : '—'} | `objectTypes` archetypes; Test operation (P22) |\n\n"
 
         sb << "## Cleanup\n\n"
         if (!o.allowWrites) sb << "Read-only run: nothing was created.\n\n"
-        else if (probe.cleanupProblems) sb << "**Some probe entities may remain.** Remove these by hand:\n\n" + probe.cleanupProblems.collect { "- ${it}" }.join('\n') + "\n\n"
         else {
+            int byGet = probe.cleanupConfirmedBy.values().count { it == 'GET 404' } as int
             int bySearch = probe.cleanupConfirmedBy.values().count { it == 'search' } as int
-            sb << "All ${probe.touched.size()} probe entity IDs were deleted and confirmed gone: ${probe.touched.size() - bySearch} by a GET returning 404" +
-                (bySearch ? ", ${bySearch} by a search on the ID finding nothing, because GET failed (C1)" : '') + ".\n\n"
+            int neverWritten = (probe.touched - probe.written).size()
+            if (probe.cleanupProblems) sb << "**Some probe entities may remain.** Remove these by hand:\n\n" + probe.cleanupProblems.collect { "- ${it}" }.join('\n') + "\n\n"
+            if (probe.cleanupUnconfirmed) sb << "**Removal not confirmed** for ${probe.cleanupUnconfirmed.size()} entities. DELETE answered 2xx and search no longer finds them, but GET fails (C1) and search has not been shown to drop deleted entities (`search.reflectsDelete`). Check them by hand:\n\n" +
+                probe.cleanupUnconfirmed.collect { "- ${it}" }.join('\n') + "\n\n"
+            if (!probe.cleanupProblems && !probe.cleanupUnconfirmed) sb << "All ${probe.written.size()} probe entities that were written were deleted and confirmed gone" +
+                (probe.written ? ": ${byGet} by a GET returning 404" + (bySearch ? ", ${bySearch} by a search on the ID finding nothing, after `search.reflectsDelete` showed search drops deleted entities" : '') : '') + '.'
+            sb << (neverWritten ? " ${neverWritten} other probe IDs were never accepted by the service, and no search finds them.\n\n" : '\n\n')
         }
 
         sb << "## Not answerable by the probe\n\n"
