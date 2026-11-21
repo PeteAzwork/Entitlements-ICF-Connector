@@ -89,7 +89,23 @@ function load(openidm, extraGlobals) {
     Object.assign(context, extraGlobals || {});
     vm.createContext(context);
     vm.runInContext(LIB, context, { filename: 'graphEntityPayload.js' });
-    return { lib: context.exports, logs };
+    return { lib: sameRealm(context.exports), logs };
+}
+
+/**
+ * Objects and arrays created inside the vm context have that context's prototypes, so node:assert's strict
+ * deepEqual reports them "not reference-equal" to the test's own literals. Rhino has no such split. Results are
+ * therefore handed back through JSON into the test's realm; errors and primitives pass through unchanged.
+ */
+function sameRealm(exports) {
+    const api = {};
+    for (const [key, value] of Object.entries(exports)) {
+        api[key] = typeof value !== 'function' ? value : (...args) => {
+            const result = value(...args);
+            return result !== null && typeof result === 'object' ? JSON.parse(JSON.stringify(result)) : result;
+        };
+    }
+    return api;
 }
 
 /** Appendix A store: Sanne owns Current-Account-1-Sanne (visible from both sides). */

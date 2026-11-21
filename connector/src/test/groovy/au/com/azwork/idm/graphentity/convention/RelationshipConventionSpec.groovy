@@ -320,4 +320,64 @@ class RelationshipConventionSpec extends Specification {
         e.message.contains('owns')
         e.message.contains('holds')
     }
+
+    // ---------------------------------------------------------------- shared with the mapping library (WS5.01)
+
+    /** The §7 cases the JavaScript library is tested against too, so the two implementations cannot drift. */
+    static Map sharedCases() {
+        new groovy.json.JsonSlurper().parse(new File('../fixtures/convention-cases.json')) as Map
+    }
+
+    @Unroll
+    def "shared case: normalise(#input) == #expected"() {
+        expect:
+        RelationshipConvention.normalise(input) == expected
+
+        where:
+        [input, expected] << sharedCases().normalise
+    }
+
+    @Unroll
+    def "shared case: normalise rejects #bad"() {
+        when:
+        RelationshipConvention.normalise(bad)
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        bad << sharedCases().normaliseRejects
+    }
+
+    @Unroll
+    def "shared case: isPassive(#name) == #expected"() {
+        expect:
+        RelationshipConvention.isPassive(name) == expected
+
+        where:
+        [name, expected] << sharedCases().passive
+    }
+
+    @Unroll
+    def "shared case: resolvePair(#c.property, #c.reverse) resolves to #c.remoteType"() {
+        expect:
+        RelationshipConvention.resolvePair(c.property, c.reverse) ==
+            new RelationshipConvention.PairResolution(resolved: true, remoteType: c.remoteType, outboundProperty: c.outbound, inboundProperty: c.inbound)
+
+        where:
+        c << sharedCases().pairsResolved
+    }
+
+    @Unroll
+    def "shared case: resolvePair(#c.property, #c.reverse) is unresolved: #c.why"() {
+        when:
+        def r = RelationshipConvention.resolvePair(c.property, c.reverse)
+
+        then:
+        !r.resolved
+        r.reason
+
+        where:
+        c << sharedCases().pairsUnresolved
+    }
 }
