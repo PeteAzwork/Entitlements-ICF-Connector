@@ -1,0 +1,36 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"id\":\"ws0-probe-20261121-211859-non-string\",\"baseType\":2,\"attributes\":{\"ID\":\"ws0-probe-20261121-211859-non-string\",\"probe\":\"ws0\",\"number\":42},\"relationships\":[],\"directArchetypes\":[]}"
+            }
+        ]
+    },
+    "response": {
+        "status": 400,
+        "headers": {
+            "Content-Type": "application/problem+json; charset=utf-8"
+        },
+        "jsonBody": {
+            "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+            "title": "One or more validation errors occurred.",
+            "status": 400,
+            "errors": {
+                "entity": [
+                    "The entity field is required."
+                ],
+                "$.attributes.number": [
+                    "The JSON value could not be converted to System.String. Path: $.attributes.number | LineNumber: 0 | BytePositionInLine: 141."
+                ]
+            },
+            "traceId": "00-f86bdd231659ba78f16dc07b232b12fc-6b63258b4b7f00ee-00"
+        }
+    },
+    "metadata": {
+        "probeExchange": 208,
+        "check": "WS0.05",
+        "runId": "20261121-211859"
+    }
+}

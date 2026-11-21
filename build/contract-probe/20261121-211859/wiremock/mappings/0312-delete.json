@@ -1,0 +1,14 @@
+{
+    "request": {
+        "method": "DELETE",
+        "urlPath": "/admin/entities/ws0-probe-20261121-211859-len-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "response": {
+        "status": 200
+    },
+    "metadata": {
+        "probeExchange": 312,
+        "check": "WS0.09",
+        "runId": "20261121-211859"
+    }
+}

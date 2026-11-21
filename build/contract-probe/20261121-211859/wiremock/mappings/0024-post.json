@@ -1,0 +1,105 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/admin/entities/search",
+        "bodyPatterns": [
+            {
+                "equalToJson": "{\"pageSize\":5}"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "jsonBody": {
+            "results": [
+                {
+                    "uid": "scrubbed-1",
+                    "name": "scrubbed-1",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>",
+                        "Recipient": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "CreditCardApplication"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:07Z"
+                },
+                {
+                    "uid": "scrubbed-2",
+                    "name": "scrubbed-2",
+                    "baseType": "Subject",
+                    "attributes": {
+                        "Name": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Customer"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:10Z"
+                },
+                {
+                    "uid": "scrubbed-3",
+                    "name": "scrubbed-3",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-4",
+                    "name": "scrubbed-4",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                },
+                {
+                    "uid": "scrubbed-5",
+                    "name": "scrubbed-5",
+                    "baseType": "Resource",
+                    "attributes": {
+                        "Type": "<scrubbed>"
+                    },
+                    "isArchetypes": [
+                        "Account"
+                    ],
+                    "directArchetypes": [
+                        
+                    ],
+                    "lastEvaluated": "2025-12-22T00:48:06Z"
+                }
+            ],
+            "pagedResultsCookie": "5",
+            "totalResults": 99,
+            "hasMore": true
+        }
+    },
+    "metadata": {
+        "probeExchange": 24,
+        "check": "WS0.03",
+        "runId": "20261121-211859"
+    }
+}
