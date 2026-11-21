@@ -34,9 +34,34 @@ sourceSets {
     }
 }
 
-// The connector library as a jar, without the operation scripts (WS7.02). IDM 7.5's Groovy fails to compile the
-// library from sources on the provisioner classpath the first time the customizer refers to it ("BUG! exception in
-// phase 'semantic analysis' … caused a failed compilation"), so the library is deployed compiled.
+// IDM 7.5 ships Groovy 3.0.9 and, when the library is deployed as scripts, compiles it with that version (see
+// script_vs_jar.md). The build compiles with groovyVersion; this task compiles the library and the scripts again
+// with IDM's own Groovy, so a construct 3.0.9 cannot compile fails the build rather than the connector in IDM.
+configurations {
+    idmGroovyCompile {
+        extendsFrom configurations.implementation, configurations.compileOnly
+        canBeConsumed = false
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.codehaus.groovy') details.useVersion(idmGroovyVersion)
+        }
+    }
+}
+tasks.register('compileWithIdmGroovy', GroovyCompile) {
+    group = 'verification'
+    description = "Compiles the library and scripts with IDM 7.5's Groovy (${idmGroovyVersion})"
+    source = sourceSets.main.groovy
+    classpath = configurations.idmGroovyCompile
+    groovyClasspath = configurations.idmGroovyCompile
+    destinationDirectory = layout.buildDirectory.dir('classes/idm-groovy')
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    // Groovy 3.0.9 cannot read newer class files, and IDM 7.5 runs on JDK 17: compile on a JDK 17, as IDM does.
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+}
+check.dependsOn 'compileWithIdmGroovy'
+
+// The connector library as a jar, without the operation scripts: the alternative to deploying it as Groovy sources
+// (script_vs_jar.md). Both work in IDM 7.5; scripts are the default.
 tasks.register('libraryJar', Jar) {
     group = 'distribution'
     description = 'Packages the compiled connector library, without the scripts, for the provisioner classpath'
@@ -46,14 +71,21 @@ tasks.register('libraryJar', Jar) {
     }
 }
 
-// Assemble the artefact that is copied into IDM's connector script directory.
+// Assemble what is copied into <idm>/connectors/graphentity. By default the library goes in as Groovy sources under
+// lib/, which the provisioner's classpath names (script_vs_jar.md); -PlibraryAs=jar puts lib/graphentity-connector-lib.jar
+// there instead, and the classpath must then name the jar file.
+def libraryAsJar = project.findProperty('libraryAs') == 'jar'
 tasks.register('connectorScripts', Sync) {   // Sync, not Copy: nothing stale is left behind
     group = 'distribution'
-    description = 'Copies the ICF operation scripts and provisioner sample into build/connector-scripts'
+    description = 'Copies the ICF operation scripts, the library (sources, or -PlibraryAs=jar) and the provisioner sample into build/connector-scripts'
     from('src/main/scripts') { into 'scripts' }
-    from(tasks.named('libraryJar')) {
-        into 'lib'
-        rename { 'graphentity-connector-lib.jar' }   // the name the provisioner's classpath names
+    if (libraryAsJar) {
+        from(tasks.named('libraryJar')) {
+            into 'lib'
+            rename { 'graphentity-connector-lib.jar' }
+        }
+    } else {
+        from('src/main/groovy') { into 'lib' }
     }
     from('../config') { include 'provisioner.openicf-graphentity.json' }
     into layout.buildDirectory.dir('connector-scripts')

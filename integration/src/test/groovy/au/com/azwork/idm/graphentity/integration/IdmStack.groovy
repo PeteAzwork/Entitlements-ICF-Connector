@@ -20,9 +20,9 @@ import java.nio.file.Files
  *
  * <p>Deployment, as an operator does it:
  * <ol>
- *   <li>copy the scripts to {@code connectors/graphentity/scripts}, the library jar to
- *       {@code connectors/graphentity/lib} and the mapping library to {@code script/lib}. The library is deployed
- *       compiled: IDM 7.5 fails to compile it from sources on the provisioner classpath the first time (WS7.02);</li>
+ *   <li>copy the scripts to {@code connectors/graphentity/scripts}, the library to {@code connectors/graphentity/lib}
+ *       (as Groovy sources by default, or as a jar with {@code -PidmLibrary=jar}; see script_vs_jar.md) and the mapping
+ *       library to {@code script/lib};</li>
  *   <li>generate {@code objectTypes} and mapping skeletons with the discovery tool from the fixture managed.json;</li>
  *   <li>load managed.json; POST the provisioner to {@code createFullConfig}, which adds the object types (IDM does not
  *       fill them in by itself), and save that once; then the mappings. Saving the provisioner before
@@ -39,6 +39,8 @@ class IdmStack {
     static final File ROOT = new File(System.getProperty('repo.root', '..'))
     static final File FIXTURES = new File(ROOT, 'integration/src/test/resources/idm')
     static final String IMAGE = System.getProperty('idm.image', 'gcr.io/forgerock-io/idm:7.5.0')
+    /** 'sources': the library as Groovy sources on the provisioner classpath; 'jar': as graphentity-connector-lib.jar. */
+    static final String LIBRARY = System.getProperty('idm.library', 'sources')
 
     final FakeGraphService service = new FakeGraphService()
     final FakeGraphHttpServer server = new FakeGraphHttpServer(service, API_KEY).start()
@@ -59,7 +61,9 @@ class IdmStack {
         sample.remove('_comment')
         sample.objectTypes = [:]
         sample.configurationProperties.serviceAddress = server.baseUrl
-        sample.configurationProperties.classpath = ['&{idm.instance.dir}/connectors/graphentity/lib/graphentity-connector-lib.jar']
+        sample.configurationProperties.classpath = [LIBRARY == 'jar'
+            ? '&{idm.instance.dir}/connectors/graphentity/lib/graphentity-connector-lib.jar'
+            : '&{idm.instance.dir}/connectors/graphentity/lib']
         sample.configurationProperties.password = API_KEY
         sample.configurationProperties.customConfiguration =
             DiscoveryTool.customConfiguration(sample, generated.objectTypes)
@@ -154,10 +158,14 @@ class IdmStack {
         File stage = Files.createTempDirectory('graphentity-idm').toFile()
         File connector = new File(stage, 'graphentity')
         copyTree(new File(ROOT, 'connector/src/main/scripts'), new File(connector, 'scripts'))
-        File jar = new File(System.getProperty('library.jar', ''))
-        if (!jar.isFile()) throw new IllegalStateException("The connector library jar is missing (${jar}); run through Gradle, which builds it")
-        new File(connector, 'lib').mkdirs()
-        new File(connector, 'lib/graphentity-connector-lib.jar').bytes = jar.bytes
+        if (LIBRARY == 'jar') {
+            File jar = new File(System.getProperty('library.jar', ''))
+            if (!jar.isFile()) throw new IllegalStateException("The connector library jar is missing (${jar}); run through Gradle, which builds it")
+            new File(connector, 'lib').mkdirs()
+            new File(connector, 'lib/graphentity-connector-lib.jar').bytes = jar.bytes
+        } else {
+            copyTree(new File(ROOT, 'connector/src/main/groovy'), new File(connector, 'lib'))
+        }
         File lib = new File(stage, 'lib')
         copyTree(new File(ROOT, 'mapping-lib/src/lib'), lib)
         dockerChecked('create', '--name', CONTAINER, '--network', 'host', '-e', 'JAVA_OPTS=-Xmx2g -Xms1g', IMAGE)

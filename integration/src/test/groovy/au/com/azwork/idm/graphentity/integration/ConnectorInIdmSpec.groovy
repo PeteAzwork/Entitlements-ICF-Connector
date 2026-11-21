@@ -36,7 +36,7 @@ class ConnectorInIdmSpec extends Specification {
         (types.account.properties as Map).keySet() == ['__NAME__', 'name', 'productCode', 'directArchetypes', 'entityRelationships', 'lastEvaluated'] as Set
     }
 
-    def "the library deployed as a jar on the provisioner classpath loads without compilation errors (WS7.02)"() {
+    def "the library on the provisioner classpath, as sources or as a jar, loads without compilation errors (WS7.02)"() {
         expect:
         idm.action('system/graphentity', 'test').ok == true
         !stack.log().contains('ClassNotFound')
