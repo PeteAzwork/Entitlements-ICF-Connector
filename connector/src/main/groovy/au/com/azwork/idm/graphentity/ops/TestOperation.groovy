@@ -1,10 +1,10 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
-import au.com.azwork.idm.graphentity.http.HttpErrorMapper
-import au.com.azwork.idm.graphentity.http.HttpResponse
-import au.com.azwork.idm.graphentity.http.OpContext
-import au.com.azwork.idm.graphentity.config.EntityKind
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpErrorMapper
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.OpContext
+import au.com.azwork.idm.entitlementsaccelerator.config.EntityKind
 /**
  * Test (design §9.5): an authenticated search (POST /admin/entities/search, P14) with page size 1, where any 2xx
  * is healthy; then the manifest check of decision P22, as amended 2026-11-21: every configured archetype should be

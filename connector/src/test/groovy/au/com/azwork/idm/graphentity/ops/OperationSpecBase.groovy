@@ -1,8 +1,8 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.support.CapturingLog
-import au.com.azwork.idm.graphentity.support.FakeGraphService
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.CapturingLog
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import spock.lang.Specification
 
 /** Common wiring for operation specs: a fake service with the documented semantics and a capturing log. */

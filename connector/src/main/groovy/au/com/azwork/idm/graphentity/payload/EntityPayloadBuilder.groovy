@@ -1,9 +1,9 @@
-package au.com.azwork.idm.graphentity.payload
+package au.com.azwork.idm.entitlementsaccelerator.payload
 
-import au.com.azwork.idm.graphentity.codec.EdgeCodec
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
-import au.com.azwork.idm.graphentity.model.Edge
-import au.com.azwork.idm.graphentity.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.codec.EdgeCodec
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.model.Edge
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException
 import org.identityconnectors.framework.common.objects.Attribute
 import org.identityconnectors.framework.common.objects.Name

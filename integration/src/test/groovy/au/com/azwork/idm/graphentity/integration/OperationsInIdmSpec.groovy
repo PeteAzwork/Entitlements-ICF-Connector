@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import groovy.json.JsonSlurper
 import spock.lang.Shared
 import spock.lang.Specification
@@ -34,10 +34,10 @@ class OperationsInIdmSpec extends Specification {
             assert ['Rename-2', 'Rename-Acct', 'Owns'] in service.edges
             assert !service.edges.any { it.contains('Rename-1') }
         }
-        idm.get('system/graphentity/user/Rename-2').__NAME__ == 'Rename-2'
+        idm.get('system/entitlementsaccelerator/user/Rename-2').__NAME__ == 'Rename-2'
 
         and: 'a reconciliation afterwards finds it CONFIRMED, not an orphan plus a missing entity'
-        Map recon = idm.recon('managedUser_systemGraphentityUser')
+        Map recon = idm.recon('managedUser_systementitlementsacceleratorUser')
         recon.statusSummary.FAILURE == 0
         (recon.situationSummary.MISSING ?: 0) == 0
         service.entities.containsKey('Rename-2')
@@ -49,17 +49,17 @@ class OperationsInIdmSpec extends Specification {
 
         when:
         names.each { String name ->
-            Map schedule = new JsonSlurper().parse(new File(IdmStack.ROOT, "config/schedule-recon-graphentity-${name}.json")) as Map
+            Map schedule = new JsonSlurper().parse(new File(IdmStack.ROOT, "config/schedule-recon-entitlementsaccelerator-${name}.json")) as Map
             schedule.remove('_comment')
-            idm.put("config/schedule/recon-graphentity-${name}", schedule)
+            idm.put("config/schedule/recon-entitlementsaccelerator-${name}", schedule)
         }
 
         then: 'the scheduler accepts both cron expressions and plans their next runs'
         poll.eventually {
-            assert names.every { String name -> idm.get("scheduler/job/recon-graphentity-${name}").nextRunDate }
+            assert names.every { String name -> idm.get("scheduler/job/recon-entitlementsaccelerator-${name}").nextRunDate }
         }
 
         cleanup:
-        names.each { String name -> try { idm.delete("config/schedule/recon-graphentity-${name}") } catch (ignored) { } }
+        names.each { String name -> try { idm.delete("config/schedule/recon-entitlementsaccelerator-${name}") } catch (ignored) { } }
     }
 }

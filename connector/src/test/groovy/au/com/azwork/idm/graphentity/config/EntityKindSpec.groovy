@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.config
+package au.com.azwork.idm.entitlementsaccelerator.config
 
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import spock.lang.Specification

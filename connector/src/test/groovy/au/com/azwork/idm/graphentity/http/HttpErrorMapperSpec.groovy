@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.http
+package au.com.azwork.idm.entitlementsaccelerator.http
 
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException
 import org.identityconnectors.framework.common.exceptions.ConnectorException
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException
@@ -11,7 +11,7 @@ import org.identityconnectors.framework.common.exceptions.UnknownUidException
 import spock.lang.Specification
 import spock.lang.Unroll
 
-import static au.com.azwork.idm.graphentity.http.OpContext.*
+import static au.com.azwork.idm.entitlementsaccelerator.http.OpContext.*
 
 /** Design §13 — HTTP outcome → ICF exception mapping table. */
 class HttpErrorMapperSpec extends Specification {

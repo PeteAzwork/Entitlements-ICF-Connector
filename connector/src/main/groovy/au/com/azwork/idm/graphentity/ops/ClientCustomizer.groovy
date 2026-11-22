@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
 import groovyx.net.http.RESTClient
 import org.apache.http.HttpHost
 import org.apache.http.HttpRequest

@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.search
+package au.com.azwork.idm.entitlementsaccelerator.search
 
-import au.com.azwork.idm.graphentity.model.EntityDocument
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import spock.lang.Specification
 import spock.lang.Unroll
 

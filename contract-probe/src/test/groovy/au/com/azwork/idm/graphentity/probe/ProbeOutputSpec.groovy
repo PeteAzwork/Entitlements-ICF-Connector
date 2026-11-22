@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.probe
+package au.com.azwork.idm.entitlementsaccelerator.probe
 
-import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphHttpServer
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import groovy.json.JsonSlurper

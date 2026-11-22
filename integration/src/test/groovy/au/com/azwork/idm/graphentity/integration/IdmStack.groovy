@@ -1,13 +1,13 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.discovery.DiscoveryTool
-import au.com.azwork.idm.graphentity.discovery.GenerationResult
-import au.com.azwork.idm.graphentity.discovery.GeneratorOptions
-import au.com.azwork.idm.graphentity.discovery.ManagedSchemaReader
-import au.com.azwork.idm.graphentity.discovery.MappingSkeletonGenerator
-import au.com.azwork.idm.graphentity.discovery.ObjectTypesGenerator
-import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.discovery.DiscoveryTool
+import au.com.azwork.idm.entitlementsaccelerator.discovery.GenerationResult
+import au.com.azwork.idm.entitlementsaccelerator.discovery.GeneratorOptions
+import au.com.azwork.idm.entitlementsaccelerator.discovery.ManagedSchemaReader
+import au.com.azwork.idm.entitlementsaccelerator.discovery.MappingSkeletonGenerator
+import au.com.azwork.idm.entitlementsaccelerator.discovery.ObjectTypesGenerator
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphHttpServer
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 
@@ -23,7 +23,7 @@ import java.time.format.DateTimeFormatter
  *
  * <p>Deployment, as an operator does it:
  * <ol>
- *   <li>copy the scripts to {@code connectors/graphentity/scripts}, the library to {@code connectors/graphentity/lib}
+ *   <li>copy the scripts to {@code connectors/entitlementsaccelerator/scripts}, the library to {@code connectors/entitlementsaccelerator/lib}
  *       (as Groovy sources by default, or as a jar with {@code -PidmLibrary=jar}; see script_vs_jar.md) and the mapping
  *       library to {@code script/lib};</li>
  *   <li>generate {@code objectTypes} and mapping skeletons with the discovery tool from the fixture managed.json;</li>
@@ -37,12 +37,12 @@ import java.time.format.DateTimeFormatter
 @Singleton(lazy = true, strict = false)
 class IdmStack {
 
-    static final String CONTAINER = 'graphentity-idm-it'
+    static final String CONTAINER = 'entitlementsaccelerator-idm-it'
     static final String API_KEY = 'it-test-key'
     static final File ROOT = new File(System.getProperty('repo.root', '..'))
     static final File FIXTURES = new File(ROOT, 'integration/src/test/resources/idm')
     static final String IMAGE = System.getProperty('idm.image', 'gcr.io/forgerock-io/idm:7.5.0')
-    /** 'sources': the library as Groovy sources on the provisioner classpath; 'jar': as graphentity-connector-lib.jar. */
+    /** 'sources': the library as Groovy sources on the provisioner classpath; 'jar': as entitlementsaccelerator-connector-lib.jar. */
     static final String LIBRARY = System.getProperty('idm.library', 'sources')
 
     final FakeGraphService service = new FakeGraphService()
@@ -62,13 +62,13 @@ class IdmStack {
         if (!generated.valid) throw new IllegalStateException("Discovery failed on the fixture: ${generated.errors}")
         mappings = generated.objectTypes.collect { type, block -> MappingSkeletonGenerator.mapping(type as String, block as Map, answers) }
 
-        Map sample = new JsonSlurper().parse(new File(ROOT, 'config/provisioner.openicf-graphentity.json')) as Map
+        Map sample = new JsonSlurper().parse(new File(ROOT, 'config/provisioner.openicf-entitlementsaccelerator.json')) as Map
         sample.remove('_comment')
         sample.objectTypes = [:]
         sample.configurationProperties.serviceAddress = server.baseUrl
         sample.configurationProperties.classpath = [LIBRARY == 'jar'
-            ? '&{idm.instance.dir}/connectors/graphentity/lib/graphentity-connector-lib.jar'
-            : '&{idm.instance.dir}/connectors/graphentity/lib']
+            ? '&{idm.instance.dir}/connectors/entitlementsaccelerator/lib/entitlementsaccelerator-connector-lib.jar'
+            : '&{idm.instance.dir}/connectors/entitlementsaccelerator/lib']
         sample.configurationProperties.password = API_KEY
         sample.configurationProperties.customConfiguration =
             DiscoveryTool.customConfiguration(sample, generated.objectTypes)
@@ -112,11 +112,11 @@ class IdmStack {
             awaitProvisionerSettled()
             String marker = "it-save-${System.nanoTime()}".toString()
             Instant sent = Instant.now()
-            idm.put('config/provisioner.openicf/graphentity', config + [_itSave: marker])
+            idm.put('config/provisioner.openicf/entitlementsaccelerator', config + [_itSave: marker])
             idm.awaitTrue(180, 'the provisioner save to be applied') {
                 provisionerEvents(sent.minusSeconds(1)).any { it[1] == 'activated' } && provisionerSettled(sent)
             }
-            if (idm.get('config/provisioner.openicf/graphentity')._itSave == marker) return
+            if (idm.get('config/provisioner.openicf/entitlementsaccelerator')._itSave == marker) return
             System.err.println("IdmStack: IDM discarded provisioner save ${attempt} (H21); saving again")
         }
         throw new IllegalStateException('IDM discarded the provisioner save three times (H21)')
@@ -150,9 +150,9 @@ class IdmStack {
             def m = line =~ /^\[\d+\] (\w{3} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2}\.\d{3} [AP]M) /
             if (m.find()) { stamp = Instant.from(IDM_LOG_TIME.parse(m.group(1))); return }
             if (stamp == null || stamp < since) return
-            if (line.contains('component graphentity is activated')) events << [stamp, 'activated']
-            else if (line.contains('component graphentity is deactivated')) events << [stamp, 'deactivated']
-            else if (line =~ /Updating configuration file: .*provisioner\.openicf-graphentity/) events << [stamp, 'updated']
+            if (line.contains('component entitlementsaccelerator is activated')) events << [stamp, 'activated']
+            else if (line.contains('component entitlementsaccelerator is deactivated')) events << [stamp, 'deactivated']
+            else if (line =~ /Updating configuration file: .*provisioner\.openicf-entitlementsaccelerator/) events << [stamp, 'updated']
         }
         events
     }
@@ -200,7 +200,7 @@ class IdmStack {
         int passes = 0
         idm.awaitTrue(60, 'the connector to pass its Test steadily') {
             boolean ok = false
-            try { ok = idm.action('system/graphentity', 'test').ok == true } catch (Exception ignored) { }
+            try { ok = idm.action('system/entitlementsaccelerator', 'test').ok == true } catch (Exception ignored) { }
             passes = ok ? passes + 1 : 0
             if (passes < 3) { Thread.sleep(1000); return false }
             true
@@ -212,14 +212,14 @@ class IdmStack {
 
     private void startContainer() {
         docker('rm', '-f', CONTAINER)
-        File stage = Files.createTempDirectory('graphentity-idm').toFile()
-        File connector = new File(stage, 'graphentity')
+        File stage = Files.createTempDirectory('entitlementsaccelerator-idm').toFile()
+        File connector = new File(stage, 'entitlementsaccelerator')
         copyTree(new File(ROOT, 'connector/src/main/scripts'), new File(connector, 'scripts'))
         if (LIBRARY == 'jar') {
             File jar = new File(System.getProperty('library.jar', ''))
             if (!jar.isFile()) throw new IllegalStateException("The connector library jar is missing (${jar}); run through Gradle, which builds it")
             new File(connector, 'lib').mkdirs()
-            new File(connector, 'lib/graphentity-connector-lib.jar').bytes = jar.bytes
+            new File(connector, 'lib/entitlementsaccelerator-connector-lib.jar').bytes = jar.bytes
         } else {
             copyTree(new File(ROOT, 'connector/src/main/groovy'), new File(connector, 'lib'))
         }
@@ -231,7 +231,7 @@ class IdmStack {
         if (cpus) create += ['--cpus', cpus]
         dockerChecked(*(create + [IMAGE]))
         pki.trustIn(CONTAINER)   // the private CA the TLS specs' service certificates are signed by (guide §5)
-        dockerChecked('cp', connector.path, "${CONTAINER}:/opt/openidm/connectors/graphentity")
+        dockerChecked('cp', connector.path, "${CONTAINER}:/opt/openidm/connectors/entitlementsaccelerator")
         dockerChecked('cp', lib.path + '/.', "${CONTAINER}:/opt/openidm/script/lib/")
         dockerChecked('start', CONTAINER)
         stage.deleteDir()

@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
@@ -17,11 +17,11 @@ import java.security.KeyStore
  */
 class TestPki {
     static final String PASS = 'changeit'
-    final File dir = Files.createTempDirectory('graphentity-pki').toFile()
+    final File dir = Files.createTempDirectory('entitlementsaccelerator-pki').toFile()
     final File caPem = new File(dir, 'ca.pem')
 
     TestPki() {
-        keytool('-genkeypair', '-alias', 'ca', '-keyalg', 'RSA', '-keysize', '2048', '-dname', 'CN=graphentity IT test CA',
+        keytool('-genkeypair', '-alias', 'ca', '-keyalg', 'RSA', '-keysize', '2048', '-dname', 'CN=entitlementsaccelerator IT test CA',
                 '-ext', 'bc:c', '-validity', '3', '-keystore', file('ca.p12'), '-storetype', 'PKCS12', '-storepass', PASS)
         keytool('-exportcert', '-alias', 'ca', '-keystore', file('ca.p12'), '-storepass', PASS, '-rfc', '-file', caPem.path)
         issue('trusted', 'dns:localhost,ip:127.0.0.1')
@@ -49,7 +49,7 @@ class TestPki {
     void trustIn(String container) {
         File ts = new File(dir, 'truststore')
         IdmStack.dockerChecked('cp', "${container}:/opt/openidm/security/truststore", ts.path)
-        keytool('-importcert', '-noprompt', '-alias', 'graphentity-service-ca', '-file', caPem.path,
+        keytool('-importcert', '-noprompt', '-alias', 'entitlementsaccelerator-service-ca', '-file', caPem.path,
                 '-keystore', ts.path, '-storepass', PASS)
         // Back as IDM's user (uid 11111, group 0) with mode 600, as the image has it: a root-owned trust store is
         // unreadable to IDM, which then fails to start (deployment guide §5). docker cp from a tar stream keeps them.
@@ -62,7 +62,7 @@ class TestPki {
 
     private void issue(String name, String san) {
         String ks = file("${name}.p12")
-        keytool('-genkeypair', '-alias', 'server', '-keyalg', 'RSA', '-keysize', '2048', '-dname', 'CN=graphentity-service',
+        keytool('-genkeypair', '-alias', 'server', '-keyalg', 'RSA', '-keysize', '2048', '-dname', 'CN=entitlementsaccelerator-service',
                 '-validity', '3', '-keystore', ks, '-storetype', 'PKCS12', '-storepass', PASS)
         keytool('-certreq', '-alias', 'server', '-keystore', ks, '-storepass', PASS, '-file', file("${name}.csr"))
         keytool('-gencert', '-alias', 'ca', '-keystore', file('ca.p12'), '-storepass', PASS, '-infile', file("${name}.csr"),

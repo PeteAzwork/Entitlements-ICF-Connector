@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 /**
  * Generates a {@code sync.json} mapping entry per type (design §12): managed/<type> → system/<connector>/<type>,
@@ -13,8 +13,8 @@ package au.com.azwork.idm.graphentity.discovery
  */
 class MappingSkeletonGenerator {
 
-    static final String LIBRARY_PATH = 'lib/graphEntityPayload.js'
-    static final String LIBRARY_MODULE = 'lib/graphEntityPayload'
+    static final String LIBRARY_PATH = 'lib/entitlementsacceleratorPayload.js'
+    static final String LIBRARY_MODULE = 'lib/entitlementsacceleratorPayload'
     /**
      * Reconciliation threads per mapping: IDM's default is 10. 4 is the setting WS8.10 showed converging under
      * concurrent implicit sync; raise it only after measuring (WS8.11, runbook §4).
@@ -46,7 +46,7 @@ class MappingSkeletonGenerator {
      *        the non-production dry run of runbook §8 (WS9.06). Implicit sync is off in that mode too.
      */
     static Map mapping(String typeName, Map objectType, GeneratorOptions options, boolean reportOnly = false) {
-        String connector = options?.connectorName ?: 'graphentity'
+        String connector = options?.connectorName ?: 'entitlementsaccelerator'
         String idProperty = objectType.idProperty as String
         List properties = []
         properties << [source: idProperty, target: '__NAME__']

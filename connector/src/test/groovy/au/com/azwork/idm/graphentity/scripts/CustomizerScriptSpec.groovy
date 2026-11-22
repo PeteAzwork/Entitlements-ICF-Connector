@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.scripts
+package au.com.azwork.idm.entitlementsaccelerator.scripts
 
-import au.com.azwork.idm.graphentity.support.Fixtures
-import au.com.azwork.idm.graphentity.support.ScriptHarness
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.ScriptHarness
 import org.apache.http.HttpHost
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.impl.client.HttpClientBuilder
@@ -114,7 +114,7 @@ class CustomizerScriptSpec extends Specification {
 
         when:
         def client = captured.decorate(builder.build())
-        def status = new au.com.azwork.idm.graphentity.http.RestClientEntityApi(client).get('x').status
+        def status = new au.com.azwork.idm.entitlementsaccelerator.http.RestClientEntityApi(client).get('x').status
 
         then:
         client instanceof groovyx.net.http.RESTClient

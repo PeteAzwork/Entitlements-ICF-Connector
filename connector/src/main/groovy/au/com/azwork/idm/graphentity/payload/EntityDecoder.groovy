@@ -1,8 +1,8 @@
-package au.com.azwork.idm.graphentity.payload
+package au.com.azwork.idm.entitlementsaccelerator.payload
 
-import au.com.azwork.idm.graphentity.codec.EdgeCodec
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
-import au.com.azwork.idm.graphentity.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.codec.EdgeCodec
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
 import org.identityconnectors.framework.common.objects.AttributeBuilder
 import org.identityconnectors.framework.common.objects.ConnectorObject
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder

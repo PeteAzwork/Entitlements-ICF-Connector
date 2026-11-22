@@ -9,7 +9,7 @@
   "invokeService": "sync",
   "invokeContext": {
     "action": "reconcile",
-    "mapping": "managedAccount_systemGraphentityAccount"
+    "mapping": "managedAccount_systementitlementsacceleratorAccount"
   },
   "invokeLogLevel": "info"
 }

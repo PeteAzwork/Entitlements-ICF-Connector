@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 import groovy.transform.Canonical
 
@@ -16,5 +16,5 @@ class GeneratorOptions {
     /** type → property → explicit override map (remoteType/direction/sync). */
     Map<String, Map<String, Map>> relationshipOverrides = [:]
     /** Connector name used in system/<connector>/<type>. */
-    String connectorName = 'graphentity'
+    String connectorName = 'entitlementsaccelerator'
 }

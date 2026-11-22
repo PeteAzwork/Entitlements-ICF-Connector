@@ -1,8 +1,8 @@
 {
   "_comment": "Mapping skeleton as the discovery tool (design §12) generates it for managed/user. Orphans (target entities with no link: UNQUALIFIED, UNASSIGNED, TARGET_IGNORED) are REPORTed until correlation confidence is earned (§11, P16). A managed object deleted in IDM raises SOURCE_MISSING, which DELETEs the linked entity; a linked entity that has gone from the service raises MISSING, which re-CREATEs it (both confirmed in IDM 7.5, WS8.06). entityRelationships and directArchetypes are recomputed on EVERY update (§8.4): never add a condition to those two property mappings, and keep \"source\": \"\" on them, or IDM hands the transform an undefined source.",
-  "name": "managedUser_systemGraphentityUser",
+  "name": "managedUser_systementitlementsacceleratorUser",
   "source": "managed/user",
-  "target": "system/graphentity/user",
+  "target": "system/entitlementsaccelerator/user",
   "enableSync": true,
   "taskThreads": 4,
   "correlationQuery": {
@@ -31,7 +31,7 @@
       "target": "directArchetypes",
       "transform": {
         "type": "text/javascript",
-        "source": "var lib = require('lib/graphEntityPayload'); lib.buildArchetypes(source, lib.loadTypeConfig('user'));"
+        "source": "var lib = require('lib/entitlementsacceleratorPayload'); lib.buildArchetypes(source, lib.loadTypeConfig('user'));"
       }
     },
     {
@@ -39,7 +39,7 @@
       "target": "entityRelationships",
       "transform": {
         "type": "text/javascript",
-        "source": "var lib = require('lib/graphEntityPayload'); lib.buildRelationships(source._id, lib.loadTypeConfig('user'));"
+        "source": "var lib = require('lib/entitlementsacceleratorPayload'); lib.buildRelationships(source._id, lib.loadTypeConfig('user'));"
       }
     }
   ],

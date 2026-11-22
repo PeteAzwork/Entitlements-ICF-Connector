@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException
 import org.identityconnectors.framework.common.exceptions.UnknownUidException

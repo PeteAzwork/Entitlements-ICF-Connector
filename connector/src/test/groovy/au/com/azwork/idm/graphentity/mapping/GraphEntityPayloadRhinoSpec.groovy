@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.mapping
+package au.com.azwork.idm.entitlementsaccelerator.mapping
 
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.mozilla.javascript.Context
@@ -10,15 +10,15 @@ import spock.lang.Specification
 import spock.lang.Unroll
 
 /**
- * WS5.07 — the mapping library (mapping-lib/src/lib/graphEntityPayload.js) evaluated under Mozilla Rhino, the engine
+ * WS5.07 — the mapping library (mapping-lib/src/lib/entitlementsacceleratorPayload.js) evaluated under Mozilla Rhino, the engine
  * IDM runs mapping scripts on, in ES5 mode (language version 1.8), with a fake {@code openidm} and {@code logger}
  * written in JavaScript. The Node suite (`npm test`) is the full specification; this smoke test proves the same
  * source parses and runs on Rhino, and that its §7 answers match the connector's (RelationshipConvention).
  * WS8.08 repeats it inside a real IDM, whose openidm.read returns wrapped Java collections.
  */
-class GraphEntityPayloadRhinoSpec extends Specification {
+class entitlementsacceleratorPayloadRhinoSpec extends Specification {
 
-    static final File LIBRARY = new File('../mapping-lib/src/lib/graphEntityPayload.js')
+    static final File LIBRARY = new File('../mapping-lib/src/lib/entitlementsacceleratorPayload.js')
 
     /** The fake IDM: the Appendix A store and the provisioner configuration, as plain JavaScript objects. */
     static String prelude() {
@@ -39,7 +39,7 @@ class GraphEntityPayloadRhinoSpec extends Specification {
         var openidm = {
             read: function (id, params, fields) {
                 reads.push(id);
-                if (id === 'config/provisioner.openicf/graphentity') {
+                if (id === 'config/provisioner.openicf/entitlementsaccelerator') {
                     return { configurationProperties: { customConfiguration: ${JsonOutput.toJson(customConfiguration)} } };
                 }
                 if (id === 'config/managed') { return { objects: [] }; }
@@ -58,7 +58,7 @@ class GraphEntityPayloadRhinoSpec extends Specification {
             cx.optimizationLevel = -1   // interpreted, as script engines commonly run small scripts
             Scriptable scope = cx.initStandardObjects()
             cx.evaluateString(scope, prelude(), 'prelude.js', 1, null)
-            cx.evaluateString(scope, LIBRARY.getText('UTF-8'), 'graphEntityPayload.js', 1, null)
+            cx.evaluateString(scope, LIBRARY.getText('UTF-8'), 'entitlementsacceleratorPayload.js', 1, null)
             Object result = cx.evaluateString(scope, "JSON.stringify(${expression})", 'smoke.js', 1, null)
             new JsonSlurper().parseText(Context.toString(result))
         } finally {
@@ -97,7 +97,7 @@ class GraphEntityPayloadRhinoSpec extends Specification {
     def "under Rhino the §7 convention answers as the connector does: resolvePair('#p', '#q')"() {
         given:
         def js = run("exports.resolvePair('${p}', '${q}')")
-        def groovy = au.com.azwork.idm.graphentity.convention.RelationshipConvention.resolvePair(p, q)
+        def groovy = au.com.azwork.idm.entitlementsaccelerator.convention.RelationshipConvention.resolvePair(p, q)
 
         expect:
         js.resolved == groovy.resolved

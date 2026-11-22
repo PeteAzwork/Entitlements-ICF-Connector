@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 import groovy.json.JsonSlurper
 import spock.lang.Shared

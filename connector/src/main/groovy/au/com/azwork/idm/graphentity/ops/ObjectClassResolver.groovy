@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
 import org.identityconnectors.framework.common.exceptions.ConnectorException
 import org.identityconnectors.framework.common.objects.ObjectClass
 

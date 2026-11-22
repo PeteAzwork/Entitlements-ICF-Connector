@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.http
+package au.com.azwork.idm.entitlementsaccelerator.http
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
 import groovy.json.JsonOutput
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException
 import org.identityconnectors.framework.common.exceptions.ConnectorException

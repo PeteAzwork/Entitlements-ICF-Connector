@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException
@@ -135,7 +135,7 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
 
     def "transport failure → ConnectorIOException"() {
         given:
-        def failing = new OperationContext(Fixtures.connectorConfig(), Mock(au.com.azwork.idm.graphentity.http.EntityApi) {
+        def failing = new OperationContext(Fixtures.connectorConfig(), Mock(au.com.azwork.idm.entitlementsaccelerator.http.EntityApi) {
             search(_) >> { throw new IOException('refused') }
         }, log.asLog())
 
@@ -154,7 +154,7 @@ class TestAndSchemaOperationSpec extends OperationSpecBase {
     def "schema operation refuses an inconsistent relationship configuration"() {
         given:
         def c = ctx()
-        c.config.objectTypes.user.relationships.owns.direction = au.com.azwork.idm.graphentity.config.Direction.INBOUND
+        c.config.objectTypes.user.relationships.owns.direction = au.com.azwork.idm.entitlementsaccelerator.config.Direction.INBOUND
 
         when:
         new SchemaOperation(c).execute(org.identityconnectors.framework.spi.Connector)

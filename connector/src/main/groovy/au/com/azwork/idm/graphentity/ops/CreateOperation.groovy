@@ -1,14 +1,14 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
-import au.com.azwork.idm.graphentity.http.HttpErrorMapper
-import au.com.azwork.idm.graphentity.http.HttpResponse
-import au.com.azwork.idm.graphentity.http.OpContext
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
-import au.com.azwork.idm.graphentity.model.Edge
-import au.com.azwork.idm.graphentity.model.EntityDocument
-import au.com.azwork.idm.graphentity.payload.EdgeVerifier
-import au.com.azwork.idm.graphentity.payload.EntityPayloadBuilder
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpErrorMapper
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.OpContext
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.model.Edge
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.payload.EdgeVerifier
+import au.com.azwork.idm.entitlementsaccelerator.payload.EntityPayloadBuilder
 import org.identityconnectors.framework.common.objects.Attribute
 import org.identityconnectors.framework.common.objects.ObjectClass
 import org.identityconnectors.framework.common.objects.OperationOptions

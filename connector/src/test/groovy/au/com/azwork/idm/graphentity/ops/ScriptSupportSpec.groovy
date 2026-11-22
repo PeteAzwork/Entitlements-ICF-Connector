@@ -1,9 +1,9 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.http.RestClientEntityApi
-import au.com.azwork.idm.graphentity.support.CapturingLog
-import au.com.azwork.idm.graphentity.support.Fixtures
-import au.com.azwork.idm.graphentity.support.ScriptHarness
+import au.com.azwork.idm.entitlementsaccelerator.http.RestClientEntityApi
+import au.com.azwork.idm.entitlementsaccelerator.support.CapturingLog
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.ScriptHarness
 import org.identityconnectors.common.security.GuardedString
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import spock.lang.Specification

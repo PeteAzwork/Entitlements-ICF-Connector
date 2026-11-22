@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.codec
+package au.com.azwork.idm.entitlementsaccelerator.codec
 
-import au.com.azwork.idm.graphentity.model.Edge
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.model.Edge
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException
 import spock.lang.Specification
 import spock.lang.Unroll

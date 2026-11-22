@@ -1,9 +1,9 @@
-description = 'WS0 contract probe: observes the graph entity service API and records the evidence for docs/service-contract.md'
+description = 'WS0 contract probe: observes the Entitlements Accelerator service API and records the evidence for docs/service-contract.md'
 
 apply plugin: 'application'
 
 application {
-    mainClass = 'au.com.azwork.idm.graphentity.probe.ProbeMain'
+    mainClass = 'au.com.azwork.idm.entitlementsaccelerator.probe.ProbeMain'
 }
 
 dependencies {

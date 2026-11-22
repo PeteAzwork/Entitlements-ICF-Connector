@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 /**
  * The code-review check design §8.4 and §15 ask for (WS6.9): every mapping that targets the connector must map
@@ -13,7 +13,7 @@ class MappingLint {
     static final List<String> REQUIRED = ['entityRelationships', 'directArchetypes']
 
     /** Violations, one line each, naming the mapping and the property; empty when the document passes. */
-    static List<String> check(Map document, String connectorName = 'graphentity') {
+    static List<String> check(Map document, String connectorName = 'entitlementsaccelerator') {
         List<Map> mappings = document?.mappings instanceof List ? document.mappings as List<Map> : (document?.target ? [document] : [])
         String prefix = "system/${connectorName}/"
         List<String> violations = []

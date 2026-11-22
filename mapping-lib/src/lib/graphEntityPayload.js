@@ -1,8 +1,8 @@
 /*
- * graphEntityPayload.js — shared payload assembly library for IDM mappings (design §8.2).
+ * entitlementsacceleratorPayload.js — shared payload assembly library for IDM mappings (design §8.2).
  *
- * Deployed to <idm>/script/lib/graphEntityPayload.js and loaded from mapping property transformations with
- *   var lib = require("lib/graphEntityPayload");
+ * Deployed to <idm>/script/lib/entitlementsacceleratorPayload.js and loaded from mapping property transformations with
+ *   var lib = require("lib/entitlementsacceleratorPayload");
  *
  * Runs inside IDM's Rhino engine: ES5 only (no let/const/arrow functions/template literals), and the only
  * globals available are `openidm`, `logger` and what the mapping passes in.
@@ -22,7 +22,7 @@
 (function (exports) {
     'use strict';
 
-    var CONFIG_PATH = 'config/provisioner.openicf/graphentity';
+    var CONFIG_PATH = 'config/provisioner.openicf/entitlementsaccelerator';
     var MANAGED_PATH = 'config/managed';
     /** How long the provisioner and managed configuration are cached, unless options.ttlMs says otherwise. */
     var DEFAULT_TTL_MS = 5 * 60 * 1000;
@@ -35,7 +35,7 @@
 
     function log(level, message) {
         if (typeof logger !== 'undefined' && logger && typeof logger[level] === 'function') {
-            logger[level]('graphEntityPayload: ' + message);
+            logger[level]('entitlementsacceleratorPayload: ' + message);
         }
     }
 
@@ -458,14 +458,14 @@
 
     /**
      * Guards a change of the type's idProperty, for a managed object's onUpdate hook:
-     *   require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'user');
+     *   require('lib/entitlementsacceleratorPayload').onIdPropertyChange(newObject, oldObject, 'user');
      *
      * The remote ID is the idProperty and cannot change (design A3): the connector refuses an update whose __NAME__
      * differs from the entity's ID. So when the idProperty changes, this deletes the entity under its old ID in the
      * service and removes IDM's links for the mappings that target it; implicit sync then finds no target and creates
      * the entity under its new ID, with its relationships. A failure to delete propagates, so the rename fails rather
      * than leaving the service out of step; an entity already gone is fine.
-     * @param options.connector the connector name (default 'graphentity')
+     * @param options.connector the connector name (default 'entitlementsaccelerator')
      * @returns true when the idProperty changed and the old entity was handled
      */
     exports.onIdPropertyChange = function (newObject, oldObject, typeName, options) {
@@ -479,7 +479,7 @@
         if (oldId === null || oldId === undefined || String(oldId) === '' || String(oldId) === String(newId)) {
             return false;
         }
-        var connector = (options && options.connector) || 'graphentity';
+        var connector = (options && options.connector) || 'entitlementsaccelerator';
         var target = 'system/' + connector + '/' + typeName;
 
         try {
@@ -520,4 +520,4 @@
     }
 
     exports.CONFIG_PATH = CONFIG_PATH;
-})(typeof exports !== 'undefined' ? exports : (this.graphEntityPayload = {}));
+})(typeof exports !== 'undefined' ? exports : (this.entitlementsacceleratorPayload = {}));

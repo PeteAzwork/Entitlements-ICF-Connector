@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import spock.lang.Specification
@@ -92,14 +92,14 @@ class DiscoveryToolSpec extends Specification {
 
     def "with --current, a complete provisioner is written: its customConfiguration replaced, objectTypes left to createFullConfig (WS7.03)"() {
         given:
-        File current = new File('../config/provisioner.openicf-graphentity.json')
+        File current = new File('../config/provisioner.openicf-entitlementsaccelerator.json')
 
         when:
         int code = run(['--managed', MANAGED, '--types', 'user,account', '--answers', answers().path, '--current', current.path, '--out', outDir().path])
 
         then:
         code == DiscoveryTool.OK
-        def written = new JsonSlurper().parse(new File(outDir(), 'provisioner.openicf-graphentity.json')) as Map
+        def written = new JsonSlurper().parse(new File(outDir(), 'provisioner.openicf-entitlementsaccelerator.json')) as Map
         def original = new JsonSlurper().parse(current) as Map
         written.connectorRef == original.connectorRef
         written.configurationProperties.classpath == original.configurationProperties.classpath
@@ -177,7 +177,7 @@ class DiscoveryToolSpec extends Specification {
     def "lint: a mapping without entityRelationships, or with a condition on directArchetypes, fails with exit 1"() {
         given:
         File bad = tmp.resolve('sync.json').toFile()
-        bad.text = JsonOutput.toJson([mappings: [[name: 'm1', source: 'managed/user', target: 'system/graphentity/user',
+        bad.text = JsonOutput.toJson([mappings: [[name: 'm1', source: 'managed/user', target: 'system/entitlementsaccelerator/user',
             properties: [[source: '', target: 'directArchetypes', condition: 'false', transform: [type: 'text/javascript', source: 'x']]]]]])
 
         when:

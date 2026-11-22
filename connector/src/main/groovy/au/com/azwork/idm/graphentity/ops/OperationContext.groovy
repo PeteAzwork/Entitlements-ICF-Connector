@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
-import au.com.azwork.idm.graphentity.http.EntityApi
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.http.EntityApi
 import org.identityconnectors.common.logging.Log
 
 /** Everything an operation needs: configuration, the remote API and the ICF logger. */

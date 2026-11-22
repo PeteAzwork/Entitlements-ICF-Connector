@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Stepwise
@@ -39,7 +39,7 @@ class AppendixAInIdmSpec extends Specification {
 
     def "users reconcile first: Sanne is created, and the relationship to an account not yet in the service is dropped with a WARN (WS8.03)"() {
         when:
-        Map recon = idm.recon('managedUser_systemGraphentityUser')
+        Map recon = idm.recon('managedUser_systementitlementsacceleratorUser')
 
         then:
         recon.state == 'SUCCESS'
@@ -58,7 +58,7 @@ class AppendixAInIdmSpec extends Specification {
 
     def "accounts next: the account carries the same relationship, which heals the drop"() {
         when:
-        Map recon = idm.recon('managedAccount_systemGraphentityAccount')
+        Map recon = idm.recon('managedAccount_systementitlementsacceleratorAccount')
 
         then:
         recon.statusSummary.FAILURE == 0
@@ -69,7 +69,7 @@ class AppendixAInIdmSpec extends Specification {
 
     def "a second user reconciliation is CONFIRMED and restates the relationship (WS4.08)"() {
         when:
-        Map recon = idm.recon('managedUser_systemGraphentityUser')
+        Map recon = idm.recon('managedUser_systementitlementsacceleratorUser')
 
         then:
         recon.situationSummary.CONFIRMED >= 1
@@ -80,8 +80,8 @@ class AppendixAInIdmSpec extends Specification {
 
     def "reading through IDM returns entityRelationships in the P17 shape"() {
         expect:
-        idm.get("system/graphentity/user/${SANNE}").entityRelationships == [OWNS_JSON]
-        idm.get("system/graphentity/account/${ACCOUNT}").entityRelationships == [OWNS_JSON]
+        idm.get("system/entitlementsaccelerator/user/${SANNE}").entityRelationships == [OWNS_JSON]
+        idm.get("system/entitlementsaccelerator/account/${ACCOUNT}").entityRelationships == [OWNS_JSON]
     }
 
     def "with implicit sync on, a scalar-only change restates the relationship, which survives (WS8.04)"() {
@@ -110,7 +110,7 @@ class AppendixAInIdmSpec extends Specification {
         }
 
         when: "IDM 7.5 does not re-sync the user for a change made from the other end (even with notify/notifySelf), so the user's next write is the reconciliation's"
-        idm.recon('managedUser_systemGraphentityUser')
+        idm.recon('managedUser_systementitlementsacceleratorUser')
 
         then: "that write is derived from IDM's current state, so it does not bring the relationship back"
         lastWrite(SANNE).relationships == []
@@ -141,7 +141,7 @@ class AppendixAInIdmSpec extends Specification {
         int deletesBefore = service.requestsOf('DELETE').size()
 
         when:
-        Map recon = idm.recon('managedUser_systemGraphentityUser')
+        Map recon = idm.recon('managedUser_systementitlementsacceleratorUser')
 
         then:
         recon.statusSummary.FAILURE == 0

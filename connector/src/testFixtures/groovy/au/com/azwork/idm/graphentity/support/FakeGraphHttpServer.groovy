@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.support
+package au.com.azwork.idm.entitlementsaccelerator.support
 
-import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import com.sun.net.httpserver.HttpsConfigurator

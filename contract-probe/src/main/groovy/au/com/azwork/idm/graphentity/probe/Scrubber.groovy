@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.probe
+package au.com.azwork.idm.entitlementsaccelerator.probe
 
 /**
  * Removes data belonging to entities the probe did not create before anything is written to disk.

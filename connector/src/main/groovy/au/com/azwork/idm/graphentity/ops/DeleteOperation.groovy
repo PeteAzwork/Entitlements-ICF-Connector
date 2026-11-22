@@ -1,10 +1,10 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
-import au.com.azwork.idm.graphentity.http.HttpErrorMapper
-import au.com.azwork.idm.graphentity.http.HttpResponse
-import au.com.azwork.idm.graphentity.http.OpContext
-import au.com.azwork.idm.graphentity.payload.EntityPayloadBuilder
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpErrorMapper
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.OpContext
+import au.com.azwork.idm.entitlementsaccelerator.payload.EntityPayloadBuilder
 import org.identityconnectors.framework.common.objects.ObjectClass
 import org.identityconnectors.framework.common.objects.OperationOptions
 import org.identityconnectors.framework.common.objects.Uid

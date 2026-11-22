@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Health summary for the Graph Entity Service connector in IDM (plan WS9.03; runbook section 5).
+"""Health summary for the Entitlements Accelerator Service connector in IDM (plan WS9.03; runbook section 5).
 
 Reports, for operations:
-  * the connector's Test operation (system/graphentity?_action=test);
-  * the latest reconciliation per graphentity mapping: state, duration, failures, and the orphan
+  * the connector's Test operation (system/entitlementsaccelerator?_action=test);
+  * the latest reconciliation per entitlementsaccelerator mapping: state, duration, failures, and the orphan
     situations that are only REPORTed (UNASSIGNED, UNQUALIFIED, TARGET_IGNORED);
   * implicit-sync and reconciliation failures in the sync audit over the last --hours;
   * with --log FILE (IDM's log, e.g. logs/openidm0.log.0 or `docker logs` output): counts of the connector's
@@ -60,7 +60,7 @@ def log_signals(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('--connector', default='graphentity')
+    parser.add_argument('--connector', default='entitlementsaccelerator')
     parser.add_argument('--hours', type=int, default=24, help='sync-audit window (default 24)')
     parser.add_argument('--log', help="IDM's log file, for the connector's warning counts")
     args = parser.parse_args()

@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.payload
+package au.com.azwork.idm.entitlementsaccelerator.payload
 
-import au.com.azwork.idm.graphentity.model.Edge
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.model.Edge
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import spock.lang.Specification
 
 /** Design §9.1 — post-create edge verification. */

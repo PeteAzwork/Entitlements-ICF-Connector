@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.config
+package au.com.azwork.idm.entitlementsaccelerator.config
 
 import groovy.json.JsonException
 import groovy.json.JsonSlurper
@@ -19,7 +19,7 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
  *
  * <p>Unknown keys are rejected rather than ignored, so a misspelt key (say {@code archetype}) cannot silently
  * drop part of the configuration. The relationship convention (§7) is not applied here: it needs the whole
- * document and runs in {@link au.com.azwork.idm.graphentity.convention.RelationshipConvention#validate}.
+ * document and runs in {@link au.com.azwork.idm.entitlementsaccelerator.convention.RelationshipConvention#validate}.
  */
 class ObjectTypesParser {
 

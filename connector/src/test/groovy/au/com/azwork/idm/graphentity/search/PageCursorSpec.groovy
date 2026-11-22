@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.search
+package au.com.azwork.idm.entitlementsaccelerator.search
 
-import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
 import spock.lang.Specification
 import spock.lang.Unroll
 

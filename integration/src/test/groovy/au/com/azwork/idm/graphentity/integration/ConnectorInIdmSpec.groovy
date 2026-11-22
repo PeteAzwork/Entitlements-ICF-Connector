@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
 import spock.lang.Shared
 import spock.lang.Specification
@@ -13,7 +13,7 @@ class ConnectorInIdmSpec extends Specification {
 
     def "the Test operation succeeds through the real harness: customizer init and decorate, then TestScript"() {
         when:
-        Map result = idm.action('system/graphentity', 'test')
+        Map result = idm.action('system/entitlementsaccelerator', 'test')
 
         then:
         result.ok == true
@@ -22,7 +22,7 @@ class ConnectorInIdmSpec extends Specification {
 
     def "the Schema script's builder DSL yields the user and account classes with the connector-managed attributes (H5)"() {
         when:
-        Map types = idm.get('config/provisioner.openicf/graphentity').objectTypes as Map
+        Map types = idm.get('config/provisioner.openicf/entitlementsaccelerator').objectTypes as Map
 
         then:
         types.keySet().containsAll(['user', 'account'])
@@ -38,7 +38,7 @@ class ConnectorInIdmSpec extends Specification {
 
     def "the library on the provisioner classpath, as sources or as a jar, loads without compilation errors (WS7.02)"() {
         expect:
-        idm.action('system/graphentity', 'test').ok == true
+        idm.action('system/entitlementsaccelerator', 'test').ok == true
         !stack.log().contains('ClassNotFound')
         !stack.log().contains('BUG! exception')
         !stack.log().contains('LinkageError')
@@ -47,7 +47,7 @@ class ConnectorInIdmSpec extends Specification {
     def "the mapping library loads with IDM's own require and answers under IDM's Rhino (WS8.08)"() {
         when:
         def answer = idm.call('POST', 'script?_action=eval', [type: 'text/javascript', globals: [:],
-            source: "var lib = require('lib/graphEntityPayload'); [lib.normalisePropertyName('ownsSet'), lib.isPassive('ownedBy'), lib.loadTypeConfig('account').idProperty].join(',');"])
+            source: "var lib = require('lib/entitlementsacceleratorPayload'); [lib.normalisePropertyName('ownsSet'), lib.isPassive('ownedBy'), lib.loadTypeConfig('account').idProperty].join(',');"])
 
         then:
         answer == 'Owns,true,accountId'

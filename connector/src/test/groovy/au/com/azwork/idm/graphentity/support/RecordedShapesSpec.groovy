@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.support
+package au.com.azwork.idm.entitlementsaccelerator.support
 
-import au.com.azwork.idm.graphentity.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
 import groovy.json.JsonSlurper
 import spock.lang.Shared
 import spock.lang.Specification

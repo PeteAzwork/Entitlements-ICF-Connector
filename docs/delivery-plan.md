@@ -1,4 +1,4 @@
-# Delivery Plan — Ping IDM Scripted REST Connector for the Graph Entity Service
+# Delivery Plan — Ping IDM Scripted REST Connector for the Entitlements Accelerator Service
 
 **Source design:** `idm-graph-entity-connector-design.md` (Draft for review, 2026-07-06, amended 2026-11-21)
 **Service contract:** `docs/service-contract.md` (the real API, as far as it is known)
@@ -37,11 +37,11 @@ The design document says *what* the connector is. This plan says *in what order*
 
 | # | Deliverable | Design ref | Location | State today |
 |---|---|---|---|---|
-| D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/graphentity/` | API fixed, bodies are stubs. Several classes encode the old API model and change in WS0.14 |
+| D1 | Connector library (Groovy classes the scripts delegate to) | §4–§9, §13 | `connector/src/main/groovy/au/com/azwork/idm/entitlementsaccelerator/` | API fixed, bodies are stubs. Several classes encode the old API model and change in WS0.14 |
 | D2 | Seven ICF operation scripts | §4 | `connector/src/main/scripts/*.groovy` | Written (thin delegation) |
 | D3 | Connector tests: unit, script harness, contract, scenario | §6 of this plan | `connector/src/test/groovy/…` | **29 specs, 537 executions**, red by design |
-| D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/graphEntityPayload.js`, `mapping-lib/README.md` | **Implemented (WS5)** |
-| D5 | Mapping library tests | §8.2 | `mapping-lib/test/`, `fixtures/convention-cases.json`, `GraphEntityPayloadRhinoSpec` | **109 Node tests and 9 Rhino tests, all passing** |
+| D4 | Mapping-side payload library (ES5 JavaScript for IDM's Rhino) | §8.2 | `mapping-lib/src/lib/entitlementsacceleratorPayload.js`, `mapping-lib/README.md` | **Implemented (WS5)** |
+| D5 | Mapping library tests | §8.2 | `mapping-lib/test/`, `fixtures/convention-cases.json`, `entitlementsacceleratorPayloadRhinoSpec` | **109 Node tests and 9 Rhino tests, all passing** |
 | D6 | Discovery and generation tool | §12 | `discovery/src/main/groovy/…`, `./gradlew :discovery:run` | **Implemented (WS6)** |
 | D7 | Discovery tool tests | §12 | `discovery/src/test/groovy/…` | **7 specs, 71 executions, all passing**; `lintMappings` runs in CI |
 | D8 | Provisioner and mapping configuration samples | §6, §12 | `config/` | Written |
@@ -70,8 +70,8 @@ The map below is the current one. Every connector class in it is implemented (WS
 | §3 A3/A4 identity and kind | `config.EntityKind`, `payload.EntityPayloadBuilder` | `EntityKindSpec`, `EntityPayloadBuilderSpec` |
 | §5.2/§6 per-type dynamic schema | `config.ObjectTypesParser`, `config.ObjectTypeConfig`, `config.ConnectorConfig`, `schema.SchemaFactory`, `ops.ObjectClassResolver` | `ObjectTypesParserSpec`, `ConnectorConfigSpec`, `SchemaFactorySpec`, `ObjectClassResolverSpec` |
 | §7 convention (normative) | `convention.RelationshipConvention`, `config.Direction` | `RelationshipConventionSpec`, `DirectionSpec`, and the JavaScript `resolvePair`/`resolveRelationship` tests |
-| §8.2 mapping-side assembly | `graphEntityPayload.js` | `graphEntityPayload.test.js`, `GraphEntityPayloadRhinoSpec` (Rhino) |
-| §7 shared cases | `fixtures/convention-cases.json` | `RelationshipConventionSpec` and `graphEntityPayload.test.js` both read it |
+| §8.2 mapping-side assembly | `entitlementsacceleratorPayload.js` | `entitlementsacceleratorPayload.test.js`, `entitlementsacceleratorPayloadRhinoSpec` (Rhino) |
+| §7 shared cases | `fixtures/convention-cases.json` | `RelationshipConventionSpec` and `entitlementsacceleratorPayload.test.js` both read it |
 | §8.3 ICF encoding | `codec.EdgeCodec` | `EdgeCodecSpec` |
 | §8.4/§9.2 update | `ops.UpdateOperation` | `UpdateOperationSpec` |
 | §9.1 create and verification | `ops.CreateOperation`, `payload.EdgeVerifier` | `CreateOperationSpec`, `EdgeVerifierSpec` |
@@ -102,9 +102,9 @@ Each decision is pinned by a test, so changing one is deliberate. "Status" says 
 | P7 | **Unsupported ICF filters raise `UnsupportedOperationException`** rather than silently enumerating. | Holds, but more filters become supported (D8) | `SearchPlannerSpec` |
 | P8 | **The build compiles against ConnId's `connector-framework` by default** (`icfFlavour=connid`), switchable to ForgeRock's (`icfFlavour=forgerock`). The release build uses ForgeRock's. | Holds | `gradle.properties`, `build.gradle` |
 | P9 | **Library classes deploy as Groovy sources under the provisioner's `classpath`.** | **Holds, confirmed in IDM 7.5 (WS8, 2026-11-21)**, provided `createFullConfig` is called before the provisioner is saved (H11). A jar is supported as an alternative (`-PlibraryAs=jar`). See `script_vs_jar.md` | `connectorScripts`, `compileWithIdmGroovy`, `ConnectorInIdmSpec` (both modes) |
-| P10 | **The mapping library reads `config/managed` only as a fallback** for relationship properties not listed in `objectTypes`. | Holds | `graphEntityPayload.test.js` |
+| P10 | **The mapping library reads `config/managed` only as a fallback** for relationship properties not listed in `objectTypes`. | Holds | `entitlementsacceleratorPayload.test.js` |
 | P11 | **A failed verification GET after a successful create does not fail the create**; it is logged at WARN. | Holds. Matters now: GET by ID returned 500 in the first real run (C1) | `CreateOperationSpec` |
-| P12 | **Package namespace `au.com.azwork.idm.graphentity`.** Renaming is a find-and-replace before WS1 starts. | Holds | everywhere |
+| P12 | **Package namespace `au.com.azwork.idm.entitlementsaccelerator`.** Renaming is a find-and-replace before WS1 starts. | Holds | everywhere |
 | P13 | **Authentication is one shared API key, sent raw in the `X-API-KEY` header.** Stored in the encrypted `password` property; `defaultAuthMethod` is `NONE`; no username. *2026-11-21.* | Confirmed by the owner and the definition | `ConnectorConfigSpec`, `CustomizerScriptSpec`, `RestClientEntityApiSpec`, `HttpErrorMapperSpec`, `ScriptSupportSpec`, `ContractProbeSpec` |
 | P14 | **Search is `POST /admin/entities/search` with a JSON body; `{}` is the unfiltered search.** *2026-11-21.* | Confirmed by the owner and the definition | `RestClientEntityApiSpec`, `OperationScriptsSpec`, `ContractProbeSpec` |
 | P15 | **Relationship writes are full-state, through the entity's `relationships` collection on create and update.** The service removes every relationship missing from the collection, so every write carries the complete set. The single-relationship endpoint (`POST /admin/entities/{id}/relationships`) also works, but the connector does not use it: one full-state write per entity keeps writes idempotent and keeps the design's §8 model. *Decided 2026-11-21 (D1).* | Confirmed by the owner. Still open: whether "missing" includes relationships where the entity is the *target* (Q07.8). **Re-confirmed by the owner 2026-11-21:** an empty `relationships` list purges all of the entity's relationships. Run `215954` showed the service does not yet purge (C17); the owner treats this as a service bug to be fixed (WS0.23). Rewriting with the same relationship changes nothing | `UpdateOperationSpec`, `WorkedExampleSpec` |
@@ -182,7 +182,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 ### WS5 — Mapping-side payload library
 
 **Goal:** `buildRelationships` and `buildArchetypes` produce the complete relationship set and archetypes from IDM state.
-**Implement:** every function in `graphEntityPayload.js`, ES5 only, emitting edges in the format WS0.14 settles (D2).
+**Implement:** every function in `entitlementsacceleratorPayload.js`, ES5 only, emitting edges in the format WS0.14 settles (D2).
 **Acceptance:** `npm test` in `mapping-lib/` green, and the Rhino smoke test (WS5.07).
 **Estimate:** 4 days (the drift-check script moved to WS10).
 **Status:** Done 2026-11-21. `npm test` green (109) and the Rhino smoke test green (9).
@@ -198,7 +198,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 ### WS7 — Packaging and deployment artefacts
 
 **Goal:** one command produces what is copied into IDM.
-**Acceptance:** a fresh IDM 7.5 container plus the artefact passes `system/graphentity?_action=test`, and the schema exposes `user` and `account`.
+**Acceptance:** a fresh IDM 7.5 container plus the artefact passes `system/entitlementsaccelerator?_action=test`, and the schema exposes `user` and `account`.
 **Estimate:** 2.5 days.
 **Status:** 2026-11-21: done except WS7.05, which waits for ForgeRock repository secrets. WS7.09 (the deployment guide) and WS7.10 (proxy settings) added and done. The acceptance check (a fresh IDM 7.5 plus the artefact passes Test, with `user` and `account` in the schema) passes with the development stack.
 
@@ -255,7 +255,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | L3 Transport contract | The real HTTP client against WireMock: paths, methods, headers, the API key, JSON bodies, encoding, non-2xx handling | WireMock 3 | `RestClientEntityApiSpec` |
 | L4 Script harness | The seven scripts evaluated as the harness does, against WireMock | `ScriptHarness` | `OperationScriptsSpec`, `CustomizerScriptSpec` |
 | L5 Scenario | Appendix A end to end | `@Stepwise` + `FakeGraphService` | `WorkedExampleSpec` |
-| L6 Mapping library | The JavaScript library under Rhino-like isolation, and under Rhino itself | Node test runner; Spock with Rhino 1.7.14 | `mapping-lib/test`, `GraphEntityPayloadRhinoSpec` |
+| L6 Mapping library | The JavaScript library under Rhino-like isolation, and under Rhino itself | Node test runner; Spock with Rhino 1.7.14 | `mapping-lib/test`, `entitlementsacceleratorPayloadRhinoSpec` |
 | L7 Discovery | Generator correctness and agreement with the connector's validation | Spock | `discovery/src/test` |
 | L7b Contract probe | The probe reports the service's semantics faithfully, never writes in read-only mode, cleans up, and never persists credentials or foreign data | Spock + `FakeGraphHttpServer` + WireMock replay | `contract-probe/src/test` |
 | L8 Integration (WS8) | The real IDM harness, Rhino and reconciliation engine | Docker, `gcr.io/forgerock-io/idm:7.5.0`, and `FakeGraphService` behind `FakeGraphHttpServer` (a test tenant can replace it) | `integration/` |
@@ -304,7 +304,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `support/RecordedShapesSpec` | WS0.11, §2.1 | 10 | 10 |
 | `scenario/WorkedExampleSpec` | Appendix A | 6 | 6 |
 | `scenario/RecordedContractSpec` | WS4.09, WS0.11 | 5 | 5 |
-| `mapping/GraphEntityPayloadRhinoSpec` | WS5.07, §8.2 | 6 | 9 |
+| `mapping/entitlementsacceleratorPayloadRhinoSpec` | WS5.07, §8.2 | 6 | 9 |
 | **Connector total** | | **388** | **701** |
 | `discovery/ManagedSchemaReaderSpec` | §12, WS6.01 | 11 | 11 |
 | `discovery/ObjectTypesGeneratorSpec` | §12, §7 | 20 | 20 |
@@ -314,7 +314,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `discovery/IdmManagedSourceSpec` | WS6.08, §14 | 4 | 4 |
 | `discovery/MappingLintSpec` | WS6.09, §8.4, H12 | 6 | 7 |
 | **Discovery total** | | **72** | **77** |
-| `mapping-lib/test/graphEntityPayload.test.js` | §7, §8.2, §6, WS5.01, WS9.04, WS8.08 | — | **117** |
+| `mapping-lib/test/entitlementsacceleratorPayload.test.js` | §7, §8.2, §6, WS5.01, WS9.04, WS8.08 | — | **117** |
 | `contract-probe/ContractProbeSpec` | WS0, §2 | 56 | 56 |
 | `contract-probe/ProbeOutputSpec` | WS0.11, §13, §14 | 10 | 10 |
 | `contract-probe/ScrubberSpec` | §13 | 16 | 16 |
@@ -358,9 +358,9 @@ Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 
 
 ### 8.1 Core rollout (M5)
 
-1. Copy `scripts/` to `&{idm.instance.dir}/connectors/graphentity/scripts`, `lib/` to `…/graphentity/lib`, and `graphEntityPayload.js` to `&{idm.instance.dir}/script/lib/`.
-2. Install `provisioner.openicf-graphentity.json` with the API key in `password` and `defaultAuthMethod` set to `NONE` (P13). Generate `objectTypes` with the discovery tool and review it.
-3. Check `system/graphentity?_action=test`, then that `system/graphentity/user` and `/account` appear in the schema.
+1. Copy `scripts/` to `&{idm.instance.dir}/connectors/entitlementsaccelerator/scripts`, `lib/` to `…/entitlementsaccelerator/lib`, and `entitlementsacceleratorPayload.js` to `&{idm.instance.dir}/script/lib/`.
+2. Install `provisioner.openicf-entitlementsaccelerator.json` with the API key in `password` and `defaultAuthMethod` set to `NONE` (P13). Generate `objectTypes` with the discovery tool and review it.
+3. Check `system/entitlementsaccelerator?_action=test`, then that `system/entitlementsaccelerator/user` and `/account` appear in the schema.
 4. Install the generated mappings with **every target-phase situation on `REPORT`** (P16).
 5. Initial load: resource types first, then subject types. Run one full reconciliation per mapping, and review the dropped-relationship WARN counts.
 6. Schedule full reconciliation per type, for initial load and periodic restatement. Implicit sync handles day-to-day changes.
@@ -561,7 +561,7 @@ Owner: connector lead with the service team and the design owner. Outputs: `docs
 
 Do these in order; later tasks reuse earlier ones.
 
-- [x] **WS1.01 Settle the package name (S).** If P12 changes, rename `au.com.azwork.idm.graphentity` across all three projects now, before any implementation lands. *Done 2026-11-21: P12 holds, so nothing was renamed.*
+- [x] **WS1.01 Settle the package name (S).** If P12 changes, rename `au.com.azwork.idm.entitlementsaccelerator` across all three projects now, before any implementation lands. *Done 2026-11-21: P12 holds, so nothing was renamed.*
 - [x] **WS1.02 `EntityKind` (S).** P18 keeps the design's numbering, 4 = Subject and 2 = Resource, as `EntityKindSpec` already expects. `fromBaseType` also accepts the names `"Subject"` and `"Resource"` that search returns. *Gated by WS0.15* confirming the numbering against the service. `fromConfig` trims the value and ignores case. A null, blank or unknown value throws `ConfigurationException`, with "entityKind" and the value in the message. `fromBaseType` returns null for an unknown or null BaseType, so a strange remote document never fails a read.
   *Green:* `EntityKindSpec`.
 - [x] **WS1.03 `Direction` (S).** `fromConfig` ignores case and rejects null, blank or unknown values with `ConfigurationException`. Implement `opposite`.
@@ -773,7 +773,7 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
   - **IDM's collections.** Inside IDM, `openidm.read` returns wrapped Java lists, for which `Array.isArray` is false; the library recognises lists by `length` and reads them by index. WS8.08 confirms this against real IDM wrappers.
   - **`loadTypeConfig`** reads `configurationProperties.objectTypes` (string or object) or the `objectTypes='…'` entry of `customConfiguration`, undoing Groovy string escapes. The cache, managed.json included, lasts five minutes unless `options.ttlMs` says otherwise.
   - **Test harness correction.** Objects created inside Node's `vm` context carry that context's prototypes, so `node:assert`'s strict `deepEqual` called equal structures "not reference-equal". `harness.js` now hands results back through JSON into the test realm; no expectation changed.
-  - **WS5.07.** `GraphEntityPayloadRhinoSpec` evaluates the library under Rhino 1.7.14 in ES5 mode (language version 1.8, interpreted) with a JavaScript fake `openidm`. It checks the exports, configuration loading, Appendix A from both ends, archetypes and errors, and that Rhino's §7 answers match `RelationshipConvention`'s.
+  - **WS5.07.** `entitlementsacceleratorPayloadRhinoSpec` evaluates the library under Rhino 1.7.14 in ES5 mode (language version 1.8, interpreted) with a JavaScript fake `openidm`. It checks the exports, configuration loading, Appendix A from both ends, archetypes and errors, and that Rhino's §7 answers match `RelationshipConvention`'s.
 
 ### WS6 — Discovery and generation tool
 
@@ -817,31 +817,31 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
   *Done 2026-11-21.* `./gradlew :discovery:run --args="…"` or `installDist`. Outputs `objectTypes.json`, `customConfiguration.txt` (the Groovy value) and `customConfiguration.json` (the same, JSON-escaped for pasting into the provisioner), and `sync-<type>.json`. With `--current`, the provisioner's other `customConfiguration` settings are kept and only `objectTypes` is replaced; the diff is against its objectTypes. Exit 0 on success, 1 on generation or lint errors (nothing written), 2 on usage or input errors. An `answers.json` with an unknown key is refused, so a misspelt answer is not silently ignored. The spec checks the output loads through `ConnectorConfig.from` and passes the lint.
 - [x] **WS6.08 Read-only IDM REST source (M). New tests.** Add `--idm-url` and `--idm-user`, with the password from an environment variable, never from an argument. It reads only `config/managed`, with credentials separate from the connector's (§14). Add a WireMock-backed spec.
   *Done 2026-11-21:* `IdmManagedSource`. One GET of `<url>/openidm/config/managed` with `X-OpenIDM-Username`/`X-OpenIDM-Password` and `X-OpenIDM-NoSession`; the password comes from `IDM_DISCOVERY_PASSWORD` and `--idm-password` is refused. No message carries the password. `IdmManagedSourceSpec`.
-- [x] **WS6.09 Mapping lint (M). New tests.** This is the code-review check §8.4 and §15 ask for. Add `--lint <sync.json>`, which fails when a mapping targeting `system/graphentity/*` is missing the `entityRelationships` or `directArchetypes` property mapping, or puts a `condition` on either. Run it in CI against every mapping under `config/`.
+- [x] **WS6.09 Mapping lint (M). New tests.** This is the code-review check §8.4 and §15 ask for. Add `--lint <sync.json>`, which fails when a mapping targeting `system/entitlementsaccelerator/*` is missing the `entityRelationships` or `directArchetypes` property mapping, or puts a `condition` on either. Run it in CI against every mapping under `config/`.
   *Done 2026-11-21:* `MappingLint`, `--lint`, `MappingLintSpec`, and the Gradle task `:discovery:lintMappings` (part of `check`, and a CI step) over `config/sync*.json`.
 
 ### WS7 — Packaging and deployment artefacts
 
-- [x] **WS7.01 Complete `connectorScripts` (S).** Include `graphEntityPayload.js` under `script/lib/`, a `VERSION` file with the git SHA, and a `distZip` task.
-  *Done 2026-11-21:* `:connector:idmDist` lays out `connectors/graphentity/{scripts,lib}`, `script/lib/graphEntityPayload.js`, `samples/` and `VERSION` (version, commit, library mode, build time) like an IDM installation; `:connector:distZip` zips it.
+- [x] **WS7.01 Complete `connectorScripts` (S).** Include `entitlementsacceleratorPayload.js` under `script/lib/`, a `VERSION` file with the git SHA, and a `distZip` task.
+  *Done 2026-11-21:* `:connector:idmDist` lays out `connectors/entitlementsaccelerator/{scripts,lib}`, `script/lib/entitlementsacceleratorPayload.js`, `samples/` and `VERSION` (version, commit, library mode, build time) like an IDM installation; `:connector:distZip` zips it.
 - [x] **WS7.02 Confirm the library deployment model (M).** Verify in IDM 7.5 that the provisioner's `classpath` accepts Groovy sources (P9); otherwise package a jar.
-  *Done 2026-11-21 (WS8):* it does. A first test suggested otherwise; the failure was the race of H11, and with the right deployment order sources deploy cleanly (`script_vs_jar.md`). Scripts are the default; `-PlibraryAs=jar` builds `lib/graphentity-connector-lib.jar` instead. `compileWithIdmGroovy` compiles the code with IDM's Groovy 3.0.9 in CI, and the nightly integration run covers both modes.
+  *Done 2026-11-21 (WS8):* it does. A first test suggested otherwise; the failure was the race of H11, and with the right deployment order sources deploy cleanly (`script_vs_jar.md`). Scripts are the default; `-PlibraryAs=jar` builds `lib/entitlementsaccelerator-connector-lib.jar` instead. `compileWithIdmGroovy` compiles the code with IDM's Groovy 3.0.9 in CI, and the nightly integration run covers both modes.
 - [x] **WS7.03 Provisioner generation (S).** Generate `customConfiguration` with the WS6.07 tool. Document the API key in `password` and `defaultAuthMethod: NONE` (P13).
-  *Done 2026-11-21:* with `--current`, the discovery tool also writes `provisioner.openicf-graphentity.json`, the current provisioner with the new `customConfiguration` and its `objectTypes` left for `createFullConfig`. The key and `defaultAuthMethod: NONE` are in the runbook §2.3.
+  *Done 2026-11-21:* with `--current`, the discovery tool also writes `provisioner.openicf-entitlementsaccelerator.json`, the current provisioner with the new `customConfiguration` and its `objectTypes` left for `createFullConfig`. The key and `defaultAuthMethod: NONE` are in the runbook §2.3.
 - [x] **WS7.04 Confirm versions (S).** IDM 7.5's Groovy version and the Scripted REST bundle version.
   *Done 2026-11-21:* Scripted REST 1.5.20.21, Groovy 3.0.9, Rhino 1.7.14, JDK 17.0.10 (H8).
 - [ ] **WS7.05 ForgeRock flavour in CI (S).** A CI job with `-PicfFlavour=forgerock`, credentials as secrets.
   *Ready 2026-11-21, not yet run:* a `forgerock-flavour` CI job runs the connector and discovery suites with `-PicfFlavour=forgerock`, the build reading `FORGEROCK_MAVEN_USERNAME`/`PASSWORD` from the environment. Until those repository secrets are set, the job reports that it was skipped.
 - [x] **WS7.06 Development IDM container (M).** docker-compose with IDM 7.5 and its repository, mounting the build output.
   *Partly done 2026-11-21:* `integration/…/IdmStack` runs `gcr.io/forgerock-io/idm:7.5.0` (embedded DS repository, so no separate database) with the build output, on the host network. *Done 2026-11-21:* `dev/docker-compose.yml` (IDM 7.5 with `build/idm-dist` mounted read-only), `./gradlew :connector:runFakeService` (the service stand-in on :5276) and `dev/load-config.sh`; checked end to end, Test passing.
-- [x] **WS7.07 Smoke check (S).** `system/graphentity?_action=test` succeeds and the schema lists `user` and `account`.
+- [x] **WS7.07 Smoke check (S).** `system/entitlementsaccelerator?_action=test` succeeds and the schema lists `user` and `account`.
   *Done 2026-11-21:* `ConnectorInIdmSpec`. The provisioner's object types must come from `createFullConfig`, called before the provisioner is saved (H10, H11).
 - [x] **WS7.08 Install section of the runbook (S).** §8.1 steps 1–3.
   *Done 2026-11-21:* `docs/runbook.md` §2, including what IDM showed (H9–H13).
 - [x] **WS7.09 Deployment guide (M).** One guide from an IDM that has never seen the connector to a configured one, with upgrades, rollback and removal, and a worked example.
   *Done 2026-11-21:* `docs/deployment-guide.md`. Each section says whether it was tested.
   - **Worked example:** `dev/deploy-walkthrough.sh` deploys the release zips into a brand-new IDM 7.5, reconciles, restarts IDM and uninstalls. Its output is the guide's appendix A.
-  - **The discovery tool is now a release artefact:** `./gradlew :discovery:distZip`, `graphentity-discovery-<version>.zip`. Operators no longer need a source checkout.
+  - **The discovery tool is now a release artefact:** `./gradlew :discovery:distZip`, `entitlementsaccelerator-discovery-<version>.zip`. Operators no longer need a source checkout.
   - **TLS with a private CA, proven in IDM 7.5** (`NetworkInIdmSpec`): a CA imported into IDM's trust store is trusted; an unknown CA and a wrong host name both fail before anything reaches the service. The trust store must stay owned by IDM's user, or IDM does not start.
   - **Clustered and hosted IDM** are written up as untested, with the questions to settle.
 - [x] **WS7.10 Outbound proxy (S).** Found by WS7.09: the Scripted REST harness leaves `proxyAddress`, `proxyUsername` and `proxyPassword` to the customizer script, and ours ignored them, so a configured proxy was bypassed.
@@ -864,7 +864,7 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 - [x] **WS8.07 Orphans are reported, not deleted (S).** Seed an entity directly in the service; assert reconciliation reports it and does not delete it (P16).
   *Done 2026-11-21.* An entity seeded directly in the service is reported (`UNASSIGNED`) and never deleted.
 - [x] **WS8.08 Library under real Rhino (S).** `require` the library in IDM; record the module cache's actual lifetime.
-  *Done 2026-11-21.* `require('lib/graphEntityPayload')` works in IDM's Rhino (`ConnectorInIdmSpec`), and `buildRelationships` builds edges from IDM's real wrapped relationship objects (Appendix A). **Found:** the two library transforms need `"source": ""` (H12). **Module lifetime measured (2026-11-21, `RuntimeInIdmSpec`):** IDM loads a `require`d module afresh for each script evaluation, so the library's cache lasts one evaluation and each transform reads the configuration again (H18). The cost is in the measured times, and configuration changes apply at once.
+  *Done 2026-11-21.* `require('lib/entitlementsacceleratorPayload')` works in IDM's Rhino (`ConnectorInIdmSpec`), and `buildRelationships` builds edges from IDM's real wrapped relationship objects (Appendix A). **Found:** the two library transforms need `"source": ""` (H12). **Module lifetime measured (2026-11-21, `RuntimeInIdmSpec`):** IDM loads a `require`d module afresh for each script evaluation, so the library's cache lasts one evaluation and each transform reads the configuration again (H18). The cost is in the measured times, and configuration changes apply at once.
 - [x] **WS8.09 Error paths (M).** 401 on test; 5xx during reconciliation reported against the right object; 429 under queued sync; `deleteMissingTolerated=false`.
   *Done 2026-11-21.* `ErrorPathsInIdmSpec`: a wrong key fails Test without logging it; a 503 on a write during implicit sync is logged against that entity and the next reconciliation repairs it; a DELETE answered 404 is tolerated by default and a 404 error with `deleteMissingTolerated=false` (H17). Under queued sync (`RuntimeInIdmSpec`), updates answered with 429 are retried by IDM until they succeed, each refusal logged with its `Retry-After` hint (H19).
 - [x] **WS8.10 Concurrency (M).** Live sync during reconciliation with `taskThreads` > 1; once quiet, the service's state equals IDM's.
@@ -885,9 +885,9 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 - [x] **WS9.01 Runbook (M).** Onboarding order (§8.1); reading the dropped-relationship WARN; the doubled write when a relationship changes (§9.2) and self-correcting intermediate states (§10); never running reconciliation and live sync together during onboarding; the A1 watch item; what M5 does *not* detect (P16).
   *Drafted 2026-11-21:* `docs/runbook.md` (what M5 does and does not do, install, onboarding order, schedules, monitoring, reading the logs, known issues, key rotation, troubleshooting, dry run, upgrades). Awaits operations review.
 - [x] **WS9.02 Reconciliation schedules (S).** Full reconciliation per type, with conservative `taskThreads`.
-  *Done 2026-11-21:* `config/schedule-recon-graphentity-{account,user}.json`, nightly, resources first, no concurrent execution; generated mappings carry `taskThreads: 4`. `OperationsInIdmSpec` checks IDM's scheduler accepts them.
+  *Done 2026-11-21:* `config/schedule-recon-entitlementsaccelerator-{account,user}.json`, nightly, resources first, no concurrent execution; generated mappings carry `taskThreads: 4`. `OperationsInIdmSpec` checks IDM's scheduler accepts them.
 - [x] **WS9.03 Monitoring (M).** Dropped-relationship WARN volume, the `ConnectorIOException` rate, and reconciliation REPORT counts per situation.
-  *Done 2026-11-21:* runbook §5 and `ops/graphentity_health.py`: the connector Test, the latest reconciliation per mapping (failures, orphans reported), sync failures from the audit, and the connector's WARN counts from IDM's log. Tried against IDM 7.5.
+  *Done 2026-11-21:* runbook §5 and `ops/entitlementsaccelerator_health.py`: the connector Test, the latest reconciliation per mapping (failures, orphans reported), sync failures from the audit, and the connector's WARN counts from IDM's log. Tried against IDM 7.5.
 - [x] **WS9.04 Mutable `idProperty` guard (M).** An `onUpdate` mapping snippet that turns an `idProperty` change into delete then create, with an integration case in WS8.
   *Done 2026-11-21:* `onIdPropertyChange` in the mapping library, installed as the managed object's `onUpdate`: it deletes the old entity and IDM's link, and implicit sync re-creates the entity under its new ID with its relationships. Node tests, and `OperationsInIdmSpec` in IDM 7.5 (a renamed user keeps its account relationship; a later reconciliation is clean).
 - [ ] **WS9.05 Security review (M).** The shared API key (storage, who can read the configuration, rotation with every consumer), TLS everywhere, the discovery tool's read-only credentials, and a log audit for keys and PII.
@@ -934,7 +934,7 @@ The library must stay ES5, and its §7 rules must match the Groovy ones exactly.
 ./gradlew test -PicfFlavour=forgerock
 
 # one spec
-./gradlew :connector:test --tests 'au.com.azwork.idm.graphentity.ops.CreateOperationSpec'
+./gradlew :connector:test --tests 'au.com.azwork.idm.entitlementsaccelerator.ops.CreateOperationSpec'
 
 # mapping library
 cd mapping-lib && npm test

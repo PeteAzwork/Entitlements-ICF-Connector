@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 import spock.lang.Specification
 
@@ -8,16 +8,16 @@ class MappingSkeletonGeneratorSpec extends Specification {
     static final Map USER_TYPE = [idmResource: 'managed/user', entityKind: 'subject', idProperty: 'userName',
                                   attributes: ['givenName', 'mail'], archetypes: ['Customer'],
                                   relationships: [owns: [remoteType: 'Owns', direction: 'outbound', relatedType: 'account', reverseProperty: 'ownedBy']]]
-    GeneratorOptions opts = new GeneratorOptions(connectorName: 'graphentity')
+    GeneratorOptions opts = new GeneratorOptions(connectorName: 'entitlementsaccelerator')
 
     def "maps managed/<type> to system/<connector>/<type> with a conventional name"() {
         when:
         def m = MappingSkeletonGenerator.mapping('user', USER_TYPE, opts)
 
         then:
-        m.name == 'managedUser_systemGraphentityUser'
+        m.name == 'managedUser_systementitlementsacceleratorUser'
         m.source == 'managed/user'
-        m.target == 'system/graphentity/user'
+        m.target == 'system/entitlementsaccelerator/user'
     }
 
     def "__NAME__ is mapped from the idProperty"() {

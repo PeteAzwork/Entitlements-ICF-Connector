@@ -1,4 +1,4 @@
-// Root build for the Ping IDM Scripted REST connector for the Graph Entity Service.
+// Root build for the Ping IDM Scripted REST connector for the Entitlements Accelerator Service.
 // See docs/delivery-plan.md for the delivery plan and README.md for how to run the suite.
 
 subprojects {

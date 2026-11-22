@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.model
+package au.com.azwork.idm.entitlementsaccelerator.model
 
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import spock.lang.Specification
 
 /** Service contract §5.2 — the three document models and the connector's canonical form. */

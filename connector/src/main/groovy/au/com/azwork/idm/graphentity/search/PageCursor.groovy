@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.search
+package au.com.azwork.idm.entitlementsaccelerator.search
 
-import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
 import groovy.json.JsonException
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper

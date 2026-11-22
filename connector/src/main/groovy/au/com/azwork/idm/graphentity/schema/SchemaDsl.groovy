@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.schema
+package au.com.azwork.idm.entitlementsaccelerator.schema
 
 import org.identityconnectors.common.logging.Log
 import org.identityconnectors.framework.common.objects.AttributeInfo

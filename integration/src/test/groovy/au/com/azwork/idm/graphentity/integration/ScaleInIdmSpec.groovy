@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import spock.lang.IgnoreIf
 import spock.lang.Shared
 import spock.lang.Specification
@@ -70,10 +70,10 @@ class ScaleInIdmSpec extends Specification {
     def "initial load: reconciling users, then accounts, puts every entity and relationship in the service (WS8.11)"() {
         when:
         long t0 = System.nanoTime()
-        Map users = idm.recon('managedUser_systemGraphentityUser')
+        Map users = idm.recon('managedUser_systementitlementsacceleratorUser')
         long tUsers = (System.nanoTime() - t0).intdiv(1_000_000)
         t0 = System.nanoTime()
-        Map accounts = idm.recon('managedAccount_systemGraphentityAccount')
+        Map accounts = idm.recon('managedAccount_systementitlementsacceleratorAccount')
         long tAccounts = (System.nanoTime() - t0).intdiv(1_000_000)
         report("initial user recon: ${tUsers} ms (${String.format('%.1f', tUsers / N)} ms per user, each building its relationships); account recon: ${tAccounts} ms; IDM memory ${memory()}")
 
@@ -90,7 +90,7 @@ class ScaleInIdmSpec extends Specification {
 
         when:
         long t0 = System.nanoTime()
-        Map recon = idm.recon('managedUser_systemGraphentityUser')
+        Map recon = idm.recon('managedUser_systementitlementsacceleratorUser')
         long ms = (System.nanoTime() - t0).intdiv(1_000_000)
         int puts = service.requestsOf('PUT').size() - putsBefore
         report("steady-state user recon: ${ms} ms, ${puts} PUTs for ${N} unchanged users (${String.format('%.1f', ms / N)} ms per user)")
@@ -103,14 +103,14 @@ class ScaleInIdmSpec extends Specification {
     def "implicit sync racing a 4-thread reconciliation converges: afterwards the service equals IDM (WS8.10)"() {
         given:
         stack.setMappings(true)
-        Map mapping = stack.mappings.find { it.name == 'managedUser_systemGraphentityUser' }
+        Map mapping = stack.mappings.find { it.name == 'managedUser_systementitlementsacceleratorUser' }
         stack.idm.put('config/sync', [mappings: stack.mappings.collect { (it.name == mapping.name ? it + [taskThreads: 4] : it) + [enableSync: true] }])
         Thread.sleep(5000)
         List<Integer> changed = (1..N).findAll { it % 5 == 0 }.take(500)
         def pool = Executors.newFixedThreadPool(4)
 
         when:
-        Map started = idm.call('POST', 'recon?_action=recon&mapping=managedUser_systemGraphentityUser&waitForCompletion=false', [:]) as Map
+        Map started = idm.call('POST', 'recon?_action=recon&mapping=managedUser_systementitlementsacceleratorUser&waitForCompletion=false', [:]) as Map
         changed.each { int i ->
             pool.submit { idm.patch("managed/user/${users[i]}", [[operation: 'replace', field: 'givenName', value: "Changed-${i}".toString()]]) }
         }

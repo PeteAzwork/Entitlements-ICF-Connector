@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.search
+package au.com.azwork.idm.entitlementsaccelerator.search
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
 import org.identityconnectors.framework.common.objects.Attribute
 import org.identityconnectors.framework.common.objects.Name
 import org.identityconnectors.framework.common.objects.OperationOptions

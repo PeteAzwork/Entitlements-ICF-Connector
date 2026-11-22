@@ -1,9 +1,9 @@
-package au.com.azwork.idm.graphentity.probe
+package au.com.azwork.idm.entitlementsaccelerator.probe
 
 import java.time.Duration
 
 /**
- * WS0 contract probe. Observes the graph entity service and answers as many of the delivery plan's WS0
+ * WS0 contract probe. Observes the Entitlements Accelerator service and answers as many of the delivery plan's WS0
  * questions as can be answered by observation, recording every exchange as evidence.
  *
  * <p>Realigned in WS0.15 to the service's OpenAPI definition (service contract §5) and decisions P17–P22:

@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.model
+package au.com.azwork.idm.entitlementsaccelerator.model
 
-import au.com.azwork.idm.graphentity.config.EntityKind
+import au.com.azwork.idm.entitlementsaccelerator.config.EntityKind
 import groovy.transform.EqualsAndHashCode
 import groovy.transform.ToString
 

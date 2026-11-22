@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.schema.SchemaFactory
+import au.com.azwork.idm.entitlementsaccelerator.schema.SchemaFactory
 import org.identityconnectors.framework.common.objects.Schema
 
 /** Schema (design §9.5): delegates to SchemaFactory. */

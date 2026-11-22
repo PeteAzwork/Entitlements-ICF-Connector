@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphHttpServer
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
@@ -30,8 +30,8 @@ class NetworkInIdmSpec extends Specification {
         stack.saveProvisioner([configurationProperties: [serviceAddress: "https://localhost:${trusted.port}".toString()]])
 
         expect:
-        idm.action('system/graphentity', 'test').ok == true
-        idm.get('system/graphentity/user?_queryFilter=true&_pageSize=1') != null
+        idm.action('system/entitlementsaccelerator', 'test').ok == true
+        idm.get('system/entitlementsaccelerator/user?_queryFilter=true&_pageSize=1') != null
     }
 
     def "a certificate from a CA IDM does not trust: the Test fails on the certificate path, and nothing reaches the service"() {
@@ -39,7 +39,7 @@ class NetworkInIdmSpec extends Specification {
         stack.saveProvisioner([configurationProperties: [serviceAddress: "https://localhost:${untrusted.port}".toString()]])
 
         expect:
-        idm.action('system/graphentity', 'test').ok == false
+        idm.action('system/entitlementsaccelerator', 'test').ok == false
         stack.log().contains('unable to find valid certification path')
         otherService.requests.isEmpty()
     }
@@ -49,7 +49,7 @@ class NetworkInIdmSpec extends Specification {
         stack.saveProvisioner([configurationProperties: [serviceAddress: "https://localhost:${wrongHost.port}".toString()]])
 
         expect:
-        idm.action('system/graphentity', 'test').ok == false
+        idm.action('system/entitlementsaccelerator', 'test').ok == false
         stack.log() =~ /doesn't match any of the subject alternative names|SSLPeerUnverifiedException/
         otherService.requests.isEmpty()
     }
@@ -60,7 +60,7 @@ class NetworkInIdmSpec extends Specification {
         stack.saveProvisioner([configurationProperties: [proxyAddress: proxy.address]])
 
         expect:
-        idm.action('system/graphentity', 'test').ok == true
+        idm.action('system/entitlementsaccelerator', 'test').ok == true
         proxy.forwarded.any { it.startsWith("POST ${stack.server.baseUrl}/admin/entities/search") }
     }
 

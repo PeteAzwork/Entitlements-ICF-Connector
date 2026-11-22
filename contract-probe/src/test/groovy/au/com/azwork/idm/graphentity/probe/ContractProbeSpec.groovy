@@ -1,8 +1,8 @@
-package au.com.azwork.idm.graphentity.probe
+package au.com.azwork.idm.entitlementsaccelerator.probe
 
-import au.com.azwork.idm.graphentity.http.HttpResponse
-import au.com.azwork.idm.graphentity.support.FakeGraphHttpServer
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphHttpServer
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import spock.lang.Specification
 import spock.lang.TempDir
 

@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper

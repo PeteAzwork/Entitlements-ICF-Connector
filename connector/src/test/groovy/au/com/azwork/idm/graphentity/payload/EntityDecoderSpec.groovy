@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.payload
+package au.com.azwork.idm.entitlementsaccelerator.payload
 
-import au.com.azwork.idm.graphentity.model.EntityDocument
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.objects.AttributeUtil
 import spock.lang.Specification
 

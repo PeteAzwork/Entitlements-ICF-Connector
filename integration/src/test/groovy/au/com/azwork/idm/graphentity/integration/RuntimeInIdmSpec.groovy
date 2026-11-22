@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Stepwise
@@ -10,7 +10,7 @@ import spock.util.concurrent.PollingConditions
 @Stepwise
 class RuntimeInIdmSpec extends Specification {
 
-    static final String LIB = "require('lib/graphEntityPayload')"
+    static final String LIB = "require('lib/entitlementsacceleratorPayload')"
 
     @Shared IdmStack stack = IdmStack.instance
     PollingConditions poll = new PollingConditions(timeout: 60, delay: 1)
@@ -33,16 +33,16 @@ class RuntimeInIdmSpec extends Specification {
     def "within one reconciliation, each entity's transforms load the configuration themselves (WS8.08)"() {
         given: 'a transform that reports when the cache was loaded, on five users'
         stack.setMappings(false)
-        Map mapping = stack.mappings.find { it.name == 'managedUser_systemGraphentityUser' }
+        Map mapping = stack.mappings.find { it.name == 'managedUser_systementitlementsacceleratorUser' }
         List props = (mapping.properties as List).findAll { it.target != 'description' } +
             [[source: '', target: 'description', transform: [type: 'text/javascript',
-              source: "var lib = require('lib/graphEntityPayload'); lib.loadTypeConfig('user'); String(lib.cacheInfo().loadedAt);"]]]
+              source: "var lib = require('lib/entitlementsacceleratorPayload'); lib.loadTypeConfig('user'); String(lib.cacheInfo().loadedAt);"]]]
         idm.put('config/sync', [mappings: stack.mappings.collect { it.name == mapping.name ? it + [properties: props, enableSync: false] : it + [enableSync: false] }])
         Thread.sleep(5000)
         (1..5).each { idm.create('managed/user', [userName: "Cache-${it}".toString(), givenName: 'C', sn: "${it}".toString(), mail: "c${it}@example.com".toString()]) }
 
         when:
-        idm.recon('managedUser_systemGraphentityUser')
+        idm.recon('managedUser_systementitlementsacceleratorUser')
         List values = (1..5).collect { service.entities["Cache-${it}".toString()]?.attributes?.description }
 
         then: 'every entity carries its own load time: nothing was shared between them'
@@ -55,7 +55,7 @@ class RuntimeInIdmSpec extends Specification {
 
     def "under queued sync, updates the service answers with 429 are retried by IDM until they succeed (WS8.09)"() {
         given: 'queued sync on the user mapping, and a user in the service'
-        stack.setMappings(true, [managedUser_systemGraphentityUser: [queuedSync: [enabled: true, pageSize: 100, pollingInterval: 1000,
+        stack.setMappings(true, [managedUser_systementitlementsacceleratorUser: [queuedSync: [enabled: true, pageSize: 100, pollingInterval: 1000,
                                                                                  maxRetries: 5, retryDelay: 2000, postRetryAction: 'logged-ignore']]])
         String id = idm.create('managed/user', [userName: 'Queued-1', givenName: 'Q', sn: 'One', mail: 'q1@example.com'])._id
         poll.eventually { assert service.entities.containsKey('Queued-1') }

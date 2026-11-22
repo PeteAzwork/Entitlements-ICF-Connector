@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.http
+package au.com.azwork.idm.entitlementsaccelerator.http
 
 import groovy.transform.Canonical
 

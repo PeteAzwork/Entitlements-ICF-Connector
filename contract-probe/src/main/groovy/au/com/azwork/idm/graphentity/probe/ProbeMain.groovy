@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.probe
+package au.com.azwork.idm.entitlementsaccelerator.probe
 
 /**
  * Command line for the WS0 contract probe.

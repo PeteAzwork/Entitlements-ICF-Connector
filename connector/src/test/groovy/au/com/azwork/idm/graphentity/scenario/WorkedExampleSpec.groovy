@@ -1,13 +1,13 @@
-package au.com.azwork.idm.graphentity.scenario
+package au.com.azwork.idm.entitlementsaccelerator.scenario
 
-import au.com.azwork.idm.graphentity.ops.CreateOperation
-import au.com.azwork.idm.graphentity.ops.DeleteOperation
-import au.com.azwork.idm.graphentity.ops.OperationContext
-import au.com.azwork.idm.graphentity.ops.SearchOperation
-import au.com.azwork.idm.graphentity.ops.UpdateOperation
-import au.com.azwork.idm.graphentity.support.CapturingLog
-import au.com.azwork.idm.graphentity.support.FakeGraphService
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.ops.CreateOperation
+import au.com.azwork.idm.entitlementsaccelerator.ops.DeleteOperation
+import au.com.azwork.idm.entitlementsaccelerator.ops.OperationContext
+import au.com.azwork.idm.entitlementsaccelerator.ops.SearchOperation
+import au.com.azwork.idm.entitlementsaccelerator.ops.UpdateOperation
+import au.com.azwork.idm.entitlementsaccelerator.support.CapturingLog
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.common.logging.Log
 import org.identityconnectors.framework.common.objects.Uid
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder

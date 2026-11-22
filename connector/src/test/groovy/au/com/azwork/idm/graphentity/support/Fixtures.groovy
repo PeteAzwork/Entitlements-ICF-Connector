@@ -1,12 +1,12 @@
-package au.com.azwork.idm.graphentity.support
+package au.com.azwork.idm.entitlementsaccelerator.support
 
-import au.com.azwork.idm.graphentity.config.ConnectorConfig
-import au.com.azwork.idm.graphentity.config.Direction
-import au.com.azwork.idm.graphentity.config.EntityKind
-import au.com.azwork.idm.graphentity.config.ObjectTypeConfig
-import au.com.azwork.idm.graphentity.config.RelationshipConfig
-import au.com.azwork.idm.graphentity.model.Edge
-import au.com.azwork.idm.graphentity.model.EntityDocument
+import au.com.azwork.idm.entitlementsaccelerator.config.ConnectorConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.Direction
+import au.com.azwork.idm.entitlementsaccelerator.config.EntityKind
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypeConfig
+import au.com.azwork.idm.entitlementsaccelerator.config.RelationshipConfig
+import au.com.azwork.idm.entitlementsaccelerator.model.Edge
+import au.com.azwork.idm.entitlementsaccelerator.model.EntityDocument
 import groovy.json.JsonOutput
 import org.identityconnectors.framework.common.objects.Attribute
 import org.identityconnectors.framework.common.objects.AttributeBuilder

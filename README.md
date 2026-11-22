@@ -1,6 +1,6 @@
-# Entitlements ICF Connector — Ping IDM → Graph Entity Service
+# Entitlements ICF Connector — Ping IDM → Entitlements Accelerator Service
 
-Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one way, to a graph entity service, plus the mapping-side payload library and the discovery tool that generates its configuration.
+Groovy Scripted REST (ICF) connector that synchronises IDM managed objects, one way, to a Entitlements Accelerator service, plus the mapping-side payload library and the discovery tool that generates its configuration.
 
 - **Design:** [`idm-graph-entity-connector-design.md`](idm-graph-entity-connector-design.md)
 - **Delivery plan and test strategy:** [`docs/delivery-plan.md`](docs/delivery-plan.md)
@@ -15,7 +15,7 @@ The build is test-first. The complete unit test suite is in place and the produc
 |---|---|---|---|
 | Connector library + 7 ICF scripts | `connector/src/main/{groovy,scripts}` | `connector/src/test/groovy` — 31 Spock specs, 696 executions, all passing | `./gradlew :connector:test` |
 | Discovery / generation tool | `discovery/src/main/groovy` | `discovery/src/test/groovy` — 7 specs, 77 executions, all passing | `./gradlew :discovery:test` |
-| Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/graphEntityPayload.js` | `mapping-lib/test` — 116 tests, all passing; also run under Rhino by `GraphEntityPayloadRhinoSpec` (see `mapping-lib/README.md`) | `cd mapping-lib && npm test` |
+| Mapping payload library (ES5, runs in IDM's Rhino) | `mapping-lib/src/lib/entitlementsacceleratorPayload.js` | `mapping-lib/test` — 116 tests, all passing; also run under Rhino by `entitlementsacceleratorPayloadRhinoSpec` (see `mapping-lib/README.md`) | `cd mapping-lib && npm test` |
 | Integration in IDM 7.5 (WS8) | `integration/src/test/groovy` | 4 specs, 18 tests, plus an opt-in scale spec; needs Docker | `./gradlew :integration:test -Pidm` |
 | Contract probe (WS0) | `contract-probe/src/main/groovy` | `contract-probe/src/test/groovy` — 5 specs, 126 tests, all passing | `./gradlew :contract-probe:test` |
 | Configuration samples | `config/` | — | — |
@@ -49,9 +49,9 @@ The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-co
 
 ### Operating it
 
-- **Release artefact:** `./gradlew :connector:distZip` builds `connector/build/distributions/graphentity-connector-<version>.zip`, laid out like an IDM installation.
+- **Release artefact:** `./gradlew :connector:distZip` builds `connector/build/distributions/entitlementsaccelerator-connector-<version>.zip`, laid out like an IDM installation.
 - **Runbook:** `docs/runbook.md` covers install, onboarding, schedules, monitoring, the logs, key rotation, troubleshooting and the dry run.
-- **Health:** `ops/graphentity_health.py` summarises the monitoring signals.
+- **Health:** `ops/entitlementsaccelerator_health.py` summarises the monitoring signals.
 - **Before go-live:** `docs/security-review.md` and `docs/go-live-checklist.md`.
 - **Local stack:** IDM 7.5 plus a service stand-in, `dev/README.md`.
 
@@ -62,14 +62,14 @@ The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-co
 ./gradlew :integration:test -Pidm -PidmScale=2000     # adds the volume and concurrency spec; timings in integration/build/scale-report.txt
 ```
 
-The suite starts IDM 7.5 in Docker on the host network (port 8080), deploys the connector as the runbook does, and drives it through IDM's REST API against an in-memory stand-in for the service. It deploys the library as Groovy sources by default; `-PidmLibrary=jar` deploys the jar instead. Deploying by hand, mind what IDM showed (`docs/service-contract.md` §4.1, `script_vs_jar.md`): `./gradlew :connector:connectorScripts` builds what goes into `<idm>/connectors/graphentity` (scripts and the library sources; `-PlibraryAs=jar` for the jar); the provisioner's object types come from `POST system?_action=createFullConfig`, called *before* the provisioner is saved; and the two library transforms need `"source": ""`.
+The suite starts IDM 7.5 in Docker on the host network (port 8080), deploys the connector as the runbook does, and drives it through IDM's REST API against an in-memory stand-in for the service. It deploys the library as Groovy sources by default; `-PidmLibrary=jar` deploys the jar instead. Deploying by hand, mind what IDM showed (`docs/service-contract.md` §4.1, `script_vs_jar.md`): `./gradlew :connector:connectorScripts` builds what goes into `<idm>/connectors/entitlementsaccelerator` (scripts and the library sources; `-PlibraryAs=jar` for the jar); the provisioner's object types come from `POST system?_action=createFullConfig`, called *before* the provisioner is saved; and the two library transforms need `"source": ""`.
 
 ### Discovery tool
 
 Generates `objectTypes`, the `customConfiguration` value and a mapping skeleton per type from managed.json (design §12):
 
 ```bash
-./gradlew :discovery:run --args="--managed /path/to/managed.json --types user,account --answers answers.json --current config/provisioner.openicf-graphentity.json --out build/discovery"
+./gradlew :discovery:run --args="--managed /path/to/managed.json --types user,account --answers answers.json --current config/provisioner.openicf-entitlementsaccelerator.json --out build/discovery"
 # or read managed.json from IDM, read-only, with an IDM account of its own:
 IDM_DISCOVERY_PASSWORD=… ./gradlew :discovery:run --args="--idm-url https://idm.example.com --idm-user discovery-reader --types user --answers answers.json --out build/discovery"
 # check mappings that target the connector (also a CI step):
@@ -84,7 +84,7 @@ Reports: `connector/build/reports/tests/test/index.html`, `discovery/build/repor
 
 ```
 connector/
-  src/main/groovy/au/com/azwork/idm/graphentity/
+  src/main/groovy/au/com/azwork/idm/entitlementsaccelerator/
     config/      objectTypes model + parser, ConnectorConfig            (design §6)
     convention/  RelationshipConvention                                  (§7)
     model/       Edge, EntityDocument                                    (§2)
@@ -102,12 +102,12 @@ discovery/        ManagedSchemaReader, ObjectTypesGenerator, MappingSkeletonGene
                   DiscoveryTool (CLI), IdmManagedSource, MappingLint     (§12)
 fixtures/         convention-cases.json, shared by the connector and mapping-lib tests (§7)
 dev/              docker-compose IDM 7.5 for development, load-config.sh (WS7.06)
-ops/              graphentity_health.py: the monitoring summary (WS9.03)
+ops/              entitlementsaccelerator_health.py: the monitoring summary (WS9.03)
 script_vs_jar.md  deploying the library as Groovy scripts (the default) or as a jar
 integration/      WS8: IdmStack (IDM 7.5 in Docker + the fake service), IDM specs, fixture managed.json
 contract-probe/   WS0 probe: ContractProbe, ProbeReport, Scrubber, ProbeMain
-mapping-lib/      graphEntityPayload.js + Node tests                     (§8.2)
-config/           provisioner.openicf-graphentity.json, sync-mapping-user.sample.json
+mapping-lib/      entitlementsacceleratorPayload.js + Node tests                     (§8.2)
+config/           provisioner.openicf-entitlementsaccelerator.json, sync-mapping-user.sample.json
 docs/             delivery-plan.md
 ```
 
@@ -115,8 +115,8 @@ docs/             delivery-plan.md
 
 ```bash
 ./gradlew :connector:distZip :discovery:distZip
-# connector/build/distributions/graphentity-connector-<version>.zip   for the IDM servers
-# discovery/build/distributions/graphentity-discovery-<version>.zip   for an operator's workstation
+# connector/build/distributions/entitlementsaccelerator-connector-<version>.zip   for the IDM servers
+# discovery/build/distributions/entitlementsaccelerator-discovery-<version>.zip   for an operator's workstation
 ```
 
 **`docs/deployment-guide.md`** is the installation guide. It goes from an IDM that has never seen the connector to a configured one, then covers upgrades, rollback and removal. Its worked example is `dev/deploy-walkthrough.sh`, which deploys the two zips into a brand-new IDM 7.5. `docs/runbook.md` covers operation from there.

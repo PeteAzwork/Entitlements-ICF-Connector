@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.search
+package au.com.azwork.idm.entitlementsaccelerator.search
 
 import groovy.transform.Canonical
 

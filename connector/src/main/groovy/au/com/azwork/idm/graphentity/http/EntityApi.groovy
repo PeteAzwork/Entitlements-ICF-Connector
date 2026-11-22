@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.http
+package au.com.azwork.idm.entitlementsaccelerator.http
 
 /**
  * The remote administrative API (design §2) as consumed by the operations. Implementations must not

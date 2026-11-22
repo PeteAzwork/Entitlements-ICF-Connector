@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
-import au.com.azwork.idm.graphentity.config.ObjectTypesParser
-import au.com.azwork.idm.graphentity.convention.RelationshipConvention
+import au.com.azwork.idm.entitlementsaccelerator.config.ObjectTypesParser
+import au.com.azwork.idm.entitlementsaccelerator.convention.RelationshipConvention
 import groovy.json.JsonSlurper
 import spock.lang.Specification
 

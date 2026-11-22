@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
 import org.identityconnectors.common.logging.Log
 

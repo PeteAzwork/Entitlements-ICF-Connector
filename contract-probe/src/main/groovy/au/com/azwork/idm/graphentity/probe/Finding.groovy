@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.probe
+package au.com.azwork.idm.entitlementsaccelerator.probe
 
 import groovy.transform.Canonical
 

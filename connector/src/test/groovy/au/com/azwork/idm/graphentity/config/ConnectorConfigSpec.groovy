@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.config
+package au.com.azwork.idm.entitlementsaccelerator.config
 
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import spock.lang.Specification
 import spock.lang.Unroll

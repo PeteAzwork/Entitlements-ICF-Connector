@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.ops
+package au.com.azwork.idm.entitlementsaccelerator.ops
 
-import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException
 
 /** Runs one call to the service, turning a transport failure into the retryable ConnectorIOException (§13). */

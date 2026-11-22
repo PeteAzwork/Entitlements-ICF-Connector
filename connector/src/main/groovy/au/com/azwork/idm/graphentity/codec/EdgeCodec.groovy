@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.codec
+package au.com.azwork.idm.entitlementsaccelerator.codec
 
-import au.com.azwork.idm.graphentity.model.Edge
+import au.com.azwork.idm.entitlementsaccelerator.model.Edge
 import groovy.json.JsonException
 import groovy.json.JsonGenerator
 import groovy.json.JsonSlurper

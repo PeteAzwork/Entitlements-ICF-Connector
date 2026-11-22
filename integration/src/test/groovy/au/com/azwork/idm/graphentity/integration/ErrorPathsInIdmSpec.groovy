@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.integration
+package au.com.azwork.idm.entitlementsaccelerator.integration
 
-import au.com.azwork.idm.graphentity.support.FakeGraphService
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeGraphService
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
@@ -23,7 +23,7 @@ class ErrorPathsInIdmSpec extends Specification {
         stack.saveProvisioner([configurationProperties: [password: 'wrong-key']])
 
         expect:
-        new PollingConditions(timeout: 30, delay: 1).eventually { assert idm.action('system/graphentity', 'test').ok == false }
+        new PollingConditions(timeout: 30, delay: 1).eventually { assert idm.action('system/entitlementsaccelerator', 'test').ok == false }
         !stack.log().contains('wrong-key')
     }
 
@@ -41,7 +41,7 @@ class ErrorPathsInIdmSpec extends Specification {
         poll.eventually { assert stack.log().contains('HTTP 503 during CREATE') }
 
         when:
-        idm.recon('managedUser_systemGraphentityUser')
+        idm.recon('managedUser_systementitlementsacceleratorUser')
 
         then:
         service.entities.containsKey('Err-1')
@@ -53,7 +53,7 @@ class ErrorPathsInIdmSpec extends Specification {
         service.failNextOf('DELETE', 404)
 
         when:
-        idm.delete('system/graphentity/account/Ghost-1')
+        idm.delete('system/entitlementsaccelerator/account/Ghost-1')
 
         then:
         noExceptionThrown()
@@ -63,7 +63,7 @@ class ErrorPathsInIdmSpec extends Specification {
         stack.saveProvisioner([configurationProperties: [customConfiguration: custom.replace('deleteMissingTolerated=true', 'deleteMissingTolerated=false')]])
         service.seed([id: 'Ghost-2', baseType: 2, attributes: [:], directArchetypes: ['Account']])
         service.failNextOf('DELETE', 404)
-        idm.delete('system/graphentity/account/Ghost-2')
+        idm.delete('system/entitlementsaccelerator/account/Ghost-2')
 
         then:
         def e = thrown(IllegalStateException)

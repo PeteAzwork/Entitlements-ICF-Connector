@@ -1,6 +1,6 @@
 # Local development stack (WS7.06)
 
-A local IDM 7.5 with the connector from your build. It can use an in-memory stand-in for the Graph Entity Service, or a real test tenant.
+A local IDM 7.5 with the connector from your build. It can use an in-memory stand-in for the Entitlements Accelerator Service, or a real test tenant.
 
 ```bash
 ./gradlew :connector:idmDist                  # build what IDM mounts (connector, mapping library)

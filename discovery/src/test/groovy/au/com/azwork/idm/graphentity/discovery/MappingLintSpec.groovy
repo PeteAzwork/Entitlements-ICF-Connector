@@ -1,11 +1,11 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 import spock.lang.Specification
 
 /** WS6.09 — the §8.4/§15 review check on mappings that target the connector. */
 class MappingLintSpec extends Specification {
 
-    static Map mapping(List properties, String target = 'system/graphentity/user') {
+    static Map mapping(List properties, String target = 'system/entitlementsaccelerator/user') {
         [name: 'm', source: 'managed/user', target: target, properties: properties]
     }
 

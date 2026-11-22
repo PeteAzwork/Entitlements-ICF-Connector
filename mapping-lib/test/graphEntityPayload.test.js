@@ -12,7 +12,7 @@ describe('library shape (§8.2)', () => {
     });
 
     test('is ES5: no let/const/arrow/template literal/class syntax (runs under Rhino)', () => {
-        const raw = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'lib', 'graphEntityPayload.js'), 'utf8');
+        const raw = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'lib', 'entitlementsacceleratorPayload.js'), 'utf8');
         // Only code is checked: comments may legitimately quote identifiers in backticks.
         const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
         assert.doesNotMatch(src, /^\s*(let|const)\s/m);
@@ -23,7 +23,7 @@ describe('library shape (§8.2)', () => {
 
     test('reads the single source of truth from the provisioner config path', () => {
         const { lib } = load(fakeOpenidm({}));
-        assert.equal(lib.CONFIG_PATH, 'config/provisioner.openicf/graphentity');
+        assert.equal(lib.CONFIG_PATH, 'config/provisioner.openicf/entitlementsaccelerator');
     });
 });
 
@@ -141,7 +141,7 @@ describe('loadTypeConfig (§8.2 single source of truth)', () => {
         assert.equal(tc.idProperty, 'userName');
         assert.equal(tc.entityKind, 'subject');
         assert.deepEqual(tc.archetypes, ['Customer']);
-        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/graphentity').length, 1);
+        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/entitlementsaccelerator').length, 1);
     });
     test('the type name is attached to the returned config', () => {
         assert.equal(load(fakeOpenidm({})).lib.loadTypeConfig('user').name, 'user');
@@ -150,9 +150,9 @@ describe('loadTypeConfig (§8.2 single source of truth)', () => {
         const openidm = fakeOpenidm({});
         const { lib } = load(openidm);
         lib.loadTypeConfig('user'); lib.loadTypeConfig('account'); lib.loadTypeConfig('user');
-        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/graphentity').length, 1);
+        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/entitlementsaccelerator').length, 1);
         lib.loadTypeConfig('user', { reload: true });
-        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/graphentity').length, 2);
+        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/entitlementsaccelerator').length, 2);
     });
     test('cacheInfo reports when the cache was loaded, for diagnosing module lifetime (WS8.08)', () => {
         const { lib } = load(fakeOpenidm({}));
@@ -165,7 +165,7 @@ describe('loadTypeConfig (§8.2 single source of truth)', () => {
         const openidm = fakeOpenidm({});
         const { lib } = load(openidm);
         lib.loadTypeConfig('user'); lib.clearCache(); lib.loadTypeConfig('user');
-        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/graphentity').length, 2);
+        assert.equal(openidm.calls.filter(c => c.id === 'config/provisioner.openicf/entitlementsaccelerator').length, 2);
     });
     test('an unknown type throws naming it and the configured types', () => {
         assert.throws(() => load(fakeOpenidm({})).lib.loadTypeConfig('group'), /group.*user|user.*group/s);
@@ -333,9 +333,9 @@ describe('buildArchetypes (§6, §8.2)', () => {
 
 describe('onIdPropertyChange (plan WS9.04: a changed idProperty becomes delete, then create)', () => {
     const sync = { mappings: [
-        { name: 'managedUser_systemGraphentityUser', source: 'managed/user', target: 'system/graphentity/user' },
+        { name: 'managedUser_systementitlementsacceleratorUser', source: 'managed/user', target: 'system/entitlementsaccelerator/user' },
         { name: 'other', source: 'managed/user', target: 'system/ldap/account' }] };
-    const links = [{ _id: 'l-1', linkType: 'managedUser_systemGraphentityUser', firstId: 'u-1' },
+    const links = [{ _id: 'l-1', linkType: 'managedUser_systementitlementsacceleratorUser', firstId: 'u-1' },
                    { _id: 'l-2', linkType: 'other', firstId: 'u-1' }];
 
     test('exports it', () => {
@@ -346,7 +346,7 @@ describe('onIdPropertyChange (plan WS9.04: a changed idProperty becomes delete, 
         const { lib, logs } = load(openidm);
         assert.equal(lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne2' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), true);
         const deletes = openidm.calls.filter(c => c.op === 'delete').map(c => c.id);
-        assert.deepEqual(deletes, ['system/graphentity/user/Sanne', 'repo/link/l-1']);
+        assert.deepEqual(deletes, ['system/entitlementsaccelerator/user/Sanne', 'repo/link/l-1']);
         assert.ok(logs.some(l => l[0] === 'info' && /Sanne2/.test(l[1])));
     });
     test('an unchanged idProperty does nothing', () => {
@@ -359,12 +359,12 @@ describe('onIdPropertyChange (plan WS9.04: a changed idProperty becomes delete, 
         assert.equal(load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne' }, { _id: 'u-1' }, 'user'), false);
     });
     test('an old entity already gone from the service is fine; the links are still removed', () => {
-        const openidm = fakeOpenidm({}, { sync, links, deleteFails: { 'system/graphentity/user/Sanne': 'Not Found: 404' } });
+        const openidm = fakeOpenidm({}, { sync, links, deleteFails: { 'system/entitlementsaccelerator/user/Sanne': 'Not Found: 404' } });
         assert.equal(load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne2' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), true);
         assert.ok(openidm.calls.some(c => c.op === 'delete' && c.id === 'repo/link/l-1'));
     });
     test('any other delete failure propagates, so the rename fails rather than leaving the service out of step', () => {
-        const openidm = fakeOpenidm({}, { sync, links, deleteFails: { 'system/graphentity/user/Sanne': 'Service Unavailable: 503' } });
+        const openidm = fakeOpenidm({}, { sync, links, deleteFails: { 'system/entitlementsaccelerator/user/Sanne': 'Service Unavailable: 503' } });
         assert.throws(() => load(openidm).lib.onIdPropertyChange({ _id: 'u-1', userName: 'Sanne2' }, { _id: 'u-1', userName: 'Sanne' }, 'user'), /503/);
         assert.ok(!openidm.calls.some(c => c.op === 'delete' && c.id.startsWith('repo/link')));
     });

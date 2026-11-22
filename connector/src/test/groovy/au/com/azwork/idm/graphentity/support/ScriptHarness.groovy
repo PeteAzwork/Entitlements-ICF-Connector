@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.support
+package au.com.azwork.idm.entitlementsaccelerator.support
 
 import groovy.json.JsonOutput
 import groovyx.net.http.RESTClient

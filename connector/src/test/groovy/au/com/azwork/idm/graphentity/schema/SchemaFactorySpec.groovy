@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.schema
+package au.com.azwork.idm.entitlementsaccelerator.schema
 
-import au.com.azwork.idm.graphentity.config.Direction
-import au.com.azwork.idm.graphentity.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.config.Direction
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.objects.AttributeInfo
 import org.identityconnectors.framework.common.objects.Name

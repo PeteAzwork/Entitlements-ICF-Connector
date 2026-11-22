@@ -1,6 +1,6 @@
-package au.com.azwork.idm.graphentity.config
+package au.com.azwork.idm.entitlementsaccelerator.config
 
-import au.com.azwork.idm.graphentity.convention.RelationshipConvention
+import au.com.azwork.idm.entitlementsaccelerator.convention.RelationshipConvention
 import groovy.transform.Canonical
 import org.identityconnectors.framework.common.exceptions.ConfigurationException
 

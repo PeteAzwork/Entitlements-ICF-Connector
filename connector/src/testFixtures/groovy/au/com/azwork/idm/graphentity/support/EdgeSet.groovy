@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.support
+package au.com.azwork.idm.entitlementsaccelerator.support
 
 /**
  * The fake service's relationship store: a set of [sourceId, targetId, type] that also indexes each relationship by

@@ -21,7 +21,7 @@ for _ in $(seq 1 120); do
 done
 [ "$state" = "ACTIVE_READY" ] || { echo "IDM did not become ready" >&2; exit 1; }
 
-SERVICE_URL="$SERVICE_URL" API_KEY="$API_KEY" python3 - "$here/../config/provisioner.openicf-graphentity.json" "$work/provisioner.json" <<'PY'
+SERVICE_URL="$SERVICE_URL" API_KEY="$API_KEY" python3 - "$here/../config/provisioner.openicf-entitlementsaccelerator.json" "$work/provisioner.json" <<'PY'
 import json, os, sys
 p = json.load(open(sys.argv[1]))
 p.pop('_comment', None)
@@ -35,7 +35,7 @@ echo "createFullConfig (adds the object types; runs the Test operation) ..."
 code=$(curl -s -o "$work/full.json" -w '%{http_code}' "${auth[@]}" -X POST "${IDM_URL}/system?_action=createFullConfig" --data @"$work/provisioner.json")
 [ "$code" = 200 ] || { echo "createFullConfig failed (HTTP $code): $(head -c 400 "$work/full.json")" >&2; exit 1; }
 echo "Saving the provisioner ..."
-curl -s -o /dev/null -w 'HTTP %{http_code}\n' "${auth[@]}" -X PUT "${IDM_URL}/config/provisioner.openicf/graphentity" --data @"$work/full.json"
+curl -s -o /dev/null -w 'HTTP %{http_code}\n' "${auth[@]}" -X PUT "${IDM_URL}/config/provisioner.openicf/entitlementsaccelerator" --data @"$work/full.json"
 sleep 3
 echo "Test operation:"
-curl -s "${auth[@]}" -X POST "${IDM_URL}/system/graphentity?_action=test"; echo
+curl -s "${auth[@]}" -X POST "${IDM_URL}/system/entitlementsaccelerator?_action=test"; echo

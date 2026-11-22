@@ -1,0 +1,3 @@
+uid in PAK instead of ID
+search only looks at attributes, which doesnt currently include lastUpdated
+empty lists dont appear to clear the list of relationships in PAk

@@ -1,9 +1,9 @@
-package au.com.azwork.idm.graphentity.scripts
+package au.com.azwork.idm.entitlementsaccelerator.scripts
 
-import au.com.azwork.idm.graphentity.support.CapturingLog
-import au.com.azwork.idm.graphentity.support.FakeSchemaBuilder
-import au.com.azwork.idm.graphentity.support.Fixtures
-import au.com.azwork.idm.graphentity.support.ScriptHarness
+import au.com.azwork.idm.entitlementsaccelerator.support.CapturingLog
+import au.com.azwork.idm.entitlementsaccelerator.support.FakeSchemaBuilder
+import au.com.azwork.idm.entitlementsaccelerator.support.Fixtures
+import au.com.azwork.idm.entitlementsaccelerator.support.ScriptHarness
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import groovy.json.JsonOutput

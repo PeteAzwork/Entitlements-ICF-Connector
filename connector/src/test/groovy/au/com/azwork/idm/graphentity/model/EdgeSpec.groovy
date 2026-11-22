@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.model
+package au.com.azwork.idm.entitlementsaccelerator.model
 
 import spock.lang.Specification
 import spock.lang.Unroll

@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
@@ -12,7 +12,7 @@ import groovy.json.JsonSlurper
  * <pre>
  * generate: --managed managed.json | --idm-url URL --idm-user USER   (password from IDM_DISCOVERY_PASSWORD)
  *           --types user,account [--answers answers.json] [--current provisioner.json] [--report-only] --out DIR
- * lint:     --lint sync.json [more.json ...] [--connector graphentity]
+ * lint:     --lint sync.json [more.json ...] [--connector entitlementsaccelerator]
  * </pre>
  * Exit codes: 0 success; 1 generation or lint errors; 2 usage or input errors.
  */
@@ -26,7 +26,7 @@ class DiscoveryTool {
 Usage:
   discovery --managed managed.json --types user,account [--answers answers.json] [--current provisioner.json] --out DIR
   discovery --idm-url https://idm.example.com --idm-user USER --types ... --out DIR   (password in IDM_DISCOVERY_PASSWORD)
-  discovery --lint sync.json [more.json ...] [--connector graphentity]
+  discovery --lint sync.json [more.json ...] [--connector entitlementsaccelerator]
 
 --report-only writes mappings whose every situation is REPORT, with implicit sync off: for the dry run (runbook §8).
 answers.json holds the operator's answers (GeneratorOptions): selectedTypes, entityKinds, idProperties, archetypes,
@@ -58,7 +58,7 @@ relationshipOverrides, connectorName. --types overrides selectedTypes.'''
     private static int lint(Map<String, List<String>> opts, PrintStream out, PrintStream err) {
         List<String> files = opts.lint
         if (!files) throw new IllegalArgumentException('--lint needs at least one mapping file')
-        String connector = single(opts, 'connector') ?: 'graphentity'
+        String connector = single(opts, 'connector') ?: 'entitlementsaccelerator'
         int violations = 0
         files.each { String path ->
             List<String> found = MappingLint.check(readJson(path) as Map, connector)
@@ -106,15 +106,15 @@ relationshipOverrides, connectorName. --types overrides selectedTypes.'''
         new File(dir, 'customConfiguration.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson([customConfiguration: custom])) + '\n', 'UTF-8')
         if (single(opts, 'current')) {
             Map provisioner = provisionerWith(readJson(single(opts, 'current')) as Map, custom)
-            new File(dir, 'provisioner.openicf-graphentity.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson(provisioner)) + '\n', 'UTF-8')
+            new File(dir, 'provisioner.openicf-entitlementsaccelerator.json').setText(JsonOutput.prettyPrint(JsonOutput.toJson(provisioner)) + '\n', 'UTF-8')
         }
         result.objectTypes.each { String type, Map block ->
             new File(dir, "sync-${type}.json").setText(
                 JsonOutput.prettyPrint(JsonOutput.toJson(MappingSkeletonGenerator.mapping(type, block, options, opts.containsKey('report-only')))) + '\n', 'UTF-8')
         }
-        out.println("Wrote objectTypes.json, customConfiguration.txt/.json${single(opts, 'current') ? ', provisioner.openicf-graphentity.json' : ''} and ${result.objectTypes.size()} mapping skeleton(s) to ${dir.path}")
+        out.println("Wrote objectTypes.json, customConfiguration.txt/.json${single(opts, 'current') ? ', provisioner.openicf-entitlementsaccelerator.json' : ''} and ${result.objectTypes.size()} mapping skeleton(s) to ${dir.path}")
         if (single(opts, 'current')) {
-            out.println('Next: POST provisioner.openicf-graphentity.json to system?_action=createFullConfig, then save the result (runbook §2.3)')
+            out.println('Next: POST provisioner.openicf-entitlementsaccelerator.json to system?_action=createFullConfig, then save the result (runbook §2.3)')
         }
         OK
     }

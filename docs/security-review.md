@@ -1,4 +1,4 @@
-# Security review pack: Graph Entity Service connector
+# Security review pack: Entitlements Accelerator Service connector
 
 **For:** the WS9.05 security review, ahead of the go-live decision (WS9.07).
 **Scope:**
@@ -44,7 +44,7 @@ The service itself and IDM's own security are out of scope, except where the con
 | R1 | **The shared key.** A leak from *any* consumer exposes everything. Rotation needs every consumer at once. Requests cannot be attributed | A service-side change: per-consumer keys, OAuth2 client credentials or mTLS. The connector confines authentication to `ClientCustomizer`, so a change there is local. Rotation procedure: runbook §7 |
 | R2 | **Who can read IDM's configuration** can recover the key in use (IDM decrypts it for the connector), and can change what is written | Restrict IDM admin and the configuration endpoints. Audit admin access |
 | R3 | **A second writer to the service (A1)** has its relationships silently removed by this connector. Equally, anyone holding the key can write relationships IDM will then overwrite | Any second writer needs a design review first (design §15) |
-| R4 | **Library as editable sources on the IDM servers** (scripts mode, `script_vs_jar.md`). Whoever can write `connectors/graphentity` can change what is sent, including the key handling | The files should be writable only by deployment. Compare against the release artefact's `VERSION` and checksums. The jar mode is the alternative |
+| R4 | **Library as editable sources on the IDM servers** (scripts mode, `script_vs_jar.md`). Whoever can write `connectors/entitlementsaccelerator` can change what is sent, including the key handling | The files should be writable only by deployment. Compare against the release artefact's `VERSION` and checksums. The jar mode is the alternative |
 | R5 | **Identity data in IDM's own audit logs.** IDM's sync and activity audit record objects; the connector does not control them | IDM audit configuration and retention, outside this connector |
 | R6 | **Plain http** is accepted with a WARN, for local development | Production must use https. The WARN is a monitoring signal (runbook §5) |
 | R7 | **The service's error bodies** are logged at ERROR after redaction, and may contain attribute values the service echoes in a validation message | Decide whether that is acceptable, or whether 400 bodies should be logged at DEBUG only |
@@ -61,6 +61,6 @@ Still to do before go-live: repeat the key check on the **dry run's** logs (runb
 ## 5. Decisions requested
 
 1. Accept R1 for go-live, or require a service-side change first.
-2. Confirm the IDM admin access model (R2) and the file permissions on `connectors/graphentity` (R4).
+2. Confirm the IDM admin access model (R2) and the file permissions on `connectors/entitlementsaccelerator` (R4).
 3. Decide R7: 400 bodies at ERROR (current) or at DEBUG.
 4. Sign off in `docs/go-live-checklist.md`.

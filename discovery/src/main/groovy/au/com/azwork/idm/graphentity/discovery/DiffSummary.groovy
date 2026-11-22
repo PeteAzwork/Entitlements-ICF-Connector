@@ -1,4 +1,4 @@
-package au.com.azwork.idm.graphentity.discovery
+package au.com.azwork.idm.entitlementsaccelerator.discovery
 
 /**
  * Diff-style summary between the live {@code objectTypes} configuration and a freshly generated proposal

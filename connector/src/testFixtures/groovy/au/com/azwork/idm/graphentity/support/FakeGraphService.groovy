@@ -1,7 +1,7 @@
-package au.com.azwork.idm.graphentity.support
+package au.com.azwork.idm.entitlementsaccelerator.support
 
-import au.com.azwork.idm.graphentity.http.EntityApi
-import au.com.azwork.idm.graphentity.http.HttpResponse
+import au.com.azwork.idm.entitlementsaccelerator.http.EntityApi
+import au.com.azwork.idm.entitlementsaccelerator.http.HttpResponse
 
 import java.time.Instant
 import java.time.format.DateTimeFormatter
