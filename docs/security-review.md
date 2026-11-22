@@ -36,6 +36,7 @@ The service itself and IDM's own security are out of scope, except where the con
 | 10 | **The discovery tool's IDM access is read-only and separate:** one GET of `config/managed`, with an IDM account of its own. The password comes only from `IDM_DISCOVERY_PASSWORD`; `--idm-password` is refused. The password is never printed | `IdmManagedSourceSpec`, `DiscoveryToolSpec` |
 | 11 | **The contract probe scrubs what it records**, and its write mode refuses to run without `--allow-writes`. Its reports hold no data of entities it did not create | `ScrubberSpec`, `ProbeOutputSpec`, `RecordedShapesSpec` |
 | 12 | **The development-only service stand-in** (`runFakeService`) holds state in memory, uses a development key, and is documented as never to be exposed | `dev/README.md`, `FakeServiceMain` |
+| 13 | **The load test is fenced:**<br>- it refuses to run without `--allow-writes`;<br>- it refuses hosts not on its allow-list, including the address IDM is told to use;<br>- it takes the key and IDM's password only from the environment, and refuses them as options;<br>- it touches only its own `lt-<run>-` entities;<br>- it strips both secrets from its reports.<br><br>It is for test environments only; on a shared tenant, R1 applies | `LoadTestOptionsSpec`, `LoadReportSpec`, `LoadTestInIdmSpec`; `docs/load-testing.md` §2 |
 
 ## 3. Risks for the reviewers to accept, mitigate or reject
 

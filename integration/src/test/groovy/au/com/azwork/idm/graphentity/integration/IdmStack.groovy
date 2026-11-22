@@ -127,12 +127,15 @@ class IdmStack {
         idm.awaitTrue(180, 'IDM to finish applying provisioner changes') { provisionerSettled(Instant.now().minusSeconds(300)) }
     }
 
-    /** No provisioner event in the last 3 s, and the last one since {@code since}, if any, is an activation. */
+    /**
+     * No provisioner event in the last 3 s, and the connector's last state change since {@code since}, if any, is an
+     * activation. IDM logs "Updating configuration file" before or after the reactivation, so it is not a state.
+     */
     private boolean provisionerSettled(Instant since) {
         List<List> events = provisionerEvents(since)
         if (!events) return true
-        List last = events[-1]
-        last[1] == 'activated' && (last[0] as Instant) < Instant.now().minusSeconds(3)
+        List<List> states = events.findAll { it[1] != 'updated' }
+        (events[-1][0] as Instant) < Instant.now().minusSeconds(3) && (!states || states[-1][1] == 'activated')
     }
 
     /** IDM's log timestamps (java.util.logging, the image's UTC zone), as in {@code [191] Nov 21, 2026 9:07:49.055 PM}. */

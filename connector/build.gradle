@@ -140,4 +140,6 @@ tasks.register('runFakeService', JavaExec) {
     description = 'Runs the in-memory Graph Entity Service stand-in on port 5276 (GRAPH_FAKE_PORT) for development'
     classpath = sourceSets.testFixtures.runtimeClasspath
     mainClass = 'au.com.azwork.idm.graphentity.support.FakeServiceMain'
+    // Without it the JDK HTTP server's Nagle delay adds ~40 ms to every exchange, and timings measure the stand-in (H20).
+    systemProperty 'sun.net.httpserver.nodelay', 'true'
 }

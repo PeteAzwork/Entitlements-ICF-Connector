@@ -1,2 +1,2 @@
 rootProject.name = 'entitlements-icf-connector'
-include 'connector', 'discovery', 'contract-probe', 'integration'
+include 'connector', 'discovery', 'contract-probe', 'integration', 'loadtest'

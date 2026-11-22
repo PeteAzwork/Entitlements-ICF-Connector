@@ -1,0 +1,37 @@
+description = 'End-to-end load test: drives a real IDM with the connector against a real (or stand-in) Graph Entity Service, and verifies the service over HTTP'
+
+apply plugin: 'application'
+
+dependencies {
+    implementation project(':discovery')          // --configure generates objectTypes and mappings as the discovery tool does
+    testImplementation testFixtures(project(':connector'))
+}
+
+application {
+    mainClass = 'au.com.azwork.idm.graphentity.loadtest.LoadTestMain'
+    applicationName = 'graphentity-loadtest'
+    applicationDefaultJvmArgs = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
+}
+
+distributions {
+    main { distributionBaseName = 'graphentity-loadtest' }
+}
+
+// --configure loads the same model the integration suite uses: IDM's managed.json plus `account` and the owns/ownedBy
+// pair, the operator's answers, and the provisioner sample. Bundled so the tool runs from its zip.
+processResources {
+    from('../integration/src/test/resources/idm') {
+        include 'managed.json', 'answers.json'
+        into 'loadtest'
+    }
+    from('../config') {
+        include 'provisioner.openicf-graphentity.json'
+        into 'loadtest'
+    }
+}
+
+// Never run by CI against anything real: people run it against a test environment (docs/load-testing.md).
+// Example: LOADTEST_API_KEY=… LOADTEST_IDM_PASSWORD=… ./gradlew :loadtest:run --args="--idm-url http://localhost:8080/openidm --service-url http://localhost:5276 --allow-writes"
+tasks.named('run') {
+    workingDir = rootProject.projectDir
+}

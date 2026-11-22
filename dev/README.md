@@ -27,4 +27,5 @@ dev/load-config.sh                            # provisioner via createFullConfig
   - `GRAPH_FAKE_API_KEY` (default `dev-api-key`).
 
   It keeps everything in memory and has the service's known HTTP behaviour. It is for development only: don't expose it beyond your machine.
+- **Load test:** to measure this stack end to end, see `docs/load-testing.md`. `runFakeService` turns off the JDK HTTP server's Nagle delay, so the stand-in adds no time of its own (H20).
 - **Stop the stack:** `docker compose -f dev/docker-compose.yml down`.

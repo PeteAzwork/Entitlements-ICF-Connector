@@ -248,7 +248,7 @@ Changing any setting is a provisioner save: one at a time, then verify (§6.3).
    - **Situation policies:** a managed delete deletes the entity in the service (`SOURCE_MISSING: DELETE`, H13). Entities found only in the service are reported, never deleted (P16).
    - **`taskThreads: 4`:** shown to converge under concurrent implicit sync (WS8.10).
    - **The dry run:** for a non-production dry run, generate with `--report-only` instead (runbook §10).
-4. **The initial load:** runbook §3. Accounts and other resources first, then users; implicit sync stays off until it is done.
+4. **The initial load:** runbook §3. Reconcile accounts and users one straight after the other, with implicit sync off until both are done. Expect one `dropped edge` WARN per relationship during the first of the two.
 
 ## 10. Schedules, then go live
 
@@ -256,6 +256,7 @@ Changing any setting is a provisioner save: one at a time, then verify (§6.3).
 1. **Load the schedules.** Take `samples/schedule-recon-graphentity-account.json` and `…-user.json` from the release, remove `_comment`, and load each with `PUT /openidm/config/schedule/recon-graphentity-<type>`. Resources reconcile at 01:15 and users at 02:15, server time; adjust the times to your window (runbook §4).
 2. **Turn implicit sync on:** `"enableSync": true` on the mappings.
 3. **Set up monitoring:** runbook §5.
+4. **Before production, measure.** Run the load test against a test IDM and the service's test tenant at production size (`docs/load-testing.md`). It gives the reconciliation windows, IDM's heap, and the change rate the service sustains. Size the schedules from it.
 
 ## 11. Deployment patterns
 
@@ -352,6 +353,7 @@ A new IDM version is runbook §11.
 | 8 | Mappings linted; implicit sync off for the initial load | §9 |
 | 9 | Initial load done and reviewed; schedules loaded; implicit sync on | runbook §3, §10 |
 | 10 | No copy of the key left on disk (`provisioner.json`, `full.json`) | §6.2, §6.3 |
+| 11 | Load test passed at production size against a test environment; schedules and heap sized from its report | §10, `docs/load-testing.md` |
 
 ---
 

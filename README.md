@@ -64,6 +64,16 @@ The report lands in `build/contract-probe/<run>/report.md`. See `docs/service-co
 
 The suite starts IDM 7.5 in Docker on the host network (port 8080), deploys the connector as the runbook does, and drives it through IDM's REST API against an in-memory stand-in for the service. It deploys the library as Groovy sources by default; `-PidmLibrary=jar` deploys the jar instead. Deploying by hand, mind what IDM showed (`docs/service-contract.md` §4.1, `script_vs_jar.md`): `./gradlew :connector:connectorScripts` builds what goes into `<idm>/connectors/graphentity` (scripts and the library sources; `-PlibraryAs=jar` for the jar); the provisioner's object types come from `POST system?_action=createFullConfig`, called *before* the provisioner is saved; and the two library transforms need `"source": ""`.
 
+### Load test, end to end
+
+```bash
+./gradlew :loadtest:installDist
+LOADTEST_API_KEY=… LOADTEST_IDM_PASSWORD=… loadtest/build/install/graphentity-loadtest/bin/graphentity-loadtest \
+    --idm-url http://localhost:8080/openidm --service-url http://localhost:5276 --allow-writes --configure --users 2000
+```
+
+It drives a real IDM against the service, a real one or the stand-in: seeding, the first load, steady-state reconciliation, implicit sync at a set rate, and cleanup. It checks the service over HTTP after each phase, and writes `report.md` and `report.json`. It refuses to run without `--allow-writes` or against hosts not on its allow-list, and only ever touches its own `lt-<run>-` entities. See `docs/load-testing.md`, including how to point it at a docker-compose stack.
+
 ### Discovery tool
 
 Generates `objectTypes`, the `customConfiguration` value and a mapping skeleton per type from managed.json (design §12):

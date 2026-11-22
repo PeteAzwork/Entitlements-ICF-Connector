@@ -20,7 +20,7 @@ Going live at M5 is reasonable when **IDM is the only writer to the service (A1)
 |---|---|---|---|
 | 1 | Every suite green on the release commit: connector, discovery, mapping library, probe, `compileWithIdmGroovy`, mapping lint | CI run link | ☐ |
 | 2 | Integration suite green on the target IDM version, both library modes | Nightly `integration` run link | ☐ |
-| 3 | Volume measured at production size (`-PidmScale=<n>`), schedules sized from it | `scale-report.txt` | ☐ |
+| 3 | Volume measured at production size against the service's test tenant with the load test (`docs/load-testing.md`); schedules and IDM's heap sized from it | The load test's `report.md` | ☐ |
 | 4 | Dry run against the real service, reviewed with operations and the service owner (runbook §10) | Situation counts per type, health report | ☐ |
 | 5 | No `AMBIGUOUS` situations in the dry run; orphans explained | Dry-run record | ☐ |
 | 6 | Security review complete; R1–R7 decided (`docs/security-review.md`) | Review record | ☐ |
