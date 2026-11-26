@@ -333,7 +333,7 @@ Each workstream's acceptance criterion is the set of specs that must be green. E
 | `loadtest/LoadTestOptionsSpec`, `LatenciesSpec`, `LoadReportSpec`, `ServiceClientSpec` | WS8.13 | 30 | 30 |
 | **Grand total** | | | **1077 (+3 opt-in)** |
 
-Current result (2026-11-22, after the load test): **every suite is green**: connector 701 / 701, discovery 77 / 77, load test 30 / 30, mapping library 117 / 117, contract probe 126 / 126, `:discovery:lintMappings`, `:connector:compileWithIdmGroovy`, and **integration 26 / 26 inside IDM 7.5** (25 in both library modes and at 1 CPU on 2026-11-21; `LoadTestInIdmSpec` added and green); the opt-in scale spec passes at 50,000 users. `dev/deploy-walkthrough.sh` and `entitlementsaccelerator-loadtest` run end to end on a brand-new IDM 7.5. No `TODO WSn` stub remains in the code.
+Current result (2026-11-26, after the rename and the JDK 21 build; re-run in full on a clean build): **every suite is green**: connector 701 / 701, discovery 77 / 77, load test 30 / 30, mapping library 117 / 117, contract probe 126 / 126, `:discovery:lintMappings`, `:connector:compileWithIdmGroovy`, and **integration 26 / 26 inside IDM 7.5** under the new names (before the rename: 25 in both library modes and at 1 CPU); the opt-in scale spec passes at 50,000 users. `dev/deploy-walkthrough.sh` and `entitlementsaccelerator-loadtest` run end to end on a brand-new IDM 7.5. No `TODO WSn` stub remains in the code.
 
 Before WS1 (after WS0.11) the connector stood at 18 pass / 606 fail; after WS1, 212 / 413; after WS2, 320 / 305; after WS3, 554 / 83. The mapping library stood at 3 pass / 66 fail before WS5, and discovery at 0 / 45 before WS6.
 

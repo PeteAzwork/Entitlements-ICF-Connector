@@ -368,7 +368,7 @@ dev/deploy-walkthrough.sh connector/build/distributions/entitlementsaccelerator-
                           discovery/build/distributions/entitlementsaccelerator-discovery-*.zip
 ```
 
-The output of a run (2026-11-21, IDM 7.5.0, library as sources), lightly trimmed:
+The output of a run (2026-11-26, IDM 7.5.0, library as sources), lightly trimmed:
 
 ```text
 == 1. Start an empty IDM 7.5 (gcr.io/forgerock-io/idm:7.5.0)
@@ -378,12 +378,12 @@ scriptedrest-connector-1.5.20.21.jar
 …and 15 other connector bundles
 
 == 2. Unpack the connector release over the IDM installation (guide §4)
-fda7dbad7ce43ade9d736c91dbb02009d64c6f05e129397bfbd8e9006729421b  entitlementsaccelerator-connector-0.1.0-SNAPSHOT.zip
+d5952526c56ad1435d84096ba3e358d67e8f53a85eb22b72f6efae533718debd  entitlementsaccelerator-connector-0.1.0-SNAPSHOT.zip
 $ cat release/VERSION
 version=0.1.0-SNAPSHOT
-commit=e34f5f433624
+commit=f83a5b7c28d4
 library=sources
-built=2026-11-21T22:18:58.527618646Z
+built=2026-11-26T01:54:10.648452361Z
 $ docker exec entitlementsaccelerator-walkthrough find /opt/openidm/connectors/entitlementsaccelerator /opt/openidm/script/lib -maxdepth 2
 /opt/openidm/connectors/entitlementsaccelerator
 /opt/openidm/connectors/entitlementsaccelerator/scripts
@@ -395,7 +395,7 @@ $ docker exec entitlementsaccelerator-walkthrough find /opt/openidm/connectors/e
 /opt/openidm/connectors/entitlementsaccelerator/scripts/SchemaScript.groovy
 /opt/openidm/connectors/entitlementsaccelerator/scripts/TestScript.groovy
 /opt/openidm/connectors/entitlementsaccelerator/lib
-/opt/openidm/connectors/entitlementsaccelerator/lib/au
+/opt/openidm/connectors/entitlementsaccelerator/lib/idm
 /opt/openidm/script/lib
 /opt/openidm/script/lib/entitlementsAcceleratorPayload.js
 
