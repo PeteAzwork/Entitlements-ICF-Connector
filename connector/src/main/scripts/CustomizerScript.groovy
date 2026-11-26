@@ -11,7 +11,7 @@
  * configuration as its delegate; the client it builds reaches the operation scripts as `connection`. `decorate`
  * receives that client; what it returns reaches them as `customizedConnection`. The work is in ClientCustomizer.
  */
-import au.com.azwork.idm.entitlementsaccelerator.ops.ClientCustomizer
+import idm.entitlementsaccelerator.ops.ClientCustomizer
 import org.apache.http.impl.client.HttpClientBuilder
 
 def scriptBinding = binding

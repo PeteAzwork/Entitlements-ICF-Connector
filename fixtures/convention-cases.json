@@ -1,5 +1,5 @@
 {
-  "_comment": "The §7 relationship convention cases, shared by the connector (RelationshipConventionSpec, Groovy) and the mapping library (entitlementsacceleratorPayload.test.js, JavaScript), so the two implementations cannot drift apart (plan WS5.01). Add a case here and both suites check it.",
+  "_comment": "The §7 relationship convention cases, shared by the connector (RelationshipConventionSpec, Groovy) and the mapping library (entitlementsAcceleratorPayload.test.js, JavaScript), so the two implementations cannot drift apart (plan WS5.01). Add a case here and both suites check it.",
   "normalise": [
     ["owns", "Owns"], ["Owns", "Owns"], ["ownsSet", "Owns"], ["ownsList", "Owns"], ["memberList", "Member"],
     ["memberOfSet", "MemberOf"], ["ownedBy", "OwnedBy"], ["manager", "Manager"], ["reports", "Reports"], ["a", "A"],

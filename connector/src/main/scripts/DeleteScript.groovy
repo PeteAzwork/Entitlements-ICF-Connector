@@ -1,6 +1,6 @@
 /* DeleteScript.groovy — ICF Delete operation (design §9.3). */
-import au.com.azwork.idm.entitlementsaccelerator.ops.DeleteOperation
-import au.com.azwork.idm.entitlementsaccelerator.ops.ScriptSupport
+import idm.entitlementsaccelerator.ops.DeleteOperation
+import idm.entitlementsaccelerator.ops.ScriptSupport
 
 def ctx = ScriptSupport.contextFrom(configuration, ScriptSupport.connectionOf(binding), log)
 new DeleteOperation(ctx).execute(objectClass, uid, ScriptSupport.optional(binding, 'options'))

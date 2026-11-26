@@ -7,7 +7,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'au.com.azwork.idm.entitlementsaccelerator.discovery.DiscoveryTool'
+    mainClass = 'idm.entitlementsaccelerator.discovery.DiscoveryTool'
     applicationName = 'discovery'
     // Print the tool's report as UTF-8 (it uses §), whatever the terminal's locale.
     applicationDefaultJvmArgs = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']

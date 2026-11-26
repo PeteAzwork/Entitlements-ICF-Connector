@@ -37,13 +37,13 @@ The Scripted REST connector separates two kinds of Groovy:
 | | Where | Configured by | Compiled |
 |---|---|---|---|
 | The seven **operation scripts** (`CreateScript.groovy`, …) | `connectors/entitlementsaccelerator/scripts` | `scriptRoots`, `*ScriptFileName` | Always by IDM, from source |
-| The **library** (`au.com.azwork.idm.entitlementsaccelerator.*`) | `connectors/entitlementsaccelerator/lib` | `classpath` | **Scripts mode:** by IDM, from source (a directory on `classpath`). **Jar mode:** at build time (a jar on `classpath`) |
+| The **library** (`idm.entitlementsaccelerator.*`) | `connectors/entitlementsaccelerator/lib` | `classpath` | **Scripts mode:** by IDM, from source (a directory on `classpath`). **Jar mode:** at build time (a jar on `classpath`) |
 
 The question is only about the library. The operation scripts are always deployed as scripts. `./gradlew :connector:connectorScripts` builds the directory to copy into `<idm>/connectors/entitlementsaccelerator`:
 
 ```text
 scripts/CreateScript.groovy … UpdateScript.groovy      (both modes)
-lib/au/com/azwork/idm/entitlementsaccelerator/**/*.groovy          (scripts mode, the default)
+lib/idm/entitlementsaccelerator/**/*.groovy          (scripts mode, the default)
 lib/entitlementsaccelerator-connector-lib.jar                      (jar mode: -PlibraryAs=jar)
 provisioner.openicf-entitlementsaccelerator.json
 ```
@@ -64,7 +64,7 @@ A directory entry does not pick up jars inside it, so jar mode must name the fil
 ```text
 SEVERE: Failed to customize the connector
 BUG! exception in phase 'semantic analysis' in source unit '…/scripts/CustomizerScript.groovy'
-The lookup for au.com.azwork.idm.entitlementsaccelerator.ops.ClientCustomizer caused a failed compilation.
+The lookup for idm.entitlementsaccelerator.ops.ClientCustomizer caused a failed compilation.
 There should not have been any compilation from this call.
 ```
 
@@ -120,7 +120,7 @@ Operations cost the same once initialised: a 300-user reconciliation took the sa
 
 ### 4. Layout, permissions and change control
 
-- **Keep the package directories.** The sources must sit under `lib/au/com/azwork/idm/entitlementsaccelerator/…`, mirroring their packages. A flattened copy does not compile.
+- **Keep the package directories.** The sources must sit under `lib/idm/entitlementsaccelerator/…`, mirroring their packages. A flattened copy does not compile.
 - **Keep the library out of `scriptRoots`, and the scripts out of `lib/`.** The scripts compile to the default package. The jar build excludes them for the same reason. Putting the library under `scriptRoots` was not tested.
 - **Permissions.** The files must be readable by IDM's user. In the image that is uid 11111.
 - **Change control.**

@@ -4,6 +4,7 @@ dependencies {
     testImplementation project(':connector')
     testImplementation project(':discovery')
     testImplementation testFixtures(project(':connector'))
+    testImplementation project(':loadtest')
 }
 
 // Needs Docker and the IDM image, so it only runs when asked for:

@@ -17,4 +17,4 @@ services:
     volumes:
       # The connector and the mapping library from build/idm-dist, read-only: rebuild, then restart IDM to pick them up.
       - ../connector/build/idm-dist/connectors/entitlementsaccelerator:/opt/openidm/connectors/entitlementsaccelerator:ro
-      - ../connector/build/idm-dist/script/lib/entitlementsacceleratorPayload.js:/opt/openidm/script/lib/entitlementsacceleratorPayload.js:ro
+      - ../connector/build/idm-dist/script/lib/entitlementsAcceleratorPayload.js:/opt/openidm/script/lib/entitlementsAcceleratorPayload.js:ro

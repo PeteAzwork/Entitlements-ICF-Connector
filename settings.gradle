@@ -1,2 +1,8 @@
+// Lets Gradle download a missing JDK for a toolchain (21 for the build, 17 for compileWithIdmGroovy) from the
+// Foojay Discovery API, so the build doesn't depend on which JDKs the machine has.
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
+}
+
 rootProject.name = 'entitlements-icf-connector'
-include 'connector', 'discovery', 'contract-probe', 'integration'
+include 'connector', 'discovery', 'contract-probe', 'integration', 'loadtest'

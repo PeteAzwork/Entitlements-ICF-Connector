@@ -114,7 +114,7 @@ step "9. Initial load: accounts first, then users (runbook §3)"
 idm POST 'managed/user?_action=create' --data '{"userName":"walk-1","givenName":"Walk","sn":"Through","mail":"walk-1@example.com"}' | json '"created user", d["userName"]'
 uid=$(idm GET 'managed/user?_queryFilter=userName+eq+"walk-1"&_fields=_id' | json 'd["result"][0]["_id"]')
 idm POST 'managed/account?_action=create' --data "{\"accountId\":\"walk-acct-1\",\"name\":\"Walk account\",\"productCode\":\"P1\",\"ownedBy\":{\"_ref\":\"managed/user/$uid\"}}" | json '"created account", d["accountId"]'
-for m in managedAccount_systementitlementsacceleratorAccount managedUser_systementitlementsacceleratorUser; do
+for m in managedAccount_systemEntitlementsacceleratorAccount managedUser_systemEntitlementsacceleratorUser; do
   id=$(idm POST "recon?_action=recon&mapping=$m&waitForCompletion=true" | json 'd["_id"]')
   idm GET "recon/$id" | json '"'"$m"'", d["state"], {k: v for k, v in d["situationSummary"].items() if v}'
 done
@@ -149,7 +149,7 @@ idm PUT config/managed --data @managed-without-guard.json >/dev/null && echo "ID
 idm DELETE config/provisioner.openicf/entitlementsaccelerator | json '"deleted", d["_id"]'
 sleep 5
 printf 'system/entitlementsaccelerator now answers HTTP %s\n' "$(idm POST 'system/entitlementsaccelerator?_action=test' -o /dev/null -w '%{http_code}' 2>/dev/null || true)"
-run docker exec "$NAME" rm -rf /opt/openidm/connectors/entitlementsaccelerator /opt/openidm/script/lib/entitlementsacceleratorPayload.js
+run docker exec "$NAME" rm -rf /opt/openidm/connectors/entitlementsaccelerator /opt/openidm/script/lib/entitlementsAcceleratorPayload.js
 echo "The entities written to the service stay there: tell the service team (guide §13)."
 
 [ "${KEEP:-0}" = 1 ] || docker rm -f "$NAME" >/dev/null

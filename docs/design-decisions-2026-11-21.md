@@ -32,7 +32,7 @@ Each decision below gives the context, the decision, its consequences, what must
 
 **Consequences.**
 - `Edge` becomes `{sourceId, targetId, type}`. `flip` and the per-entity direction disappear from the model; `Direction` remains only in configuration and the §7 convention.
-- `EdgeCodec`, `EdgeSpec`, `EdgeCodecSpec`, the edge cases of `EntityPayloadBuilderSpec` and `EntityDecoderSpec`, `EdgeVerifier`, `FakeGraphService`, `Fixtures` and the Appendix A scenario change shape.
+- `EdgeCodec`, `EdgeSpec`, `EdgeCodecSpec`, the edge cases of `EntityPayloadBuilderSpec` and `EntityDecoderSpec`, `EdgeVerifier`, `FakeAcceleratorService`, `Fixtures` and the Appendix A scenario change shape.
 - The mapping library's `buildRelationships` emits the same format.
 - The format carries inbound relationships naturally, so either answer to Q07.8 fits it.
 

@@ -1,13 +1,13 @@
 'use strict';
 /*
- * Loads entitlementsacceleratorPayload.js the way IDM's Rhino would: in an isolated context with `openidm` and `logger`
+ * Loads entitlementsAcceleratorPayload.js the way IDM's Rhino would: in an isolated context with `openidm` and `logger`
  * globals and a CommonJS-style `exports`. Node's vm module stands in for Rhino; the library must stay ES5.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const LIB = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'entitlementsacceleratorPayload.js'), 'utf8');
+const LIB = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'entitlementsAcceleratorPayload.js'), 'utf8');
 
 /** The §6 objectTypes document, with discovery-emitted relatedType/reverseProperty hints. */
 function objectTypes() {
@@ -98,7 +98,7 @@ function load(openidm, extraGlobals) {
     };
     Object.assign(context, extraGlobals || {});
     vm.createContext(context);
-    vm.runInContext(LIB, context, { filename: 'entitlementsacceleratorPayload.js' });
+    vm.runInContext(LIB, context, { filename: 'entitlementsAcceleratorPayload.js' });
     return { lib: sameRealm(context.exports), logs };
 }
 

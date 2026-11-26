@@ -4,7 +4,7 @@
 subprojects {
     apply plugin: 'groovy'
 
-    group = 'au.com.azwork.idm'
+    group = 'idm.entitlementsaccelerator'
     version = '0.1.0-SNAPSHOT'
 
     repositories {
@@ -23,9 +23,17 @@ subprojects {
         }
     }
 
+    // Built and tested on JDK 21 wherever the build runs: Gradle uses an installed JDK 21, or downloads one
+    // (settings.gradle), so the result doesn't depend on the machine's default Java.
     java {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    }
+    // The class files stay at Java 17: IDM 7.5 runs on JDK 17 and must load the library jar, and the discovery
+    // and load-test tools then run on Java 17 or later.
+    tasks.withType(JavaCompile).configureEach { options.release = 17 }
+    tasks.withType(GroovyCompile).configureEach {
+        sourceCompatibility = '17'
+        targetCompatibility = '17'
     }
 
     dependencies {

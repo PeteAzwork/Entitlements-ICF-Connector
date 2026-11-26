@@ -141,7 +141,7 @@ These follow from the answers above. Check them before changing any code.
 | ID filter field | `ID` | `SearchPlanner`, by-ID search fallback (P21) |
 | Page size field | `pageSize` | `PageCursor.toQuery` |
 | Cursor | response `pagedResultsCookie` → request `pagedResultsCookie` | `PageCursor` |
-| Response envelope | object, items under `results`, total in `totalResults` | `PageCursor.next`, `FakeGraphService.search` |
+| Response envelope | object, items under `results`, total in `totalResults` | `PageCursor.next`, `FakeAcceleratorService.search` |
 | `lastEvaluated` format | ISO-8601, no fraction, Z | `EntityDecoder` |
 | Ambiguous archetypes | ThirdPartyApplication | `TypeScoper` (P19) |
 | Leftover probe entities | 4 | remove by hand |

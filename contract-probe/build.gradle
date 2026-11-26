@@ -1,9 +1,9 @@
-description = 'WS0 contract probe: observes the Entitlements Accelerator service API and records the evidence for docs/service-contract.md'
+description = 'WS0 contract probe: observes the Entitlements Accelerator Service API and records the evidence for docs/service-contract.md'
 
 apply plugin: 'application'
 
 application {
-    mainClass = 'au.com.azwork.idm.entitlementsaccelerator.probe.ProbeMain'
+    mainClass = 'idm.entitlementsaccelerator.probe.ProbeMain'
 }
 
 dependencies {
@@ -11,7 +11,7 @@ dependencies {
 }
 
 // The probe is run by people against a test instance, never by CI against anything real.
-// Example: GRAPH_PROBE_API_KEY=... ./gradlew :contract-probe:run --args="--base-url https://graph.test.example"
+// Example: ACCELERATOR_PROBE_API_KEY=... ./gradlew :contract-probe:run --args="--base-url https://accelerator.test.example"
 tasks.named('run') {
     workingDir = rootProject.projectDir
 }

@@ -32,7 +32,7 @@ Unpack the zip over the IDM installation directory (`<idm>`):
 ```text
 connectors/entitlementsaccelerator/scripts/*.groovy     the seven ICF operation scripts
 connectors/entitlementsaccelerator/lib/au/…/*.groovy    the connector library, as Groovy sources (script_vs_jar.md)
-script/lib/entitlementsacceleratorPayload.js            the mapping library
+script/lib/entitlementsAcceleratorPayload.js            the mapping library
 samples/                                    provisioner, mapping and schedule samples
 VERSION
 ```
@@ -70,7 +70,7 @@ VERSION
 
    ```json
    "onUpdate": { "type": "text/javascript",
-                 "source": "require('lib/entitlementsacceleratorPayload').onIdPropertyChange(newObject, oldObject, 'user');" }
+                 "source": "require('lib/entitlementsAcceleratorPayload').onIdPropertyChange(newObject, oldObject, 'user');" }
    ```
 
    If the type already has an `onUpdate` script, call the guard from inside that script.
@@ -83,9 +83,10 @@ VERSION
 ## 3. Onboarding (initial load)
 
 1. **Implicit sync off** (`"enableSync": false` on the entitlementsaccelerator mappings) during the initial load. Never run the onboarding reconciliation and live sync together.
-2. **Resource types first, then subject types.** Reconcile `managedAccount_systementitlementsacceleratorAccount`, then `managedUser_systementitlementsacceleratorUser`.
-   - A user's relationships then find their accounts already in the service.
-   - In the other order, each user write logs `dropped edge <user> -Owns-> <account>`. The account's own write heals it a moment later (design Appendix A). That's harmless, but it's noise.
+2. **Reconcile both types, one straight after the other:** `managedAccount_systemEntitlementsacceleratorAccount`, then `managedUser_systemEntitlementsacceleratorUser`. The other order works the same way.
+   - **Expect one `dropped edge <user> -Owns-> <account>` WARN per relationship** during the first reconciliation, whichever type it is. The first entity written finds the other end of its relationship absent, so the service drops it.
+   - The second reconciliation's write heals each one (design Appendix A). That's harmless, but it's noise. Only a drop *after* both reconciliations needs attention.
+   - *Corrected 2026-11-22:* this section used to say that accounts first avoided the warnings. The load test showed every warning logged during the account reconciliation (`docs/load-testing.md` §6).
 3. **Review each reconciliation** (section 5): failures should be 0. Every source entity is `ABSENT` → `CREATE` the first time. Orphans (`UNASSIGNED` and so on) are entities already in the service without an IDM counterpart: review them with the service owner, never delete them by hand.
 4. **Turn implicit sync on**, then enable the schedules.
 
@@ -105,7 +106,7 @@ Load them as `config/schedule/recon-entitlementsaccelerator-account` and `…-us
   | Accounts, first load | 1 min 35 s | 1.9 ms |
   | Users, steady state (one PUT per user, below) | 2 min 43 s | 3.3 ms |
 
-  - **The real service adds its own latency.** The stand-in answers in well under a millisecond. Against the real service, add roughly *entities × one write's round trip ÷ `taskThreads`*. For example, at 50 ms per write, 50,000 users at 4 threads adds about 10 minutes. Measure it in the dry run (section 10), and size the schedules from that.
+  - **The real service adds its own latency.** The stand-in answers in well under a millisecond. Against the real service, add roughly *entities × one write's round trip ÷ `taskThreads`*. For example, at 50 ms per write, 50,000 users at 4 threads adds about 10 minutes. Measure it with the load test against the service's test tenant (`docs/load-testing.md`), and in the dry run (section 10). Size the schedules from that.
   - **Threads.** The generated mappings use `taskThreads: 4` (IDM's default is 10). That setting was shown to converge under concurrent implicit sync, at 50,000 users with 500 changes during the run (WS8.10).
   - **Memory.** IDM stayed at about 3 GiB throughout. Give IDM a heap of at least 4 GiB at this size (`-Xmx4g`).
   - Keep the two schedules from overlapping.
@@ -209,6 +210,8 @@ Every write restates IDM's state in full, so a stale write can briefly undo a ne
 | **No drift detection (P16)** | Out-of-band changes persist until the entity is next written | WS10 |
 
 ## 10. Non-production dry run (WS9.06)
+
+*The dry run reads the real service and writes nothing. To measure volume and latency with writes, use the load test against a test tenant: `docs/load-testing.md`.*
 
 The dry run shows what the first real reconciliation will do, without writing anything:
 - IDM with production-like data, in a non-production environment;
