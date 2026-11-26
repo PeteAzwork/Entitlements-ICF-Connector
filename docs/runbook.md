@@ -1,4 +1,4 @@
-# Runbook: Graph Entity Service connector for Ping IDM 7.5
+# Runbook: Entitlements Accelerator Service connector for Ping IDM 7.5
 
 **Audience:** IDM operators and support.
 **Covers:** installation (plan WS7.08), onboarding, schedules, monitoring, reading the logs, known issues, key rotation, troubleshooting, the non-production dry run, and upgrades (WS9.01–9.03, 9.06).
@@ -6,8 +6,8 @@
 
 ## 1. What the connector does, and what it does not
 
-It synchronises IDM managed objects **one way**, from IDM to the Graph Entity Service:
-- **Each configured type** (for example `user`, `account`) is its own object class, `system/graphentity/<type>`.
+It synchronises IDM managed objects **one way**, from IDM to the Entitlements Accelerator Service:
+- **Each configured type** (for example `user`, `account`) is its own object class, `system/entitlementsaccelerator/<type>`.
 - **Each write restates the whole entity** (P15): its attributes, its archetypes and every relationship touching it, assembled from IDM's state by the mapping library.
 
 At this stage (milestone M5) it does **not**:
@@ -23,54 +23,54 @@ At this stage (milestone M5) it does **not**:
 - **IDM 7.5.** The image `gcr.io/forgerock-io/idm:7.5.0` was used for testing. It ships the Scripted REST connector 1.5.20.21, Groovy 3.0.9, Rhino 1.7.14 and runs on JDK 17.
 - **The service's API key, and its URL over https.** Plain http is accepted only for localhost (section 7).
 - **The release artefacts:** `./gradlew :connector:distZip :discovery:distZip` produces:
-  - `graphentity-connector-<version>.zip`, for the IDM servers. Its `VERSION` file records the commit and the library mode.
-  - `graphentity-discovery-<version>.zip`, the discovery tool, for a workstation with Java 17 or later.
+  - `entitlementsaccelerator-connector-<version>.zip`, for the IDM servers. Its `VERSION` file records the commit and the library mode.
+  - `entitlementsaccelerator-discovery-<version>.zip`, the discovery tool, for a workstation with Java 17 or later.
 
 ### 2.2 Copy the artefact
 Unpack the zip over the IDM installation directory (`<idm>`):
 
 ```text
-connectors/graphentity/scripts/*.groovy     the seven ICF operation scripts
-connectors/graphentity/lib/au/…/*.groovy    the connector library, as Groovy sources (script_vs_jar.md)
-script/lib/graphEntityPayload.js            the mapping library
+connectors/entitlementsaccelerator/scripts/*.groovy     the seven ICF operation scripts
+connectors/entitlementsaccelerator/lib/au/…/*.groovy    the connector library, as Groovy sources (script_vs_jar.md)
+script/lib/entitlementsAcceleratorPayload.js            the mapping library
 samples/                                    provisioner, mapping and schedule samples
 VERSION
 ```
 
 - **Permissions:** the files must be readable by the IDM process user (uid 11111 in the image).
 - **No edits on the server:** deploy only from the release artefact, so servers don't drift from it.
-- **Jar instead of sources:** if the deployment uses the library as a jar (`-PlibraryAs=jar`), `lib/` holds `graphentity-connector-lib.jar`, and the provisioner's `classpath` must name that file.
+- **Jar instead of sources:** if the deployment uses the library as a jar (`-PlibraryAs=jar`), `lib/` holds `entitlementsaccelerator-connector-lib.jar`, and the provisioner's `classpath` must name that file.
 
 ### 2.3 Generate and load the configuration
 1. **Generate** `objectTypes`, the provisioner and the mapping skeletons with the discovery tool, from the live `managed.json`. Write your answers to the tool's prompts (entity kinds, ID properties, archetypes, relationship overrides) in `answers.json`. Use the read-only IDM account, with its password in the environment:
 
    ```bash
-   IDM_DISCOVERY_PASSWORD=… graphentity-discovery-<version>/bin/discovery --idm-url https://idm.example.com \
+   IDM_DISCOVERY_PASSWORD=… entitlementsaccelerator-discovery-<version>/bin/discovery --idm-url https://idm.example.com \
        --idm-user discovery-reader --types user,account --answers answers.json \
-       --current samples/provisioner.openicf-graphentity.json --out generated
+       --current samples/provisioner.openicf-entitlementsaccelerator.json --out generated
    ```
 
    Or offline, from an export of `managed.json`: `--managed managed.json` in place of `--idm-url` and `--idm-user` (deployment guide §6.1).
 
    Review the printed warnings, errors and diff. Nothing is written if there are errors.
-2. **Edit `generated/provisioner.openicf-graphentity.json`:**
+2. **Edit `generated/provisioner.openicf-entitlementsaccelerator.json`:**
    - `serviceAddress`: the service's https URL;
    - `password`: the service's API key. IDM encrypts it when the configuration is saved. Never commit it.
    - Leave `username` empty and `defaultAuthMethod` as `NONE`, so IDM adds no credentials of its own (P13).
-3. **Generate the object types, then save once.** Run `POST <idm>/openidm/system?_action=createFullConfig` with that file as the body, then `PUT` the response to `config/provisioner.openicf/graphentity`.
+3. **Generate the object types, then save once.** Run `POST <idm>/openidm/system?_action=createFullConfig` with that file as the body, then `PUT` the response to `config/provisioner.openicf/entitlementsaccelerator`.
    - The response carries the `objectTypes`; IDM does not fill them in by itself (H10).
    - **Do not save the provisioner first and then call `createFullConfig`.** On a fresh IDM, two first initialisations at once fail, with a `LinkageError` or a Groovy `BUG! exception` (H11, `script_vs_jar.md`).
    - **Alternative:** put the full provisioner in `conf/` before starting IDM.
-   - **One provisioner change at a time.** IDM silently discards a save that arrives while it is still applying the previous one (H21). After each save, wait for `OpenICF Provisioner Service component graphentity is activated` in IDM's log, then check that `GET config/provisioner.openicf/graphentity` shows your change.
+   - **One provisioner change at a time.** IDM silently discards a save that arrives while it is still applying the previous one (H21). After each save, wait for `OpenICF Provisioner Service component entitlementsaccelerator is activated` in IDM's log, then check that `GET config/provisioner.openicf/entitlementsaccelerator` shows your change.
 4. **Check the connector:**
-   - `POST system/graphentity?_action=test` answers `"ok": true`;
+   - `POST system/entitlementsaccelerator?_action=test` answers `"ok": true`;
    - its `objectTypes` list `user` and `account`;
-   - `GET system/graphentity/user?_queryFilter=true&_pageSize=1` answers.
+   - `GET system/entitlementsaccelerator/user?_queryFilter=true&_pageSize=1` answers.
 5. **Managed objects.** Every relationship property you sync needs `reversePropertyName` on both sides. For each synced type, add the ID-change guard (WS9.04, section 6.4) as its `onUpdate` hook:
 
    ```json
    "onUpdate": { "type": "text/javascript",
-                 "source": "require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'user');" }
+                 "source": "require('lib/entitlementsAcceleratorPayload').onIdPropertyChange(newObject, oldObject, 'user');" }
    ```
 
    If the type already has an `onUpdate` script, call the guard from inside that script.
@@ -82,8 +82,8 @@ VERSION
 
 ## 3. Onboarding (initial load)
 
-1. **Implicit sync off** (`"enableSync": false` on the graphentity mappings) during the initial load. Never run the onboarding reconciliation and live sync together.
-2. **Reconcile both types, one straight after the other:** `managedAccount_systemGraphentityAccount`, then `managedUser_systemGraphentityUser`. The other order works the same way.
+1. **Implicit sync off** (`"enableSync": false` on the entitlementsaccelerator mappings) during the initial load. Never run the onboarding reconciliation and live sync together.
+2. **Reconcile both types, one straight after the other:** `managedAccount_systemEntitlementsacceleratorAccount`, then `managedUser_systemEntitlementsacceleratorUser`. The other order works the same way.
    - **Expect one `dropped edge <user> -Owns-> <account>` WARN per relationship** during the first reconciliation, whichever type it is. The first entity written finds the other end of its relationship absent, so the service drops it.
    - The second reconciliation's write heals each one (design Appendix A). That's harmless, but it's noise. Only a drop *after* both reconciliations needs attention.
    - *Corrected 2026-11-22:* this section used to say that accounts first avoided the warnings. The load test showed every warning logged during the account reconciliation (`docs/load-testing.md` §6).
@@ -92,11 +92,11 @@ VERSION
 
 ## 4. Reconciliation schedules (WS9.02)
 
-`samples/schedule-recon-graphentity-account.json` and `…-user.json` reconcile nightly:
+`samples/schedule-recon-entitlementsaccelerator-account.json` and `…-user.json` reconcile nightly:
 - accounts at 01:15 and users at 02:15, server time, resources first;
 - with `concurrentExecution: false`.
 
-Load them as `config/schedule/recon-graphentity-account` and `…-user`. The integration suite checks that IDM accepts them.
+Load them as `config/schedule/recon-entitlementsaccelerator-account` and `…-user`. The integration suite checks that IDM accepts them.
 
 - **Duration.** Measured at 50,000 users and 50,000 accounts (WS8.11), on a 4-CPU, 16 GiB test host with an in-memory stand-in for the service and `taskThreads: 4`:
 
@@ -115,17 +115,17 @@ Load them as `config/schedule/recon-graphentity-account` and `…-user`. The int
 
 ## 5. Monitoring (WS9.03)
 
-`ops/graphentity_health.py` summarises the signals below. It needs Python 3 and nothing else, and reads `IDM_URL`, `IDM_USER` and `IDM_PASSWORD` from the environment:
+`ops/entitlementsaccelerator_health.py` summarises the signals below. It needs Python 3 and nothing else, and reads `IDM_URL`, `IDM_USER` and `IDM_PASSWORD` from the environment:
 
 ```bash
-IDM_USER=… IDM_PASSWORD=… ops/graphentity_health.py --hours 24 --log <idm>/logs/openidm0.log.0
+IDM_USER=… IDM_PASSWORD=… ops/entitlementsaccelerator_health.py --hours 24 --log <idm>/logs/openidm0.log.0
 ```
 
 It exits 0 when healthy, 1 when something needs attention, and 2 when it cannot check.
 
 | Signal | Where | Normal | Act when |
 |---|---|---|---|
-| Connector Test | `POST system/graphentity?_action=test` | `ok: true` | Fails: see section 8 |
+| Connector Test | `POST system/entitlementsaccelerator?_action=test` | `ok: true` | Fails: see section 8 |
 | Reconciliation result | `GET recon`, `audit/recon` | `SUCCESS`, 0 failures | Any failure, or a state other than `SUCCESS` |
 | Orphans reported | Reconciliation `situationSummary`: `UNASSIGNED`, `UNQUALIFIED`, `TARGET_IGNORED` | Stable, and agreed with the service owner | A rise: something else is writing to the service (A1), or correlation broke |
 | Sync failures | `audit/sync` with `status eq "FAILURE"` | 0 | Any: the message names the entity and the HTTP status |
@@ -179,7 +179,7 @@ Every write restates IDM's state in full, so a stale write can briefly undo a ne
   1. Agree the time.
   2. Change the key in the service.
   3. Set the new key in the provisioner's `password` straight away, with an IDM admin `PUT` or the admin UI.
-  4. **Check that it took effect:** the Test operation (`POST system/graphentity?_action=test`) returns `ok: true`. If it still fails with 401, IDM may have discarded the save because another provisioner change was still being applied (H21): wait for the connector's `is activated` log line and save again.
+  4. **Check that it took effect:** the Test operation (`POST system/entitlementsaccelerator?_action=test`) returns `ok: true`. If it still fails with 401, IDM may have discarded the save because another provisioner change was still being applied (H21): wait for the connector's `is activated` log line and save again.
 - **No restart needed.** IDM re-initialises the connector when its configuration changes; the integration suite shows a changed key taking effect without a restart.
 - **Writes that fail between steps 2 and 3** fail with 401 and are repaired by the next reconciliation.
 - **Leaks.** A leaked key exposes every consumer of the service. Rotate immediately, and tell the service team.
@@ -188,12 +188,12 @@ Every write restates IDM's state in full, so a stale write can briefly undo a ne
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `system/graphentity/<type>` not found; reconciliation fails at once | The provisioner has no `objectTypes` (H10) | Section 2.3, step 3 |
+| `system/entitlementsaccelerator/<type>` not found; reconciliation fails at once | The provisioner has no `objectTypes` (H10) | Section 2.3, step 3 |
 | First `createFullConfig` after a start fails with `LinkageError` or `BUG! exception in phase 'semantic analysis'` | Two first initialisations at once (H11) | Use the order in section 2.3, step 3. Once the connector has initialised, retrying works |
 | `buildArchetypes needs the source object` / a transform receives no source | The mapping lacks `"source": ""` on the library transforms (H12) | Regenerate or edit the mapping; the lint catches it |
 | A managed delete leaves the entity in the service | `SOURCE_MISSING` is not `DELETE` in the mapping (H13) | The generated policies have `SOURCE_MISSING: DELETE`; check older mappings |
 | A configuration change seems ignored | IDM applies configuration asynchronously (H14) | Wait a few seconds; for mappings, check `GET sync/mappings` |
-| A provisioner save was accepted (200), but `GET` shows the old configuration and the connector behaves as before | IDM discarded it: it arrived while IDM was still applying an earlier save (H21) | Wait for `component graphentity is activated` in the log, then save again and check with `GET` and the Test operation |
+| A provisioner save was accepted (200), but `GET` shows the old configuration and the connector behaves as before | IDM discarded it: it arrived while IDM was still applying an earlier save (H21) | Wait for `component entitlementsaccelerator is activated` in the log, then save again and check with `GET` and the Test operation |
 | A relationship removed in IDM stays in the service | The entity has no relationships left, so the write sends an empty list, which the service ignores today (C17, a service bug) | Known issue, section 9 |
 | Updates sent in quick succession are lost | The service can drop a write that follows another closely (C13) | The next write or reconciliation restates it |
 
@@ -227,7 +227,7 @@ The dry run shows what the first real reconciliation will do, without writing an
    - `AMBIGUOUS`: correlation found more than one candidate, so it must be fixed before go-live;
    - any failures.
 4. **Review the counts with operations and the service owner.** Compare them with the service's own entity counts per type and archetype. Unexpected orphans mean correlation or scoping (the scope archetype, P19) needs attention.
-5. **Health report.** Run `ops/graphentity_health.py` and keep its output with the counts as the dry-run record for the go-live decision.
+5. **Health report.** Run `ops/entitlementsaccelerator_health.py` and keep its output with the counts as the dry-run record for the go-live decision.
 6. **Then the real load.** Replace the mappings with the normal generated ones and follow section 3.
 
 ## 11. Upgrading IDM

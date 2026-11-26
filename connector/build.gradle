@@ -1,6 +1,6 @@
-description = 'Groovy Scripted REST connector scripts and supporting library for the Graph Entity Service'
+description = 'Groovy Scripted REST connector scripts and supporting library for the Entitlements Accelerator Service'
 
-// Test fixtures (FakeGraphService, FakeGraphHttpServer) are shared with other subprojects' tests,
+// Test fixtures (FakeAcceleratorService, FakeAcceleratorHttpServer) are shared with other subprojects' tests,
 // e.g. the contract probe, via testImplementation(testFixtures(project(':connector'))).
 apply plugin: 'java-test-fixtures'
 
@@ -65,14 +65,14 @@ check.dependsOn 'compileWithIdmGroovy'
 tasks.register('libraryJar', Jar) {
     group = 'distribution'
     description = 'Packages the compiled connector library, without the scripts, for the provisioner classpath'
-    archiveBaseName = 'graphentity-connector-lib'
+    archiveBaseName = 'entitlementsaccelerator-connector-lib'
     from(sourceSets.main.output) {
         exclude '*Script.class', '*Script$*.class'   // the scripts compile to the default package; the harness loads them from scriptRoots
     }
 }
 
-// Assemble what is copied into <idm>/connectors/graphentity. By default the library goes in as Groovy sources under
-// lib/, which the provisioner's classpath names (script_vs_jar.md); -PlibraryAs=jar puts lib/graphentity-connector-lib.jar
+// Assemble what is copied into <idm>/connectors/entitlementsaccelerator. By default the library goes in as Groovy sources under
+// lib/, which the provisioner's classpath names (script_vs_jar.md); -PlibraryAs=jar puts lib/entitlementsaccelerator-connector-lib.jar
 // there instead, and the classpath must then name the jar file.
 def libraryAsJar = project.findProperty('libraryAs') == 'jar'
 tasks.register('connectorScripts', Sync) {   // Sync, not Copy: nothing stale is left behind
@@ -82,18 +82,18 @@ tasks.register('connectorScripts', Sync) {   // Sync, not Copy: nothing stale is
     if (libraryAsJar) {
         from(tasks.named('libraryJar')) {
             into 'lib'
-            rename { 'graphentity-connector-lib.jar' }
+            rename { 'entitlementsaccelerator-connector-lib.jar' }
         }
     } else {
         from('src/main/groovy') { into 'lib' }
     }
-    from('../config') { include 'provisioner.openicf-graphentity.json' }
+    from('../config') { include 'provisioner.openicf-entitlementsaccelerator.json' }
     into layout.buildDirectory.dir('connector-scripts')
 }
 
 // WS7.01: one artefact laid out like an IDM installation, so it unpacks over <idm>:
-//   connectors/graphentity/{scripts,lib}   the connector (lib/ as sources, or the jar with -PlibraryAs=jar)
-//   script/lib/graphEntityPayload.js       the mapping library
+//   connectors/entitlementsaccelerator/{scripts,lib}   the connector (lib/ as sources, or the jar with -PlibraryAs=jar)
+//   script/lib/entitlementsAcceleratorPayload.js       the mapping library
 //   samples/                               provisioner, mapping and schedule samples, to generate or adapt (runbook §2)
 //   VERSION                                version, git commit, library mode and build time
 def gitCommit = providers.exec {
@@ -106,12 +106,12 @@ tasks.register('idmDist', Sync) {
     description = 'Assembles build/idm-dist, laid out like an IDM installation (connector, mapping library, samples, VERSION)'
     into layout.buildDirectory.dir('idm-dist')
     from(tasks.named('connectorScripts')) {
-        exclude 'provisioner.openicf-graphentity.json'
-        into 'connectors/graphentity'
+        exclude 'provisioner.openicf-entitlementsaccelerator.json'
+        into 'connectors/entitlementsaccelerator'
     }
     from('../mapping-lib/src/lib') { into 'script/lib' }
     from('../config') {
-        include 'provisioner.openicf-graphentity.json', 'sync-*.json', 'schedule-*.json'
+        include 'provisioner.openicf-entitlementsaccelerator.json', 'sync-*.json', 'schedule-*.json'
         into 'samples'
     }
     def version = project.version.toString()
@@ -128,18 +128,18 @@ tasks.register('idmDist', Sync) {
 
 tasks.register('distZip', Zip) {
     group = 'distribution'
-    description = 'Zips build/idm-dist into build/distributions/graphentity-connector-<version>.zip'
+    description = 'Zips build/idm-dist into build/distributions/entitlementsaccelerator-connector-<version>.zip'
     from(tasks.named('idmDist'))
-    archiveBaseName = 'graphentity-connector'
+    archiveBaseName = 'entitlementsaccelerator-connector'
     destinationDirectory = layout.buildDirectory.dir('distributions')
 }
 
 // WS7.06: the in-memory service stand-in on its own, for a local IDM (dev/README.md).
 tasks.register('runFakeService', JavaExec) {
     group = 'application'
-    description = 'Runs the in-memory Graph Entity Service stand-in on port 5276 (GRAPH_FAKE_PORT) for development'
+    description = 'Runs the in-memory Entitlements Accelerator Service stand-in on port 5276 (ACCELERATOR_FAKE_PORT) for development'
     classpath = sourceSets.testFixtures.runtimeClasspath
-    mainClass = 'au.com.azwork.idm.graphentity.support.FakeServiceMain'
+    mainClass = 'idm.entitlementsaccelerator.support.FakeServiceMain'
     // Without it the JDK HTTP server's Nagle delay adds ~40 ms to every exchange, and timings measure the stand-in (H20).
     systemProperty 'sun.net.httpserver.nodelay', 'true'
 }

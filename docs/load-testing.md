@@ -8,7 +8,7 @@
 - what the service does under that load: 429s, 5xx, lost writes;
 - how much memory IDM needs.
 
-**The tool:** `graphentity-loadtest` (`loadtest/`).
+**The tool:** `entitlementsaccelerator-loadtest` (`loadtest/`).
 
 ## 1. What it does
 
@@ -46,11 +46,11 @@ What the guards cannot know:
 
 ## 3. Running it
 
-Build it, or take `graphentity-loadtest-<version>.zip` from CI's `release-zips`:
+Build it, or take `entitlementsaccelerator-loadtest-<version>.zip` from CI's `release-zips`:
 
 ```bash
-./gradlew :loadtest:installDist         # loadtest/build/install/graphentity-loadtest/bin/graphentity-loadtest
-# or: ./gradlew :loadtest:distZip       # loadtest/build/distributions/graphentity-loadtest-<version>.zip
+./gradlew :loadtest:installDist         # loadtest/build/install/entitlementsaccelerator-loadtest/bin/entitlementsaccelerator-loadtest
+# or: ./gradlew :loadtest:distZip       # loadtest/build/distributions/entitlementsaccelerator-loadtest-<version>.zip
 ```
 
 It needs Java 17 or later on the machine that runs it. It doesn't need to run on the IDM server.
@@ -63,7 +63,7 @@ This is the usual case: IDM and the service as containers. The tool runs on the 
 export LOADTEST_API_KEY=…          # the service's key, as configured in the service container
 export LOADTEST_IDM_PASSWORD=…     # IDM's admin password (the image's default is openidm-admin)
 
-graphentity-loadtest \
+entitlementsaccelerator-loadtest \
   --idm-url http://localhost:8080/openidm \
   --service-url http://localhost:<service's published port> \
   --idm-service-url http://<service's compose name>:<its port inside the network> \
@@ -73,7 +73,7 @@ graphentity-loadtest \
   --users 10000 --changes 1000 --rate 50
 ```
 
-- **The connector's files must be in the IDM container** before `--configure`: `connectors/graphentity/` and `script/lib/graphEntityPayload.js`, mounted or copied from the release zip, owned by IDM's user (deployment guide §4). If they aren't there, `configure` fails, saying that `createFullConfig` returned no object types.
+- **The connector's files must be in the IDM container** before `--configure`: `connectors/entitlementsaccelerator/` and `script/lib/entitlementsAcceleratorPayload.js`, mounted or copied from the release zip, owned by IDM's user (deployment guide §4). If they aren't there, `configure` fails, saying that `createFullConfig` returned no object types.
 - **`--idm-container`** lets the tool read IDM's log file through `docker exec`. It then confirms provisioner saves from IDM's activation lines (H21), and counts what the connector logged during the run: 429s, 5xx, dropped relationships, warnings. Without it, saves are confirmed by checking the stored configuration and running the Test operation, and the report has no log section.
 - **Run once with `--configure`,** then without it for repeat runs; the configuration stays. Give each run a new `--run-id`, or let it default to the time.
 - **TLS:** if the service uses https with a private CA, IDM must trust it (deployment guide §5.1), and so must the JVM running the tool (`-Djavax.net.ssl.trustStore=…` in `JAVA_OPTS`).
@@ -82,7 +82,7 @@ graphentity-loadtest \
 
 Leave out `--configure`. The IDM must already have:
 - the connector, with a passing Test;
-- the two mappings, by default `managedUser_systemGraphentityUser` and `managedAccount_systemGraphentityAccount` (rename them with `--user-mapping` and `--account-mapping`);
+- the two mappings, by default `managedUser_systemEntitlementsacceleratorUser` and `managedAccount_systemEntitlementsacceleratorAccount` (rename them with `--user-mapping` and `--account-mapping`);
 - `managed/account` with `accountId` and `ownedBy`, as in the deployment's model;
 - the relationship type, if the service calls it something other than `Owns`: `--relationship-type`.
 
@@ -90,7 +90,7 @@ Add the IDM's host and the service's host to `--allowed-hosts`.
 
 ### 3.3 Options
 
-`graphentity-loadtest --help` lists them all. The ones that shape the load:
+`entitlementsaccelerator-loadtest --help` lists them all. The ones that shape the load:
 
 | Option | Default | Effect |
 |---|---|---|

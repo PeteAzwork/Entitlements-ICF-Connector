@@ -1,13 +1,13 @@
 'use strict';
 /*
- * Loads graphEntityPayload.js the way IDM's Rhino would: in an isolated context with `openidm` and `logger`
+ * Loads entitlementsAcceleratorPayload.js the way IDM's Rhino would: in an isolated context with `openidm` and `logger`
  * globals and a CommonJS-style `exports`. Node's vm module stands in for Rhino; the library must stay ES5.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const LIB = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'graphEntityPayload.js'), 'utf8');
+const LIB = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'entitlementsAcceleratorPayload.js'), 'utf8');
 
 /** The §6 objectTypes document, with discovery-emitted relatedType/reverseProperty hints. */
 function objectTypes() {
@@ -51,7 +51,7 @@ function fakeOpenidm(store, opts) {
     opts = opts || {};
     const calls = [];
     const provisioner = {
-        _id: 'provisioner.openicf/graphentity',
+        _id: 'provisioner.openicf/entitlementsaccelerator',
         configurationProperties: {
             serviceAddress: 'http://localhost:5276',
             customConfiguration: "objectTypes='" + JSON.stringify(opts.objectTypes || objectTypes()).replace(/'/g, "\\'") + "'"
@@ -62,7 +62,7 @@ function fakeOpenidm(store, opts) {
         calls,
         read(id, params, fields) {
             calls.push({ op: 'read', id, fields: fields || null });
-            if (id === 'config/provisioner.openicf/graphentity') return JSON.parse(JSON.stringify(provisioner));
+            if (id === 'config/provisioner.openicf/entitlementsaccelerator') return JSON.parse(JSON.stringify(provisioner));
             if (id === 'config/managed') return JSON.parse(JSON.stringify(managed));
             if (id === 'config/sync') return JSON.parse(JSON.stringify(opts.sync || { mappings: [] }));
             const obj = store[id];
@@ -98,7 +98,7 @@ function load(openidm, extraGlobals) {
     };
     Object.assign(context, extraGlobals || {});
     vm.createContext(context);
-    vm.runInContext(LIB, context, { filename: 'graphEntityPayload.js' });
+    vm.runInContext(LIB, context, { filename: 'entitlementsAcceleratorPayload.js' });
     return { lib: sameRealm(context.exports), logs };
 }
 

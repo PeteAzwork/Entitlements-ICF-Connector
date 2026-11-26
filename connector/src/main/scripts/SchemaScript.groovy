@@ -5,9 +5,9 @@
  * through `builder.schema { }` and returns nothing. SchemaDsl hands it the schema SchemaFactory builds from the
  * configuration. The Schema is also returned, which the harness ignores. No HTTP calls.
  */
-import au.com.azwork.idm.graphentity.ops.SchemaOperation
-import au.com.azwork.idm.graphentity.ops.ScriptSupport
-import au.com.azwork.idm.graphentity.schema.SchemaDsl
+import idm.entitlementsaccelerator.ops.SchemaOperation
+import idm.entitlementsaccelerator.ops.ScriptSupport
+import idm.entitlementsaccelerator.schema.SchemaDsl
 import org.identityconnectors.framework.spi.Connector
 
 def ctx = ScriptSupport.contextFrom(configuration, null, log)

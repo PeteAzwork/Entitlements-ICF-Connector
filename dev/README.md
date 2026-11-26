@@ -1,6 +1,6 @@
 # Local development stack (WS7.06)
 
-A local IDM 7.5 with the connector from your build. It can use an in-memory stand-in for the Graph Entity Service, or a real test tenant.
+A local IDM 7.5 with the connector from your build. It can use an in-memory stand-in for the Entitlements Accelerator Service, or a real test tenant.
 
 ```bash
 ./gradlew :connector:idmDist                  # build what IDM mounts (connector, mapping library)
@@ -22,9 +22,9 @@ dev/load-config.sh                            # provisioner via createFullConfig
   - Generate them with the discovery tool, as in the runbook (`docs/runbook.md` §2.3), and load them over IDM's REST API.
   - For a ready-made pair, use the integration fixture: `integration/src/test/resources/idm/managed.json` (IDM's default `managed.json` plus `account` with the `owns`/`ownedBy` pair, and the ID-change guard).
 - **Settings for the stand-in** (`FakeServiceMain`), all from the environment:
-  - `GRAPH_FAKE_PORT` (default 5276);
-  - `GRAPH_FAKE_BIND` (default 0.0.0.0, so the container can reach it);
-  - `GRAPH_FAKE_API_KEY` (default `dev-api-key`).
+  - `ACCELERATOR_FAKE_PORT` (default 5276);
+  - `ACCELERATOR_FAKE_BIND` (default 0.0.0.0, so the container can reach it);
+  - `ACCELERATOR_FAKE_API_KEY` (default `dev-api-key`).
 
   It keeps everything in memory and has the service's known HTTP behaviour. It is for development only: don't expose it beyond your machine.
 - **Load test:** to measure this stack end to end, see `docs/load-testing.md`. `runFakeService` turns off the JDK HTTP server's Nagle delay, so the stand-in adds no time of its own (H20).

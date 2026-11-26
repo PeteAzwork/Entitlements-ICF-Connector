@@ -44,7 +44,7 @@ Going live at M5 is reasonable when **IDM is the only writer to the service (A1)
 
 Walk support through the following, and record attendance:
 1. **Runbook §1:** what the connector does and does not do at M5.
-2. **Runbook §5:** the health report (`ops/graphentity_health.py`), what each signal means, and when to act.
+2. **Runbook §5:** the health report (`ops/entitlementsaccelerator_health.py`), what each signal means, and when to act.
 3. **Runbook §6:** reading the logs. Cover the dropped-relationship WARN, doubled writes, self-correcting intermediate states, ID changes, and messages by HTTP status.
 4. **Runbook §7:** key rotation, and what to do if the key leaks.
 5. **Runbook §8 and §9:** troubleshooting, and the known issues with their owners.

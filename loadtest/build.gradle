@@ -1,4 +1,4 @@
-description = 'End-to-end load test: drives a real IDM with the connector against a real (or stand-in) Graph Entity Service, and verifies the service over HTTP'
+description = 'End-to-end load test: drives a real IDM with the connector against a real (or stand-in) Entitlements Accelerator Service, and verifies the service over HTTP'
 
 apply plugin: 'application'
 
@@ -8,13 +8,13 @@ dependencies {
 }
 
 application {
-    mainClass = 'au.com.azwork.idm.graphentity.loadtest.LoadTestMain'
-    applicationName = 'graphentity-loadtest'
+    mainClass = 'idm.entitlementsaccelerator.loadtest.LoadTestMain'
+    applicationName = 'entitlementsaccelerator-loadtest'
     applicationDefaultJvmArgs = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
 }
 
 distributions {
-    main { distributionBaseName = 'graphentity-loadtest' }
+    main { distributionBaseName = 'entitlementsaccelerator-loadtest' }
 }
 
 // --configure loads the same model the integration suite uses: IDM's managed.json plus `account` and the owns/ownedBy
@@ -25,7 +25,7 @@ processResources {
         into 'loadtest'
     }
     from('../config') {
-        include 'provisioner.openicf-graphentity.json'
+        include 'provisioner.openicf-entitlementsaccelerator.json'
         into 'loadtest'
     }
 }

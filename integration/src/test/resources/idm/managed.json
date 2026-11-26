@@ -1099,7 +1099,7 @@
       },
       "onUpdate": {
         "type": "text/javascript",
-        "source": "require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'user');"
+        "source": "require('lib/entitlementsAcceleratorPayload').onIdPropertyChange(newObject, oldObject, 'user');"
       }
     },
     {
@@ -2030,7 +2030,7 @@
       },
       "onUpdate": {
         "type": "text/javascript",
-        "source": "require('lib/graphEntityPayload').onIdPropertyChange(newObject, oldObject, 'account');"
+        "source": "require('lib/entitlementsAcceleratorPayload').onIdPropertyChange(newObject, oldObject, 'account');"
       }
     }
   ]

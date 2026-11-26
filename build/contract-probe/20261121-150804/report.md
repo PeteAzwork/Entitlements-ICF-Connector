@@ -63,7 +63,7 @@ These follow from the answers above. Check them before changing any code.
 | Page size parameter | — | `PageCursor.toQuery` |
 | Offset parameter | — | `PageCursor.toQuery` |
 | Cursor | — | `PageCursor` |
-| Response envelope | — | `PageCursor.next`, `FakeGraphService.search` |
+| Response envelope | — | `PageCursor.next`, `FakeAcceleratorService.search` |
 | Last-updated field | — | `EntityDocument`, `EntityDecoder` |
 | Ambiguous archetypes | none seen | `TypeScoper` (P5) |
 

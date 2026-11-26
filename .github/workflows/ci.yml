@@ -13,7 +13,10 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          # JDK 21 builds and tests (build.gradle's toolchain); JDK 17 runs compileWithIdmGroovy. The last is JAVA_HOME.
+          java-version: |
+            17
+            21
       - uses: gradle/actions/setup-gradle@v4
       - name: Test
         run: ./gradlew --no-daemon --continue test
@@ -69,7 +72,10 @@ jobs:
         if: env.FORGEROCK_MAVEN_USERNAME != ''
         with:
           distribution: temurin
-          java-version: '17'
+          # JDK 21 builds and tests (build.gradle's toolchain); JDK 17 runs compileWithIdmGroovy. The last is JAVA_HOME.
+          java-version: |
+            17
+            21
       - uses: gradle/actions/setup-gradle@v4
         if: env.FORGEROCK_MAVEN_USERNAME != ''
       - name: Test with the ForgeRock flavour

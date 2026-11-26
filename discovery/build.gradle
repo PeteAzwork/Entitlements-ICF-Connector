@@ -7,17 +7,17 @@ dependencies {
 }
 
 application {
-    mainClass = 'au.com.azwork.idm.graphentity.discovery.DiscoveryTool'
+    mainClass = 'idm.entitlementsaccelerator.discovery.DiscoveryTool'
     applicationName = 'discovery'
     // Print the tool's report as UTF-8 (it uses §), whatever the terminal's locale.
     applicationDefaultJvmArgs = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
 }
 
 // The release artefact for operators (docs/deployment-guide.md §3): ./gradlew :discovery:distZip writes
-// build/distributions/graphentity-discovery-<version>.zip, with bin/discovery (and discovery.bat) and its jars.
+// build/distributions/entitlementsaccelerator-discovery-<version>.zip, with bin/discovery (and discovery.bat) and its jars.
 // It needs Java 17 or later on the machine that runs it, not on the IDM servers.
 distributions {
-    main { distributionBaseName = 'graphentity-discovery' }
+    main { distributionBaseName = 'entitlementsaccelerator-discovery' }
 }
 
 // WS6.09: every mapping under config/ that targets the connector must map entityRelationships and
